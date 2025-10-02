@@ -1,16 +1,23 @@
 {
   "name": "capstone-vetclinic",
   "version": "1.0.0",
+  "description": "",
+  "private": true,
+  "type": "commonjs",
   "main": "server.js",
+  "engines": {
+    "node": ">=18.18"
+  },
   "scripts": {
-    "test": "echo \"No tests defined, skipping.\"",
     "start": "node server.js",
-    "prepare": "husky install"
+    "build": "echo \"(no build step)\"",
+    "lint": "eslint .",
+    "test": "echo \"No tests defined, skipping.\"",
+    "prepare": "node -e \"const fs=require('fs'),cp=require('child_process');if(process.env.SKIP_HUSKY){console.log('Skipping husky via SKIP_HUSKY');process.exit(0)}let has;try{require.resolve('husky');has=true}catch(e){has=false}if(has&&fs.existsSync('.git')){cp.execSync(process.platform==='win32'?'npx.cmd husky install':'npx husky install',{stdio:'inherit'})}else{console.log('Skipping husky (not installed or no .git)')}\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "apexcharts": "^4.7.0",
     "axios": "^1.8.3",
@@ -45,10 +52,9 @@
     "rivescript": "^1.19.0",
     "socket.io": "^4.8.1"
   },
-  "description": "",
   "devDependencies": {
     "eslint": "^9.22.0",
     "eslint-plugin-security": "^3.0.1",
-    "husky": "^8.0.0"
+    "husky": "^9.0.0"
   }
 }
