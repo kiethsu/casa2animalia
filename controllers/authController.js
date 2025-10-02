@@ -20,40 +20,29 @@ const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // ================================
-// SMTP Transport (Brevo)
+// Mail strategy & transporter
 // ================================
-const transporter = nodemailer.createTransport({
-  host: "smtp-relay.brevo.com",
-  port: 587,
+const NODE_ENV = process.env.NODE_ENV || "development";
+const MAIL_TRANSPORT = (process.env.MAIL_TRANSPORT || (NODE_ENV === "production" ? "api" : "smtp")).toLowerCase();
+const SENDER_EMAIL = process.env.SENDER_EMAIL || process.env.SMTP_EMAIL || "dehe.marquez.au@phinmaed.com";
+const SENDER_NAME  = process.env.SENDER_NAME  || "SmartVet";
+const MAIL_FROM = `"${SENDER_NAME}" <${SENDER_EMAIL}>`;
+
+const BREVO_KEY = process.env.BREVO_API_KEY || process.env.BREVO_SMS_API_KEY; // allow either env var name
+const apiEnabled  = !!BREVO_KEY;
+
+// Create SMTP transporter (used mainly for local dev)
+const smtpEnabled = !!(process.env.SMTP_EMAIL && process.env.SMTP_PASS);
+const smtpTransporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || "smtp-relay.brevo.com",
+  port: Number(process.env.SMTP_PORT || 587),
   secure: false,
-  auth: {
-    user: process.env.SMTP_EMAIL,
-    pass: process.env.SMTP_PASS
-  }
+  auth: smtpEnabled ? { user: process.env.SMTP_EMAIL, pass: process.env.SMTP_PASS } : undefined,
+  connectionTimeout: 10_000,
+  socketTimeout: 10_000,
 });
 
-// ================================
-/** Helpers: mail + captcha + utils */
-// ================================
-const MAIL_FROM =
-  process.env.SMTP_FROM ||
-  `"SmartVet" <${process.env.SMTP_EMAIL || "dehe.marquez.au@phinmaed.com"}>`;
-
-// Accept either env name for compatibility
-const BREVO_KEY = process.env.BREVO_API_KEY || process.env.BREVO_SMS_API_KEY;
-const hasBrevoApi = !!BREVO_KEY;
-
-let transporterVerified = false;
-async function ensureTransporterVerified() {
-  if (transporterVerified) return;
-  try {
-    await transporter.verify();
-    transporterVerified = true;
-    console.log("[MAIL] SMTP transporter verified OK");
-  } catch (e) {
-    console.error("[MAIL] SMTP transporter verify FAILED:", fullErr(e));
-  }
-}
+// Util
 function fullErr(e) {
   return JSON.stringify(e, Object.getOwnPropertyNames(e));
 }
@@ -61,57 +50,56 @@ function normEmail(v) {
   return (v || "").trim().toLowerCase();
 }
 
-/**
- * sendEmail: SMTP first, then fallback to Brevo HTTP API.
- */
+// ------------------------------
+// sendEmail: prefers API in prod
+// ------------------------------
+async function sendViaAPI({ to, subject, text, html }) {
+  const payload = {
+    sender: { email: SENDER_EMAIL, name: SENDER_NAME },
+    to: [{ email: to }],
+    subject,
+    textContent: text,
+    htmlContent: html || undefined,
+  };
+  const resp = await axios.post("https://api.brevo.com/v3/smtp/email", payload, {
+    headers: {
+      "api-key": BREVO_KEY,
+      "content-type": "application/json",
+      accept: "application/json",
+    },
+    timeout: 12_000,
+  });
+  return { ok: true, via: "api", info: resp.data };
+}
+
+async function sendViaSMTP({ to, subject, text, html }) {
+  if (!smtpEnabled) throw new Error("SMTP credentials not set");
+  const info = await smtpTransporter.sendMail({ from: MAIL_FROM, to, subject, text, html });
+  return { ok: true, via: "smtp", info };
+}
+
 async function sendEmail({ to, subject, text, html }) {
-  await ensureTransporterVerified();
-
-  // Try SMTP if configured
-  if (process.env.SMTP_EMAIL && process.env.SMTP_PASS) {
-    try {
-      const info = await transporter.sendMail({
-        from: MAIL_FROM,
-        to,
-        subject,
-        text,
-        html
-      });
-      console.log("[MAIL][SMTP] queued:", info.response || info);
-      return { ok: true, via: "smtp", info };
-    } catch (e) {
-      console.error("[MAIL][SMTP] send FAILED:", fullErr(e));
-      // fallthrough to API if available
+  const preferAPI = MAIL_TRANSPORT === "api";
+  // Try preferred path first, then fallback
+  if (preferAPI && apiEnabled) {
+    try { return await sendViaAPI({ to, subject, text, html }); }
+    catch (e) { console.error("[MAIL][API] failed:", fullErr(e)); }
+    if (smtpEnabled) {
+      try { return await sendViaSMTP({ to, subject, text, html }); }
+      catch (e2) { console.error("[MAIL][SMTP] fallback failed:", fullErr(e2)); }
     }
+    return { ok: false, via: "api", error: new Error("API+SMTP failed") };
   } else {
-    console.warn("[MAIL] SMTP creds missing; trying API fallback.");
-  }
-
-  // Fallback: Brevo HTTP API
-  if (hasBrevoApi) {
-    try {
-      const senderEmail = (MAIL_FROM.match(/<(.+?)>/) || [])[1] || process.env.SMTP_EMAIL;
-      const payload = {
-        sender: { name: "SmartVet Clinic", email: senderEmail },
-        to: [{ email: to }],
-        subject,
-        textContent: text,
-        htmlContent: html || undefined
-      };
-      const resp = await axios.post(
-        "https://api.brevo.com/v3/smtp/email",
-        payload,
-        { headers: { "api-key": BREVO_KEY, "Content-Type": "application/json" } }
-      );
-      console.log("[MAIL][API] queued:", resp.status, resp.data?.messageId || "");
-      return { ok: true, via: "api", info: resp.data };
-    } catch (e2) {
-      console.error("[MAIL][API] send FAILED:", fullErr(e2));
-      return { ok: false, via: "api", error: e2 };
+    if (smtpEnabled) {
+      try { return await sendViaSMTP({ to, subject, text, html }); }
+      catch (e) { console.error("[MAIL][SMTP] failed:", fullErr(e)); }
     }
+    if (apiEnabled) {
+      try { return await sendViaAPI({ to, subject, text, html }); }
+      catch (e2) { console.error("[MAIL][API] fallback failed:", fullErr(e2)); }
+    }
+    return { ok: false, via: "none", error: new Error("No mail transport available") };
   }
-
-  return { ok: false, via: "none", error: new Error("No mail transport available") };
 }
 
 /**
@@ -321,7 +309,7 @@ exports.login = async (req, res) => {
     attempt.count = 0;
     attempt.lockoutStart = null;
 
-    // Admin with OTP enabled: send OTP directly (do NOT call Express handler)
+    // Admin with OTP enabled: generate & email OTP here (no nested Express call)
     if (user.role === "Admin" && user.otpEnabled) {
       const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
       adminOtpStore[normalizedEmail] = otp;
@@ -357,7 +345,7 @@ exports.login = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    const isProd = process.env.NODE_ENV === "production";
+    const isProd = NODE_ENV === "production";
     const accessCookieName = user.role.toLowerCase() + "_token";
 
     res.cookie(accessCookieName, accessToken, {
@@ -376,7 +364,7 @@ exports.login = async (req, res) => {
       secure: isProd
     });
 
-    // Fire-and-forget login notification email
+    // Fire-and-forget login notification email (ignore errors)
     sendEmail({
       to: normalizedEmail,
       subject: "Login Notification",
@@ -418,7 +406,7 @@ exports.verifyAdminOTP = async (req, res) => {
     process.env.JWT_SECRET,
     { expiresIn: "1h" }
   );
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = NODE_ENV === "production";
   res.cookie("admin_token", accessToken, {
     httpOnly: true,
     maxAge: 60 * 60 * 1000,
@@ -595,7 +583,7 @@ exports.refreshToken = async (req, res) => {
       { expiresIn: "1h" }
     );
     const cookieName = decoded.role.toLowerCase() + "_token";
-    const isProd = process.env.NODE_ENV === "production";
+    const isProd = NODE_ENV === "production";
     res.cookie(cookieName, newAccessToken, {
       httpOnly: true,
       maxAge: 60 * 60 * 1000,
