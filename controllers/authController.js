@@ -20,7 +20,7 @@ const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // ================================
-// SMTP Transport (Brevo relay)
+// SMTP Transport (Brevo)
 // ================================
 const transporter = nodemailer.createTransport({
   host: "smtp-relay.brevo.com",
@@ -33,20 +33,20 @@ const transporter = nodemailer.createTransport({
 });
 
 // ================================
-// Helpers: mail + captcha
+/** Helpers: mail + captcha + utils */
 // ================================
 const MAIL_FROM =
   process.env.SMTP_FROM ||
   `"SmartVet" <${process.env.SMTP_EMAIL || "dehe.marquez.au@phinmaed.com"}>`;
+
+// Accept either env name for compatibility
 const BREVO_KEY = process.env.BREVO_API_KEY || process.env.BREVO_SMS_API_KEY;
 const hasBrevoApi = !!BREVO_KEY;
-
 
 let transporterVerified = false;
 async function ensureTransporterVerified() {
   if (transporterVerified) return;
   try {
-    // If SMTP envs are missing, this will fail quickly; we’ll fallback to API.
     await transporter.verify();
     transporterVerified = true;
     console.log("[MAIL] SMTP transporter verified OK");
@@ -54,15 +54,20 @@ async function ensureTransporterVerified() {
     console.error("[MAIL] SMTP transporter verify FAILED:", fullErr(e));
   }
 }
-
 function fullErr(e) {
   return JSON.stringify(e, Object.getOwnPropertyNames(e));
 }
+function normEmail(v) {
+  return (v || "").trim().toLowerCase();
+}
 
+/**
+ * sendEmail: SMTP first, then fallback to Brevo HTTP API.
+ */
 async function sendEmail({ to, subject, text, html }) {
   await ensureTransporterVerified();
 
-  // Try SMTP first if credentials exist
+  // Try SMTP if configured
   if (process.env.SMTP_EMAIL && process.env.SMTP_PASS) {
     try {
       const info = await transporter.sendMail({
@@ -76,13 +81,13 @@ async function sendEmail({ to, subject, text, html }) {
       return { ok: true, via: "smtp", info };
     } catch (e) {
       console.error("[MAIL][SMTP] send FAILED:", fullErr(e));
-      // fall through to API if available
+      // fallthrough to API if available
     }
   } else {
-    console.warn("[MAIL] SMTP credentials not set; skipping SMTP and trying API fallback.");
+    console.warn("[MAIL] SMTP creds missing; trying API fallback.");
   }
 
-  // Fallback to Brevo HTTP API if configured
+  // Fallback: Brevo HTTP API
   if (hasBrevoApi) {
     try {
       const senderEmail = (MAIL_FROM.match(/<(.+?)>/) || [])[1] || process.env.SMTP_EMAIL;
@@ -96,7 +101,7 @@ async function sendEmail({ to, subject, text, html }) {
       const resp = await axios.post(
         "https://api.brevo.com/v3/smtp/email",
         payload,
-{ headers: { "api-key": BREVO_KEY, "Content-Type": "application/json" } }
+        { headers: { "api-key": BREVO_KEY, "Content-Type": "application/json" } }
       );
       console.log("[MAIL][API] queued:", resp.status, resp.data?.messageId || "");
       return { ok: true, via: "api", info: resp.data };
@@ -106,18 +111,17 @@ async function sendEmail({ to, subject, text, html }) {
     }
   }
 
-  // No SMTP success and no API fallback
   return { ok: false, via: "none", error: new Error("No mail transport available") };
 }
 
 /**
- * Validate the reCAPTCHA response using Google API.
- * If GOOGLE_RECAPTCHA_SECRET is missing, we log a warning and skip validation (returns true).
+ * validateCaptcha: Verify Google reCAPTCHA.
+ * If GOOGLE_RECAPTCHA_SECRET is missing, skip validation (returns true).
  */
 async function validateCaptcha(captchaResponse) {
   const secretKey = process.env.GOOGLE_RECAPTCHA_SECRET;
   if (!secretKey) {
-    console.warn("[CAPTCHA] GOOGLE_RECAPTCHA_SECRET not set; skipping verification.");
+    console.warn("[CAPTCHA] Secret not set; skipping verification.");
     return true;
   }
   try {
@@ -129,10 +133,6 @@ async function validateCaptcha(captchaResponse) {
     console.error("reCAPTCHA validation error:", fullErr(err));
     return false;
   }
-}
-
-function normEmail(v) {
-  return (v || "").trim().toLowerCase();
 }
 
 // =========================
@@ -376,7 +376,7 @@ exports.login = async (req, res) => {
       secure: isProd
     });
 
-    // Fire-and-forget login notification email (best-effort)
+    // Fire-and-forget login notification email
     sendEmail({
       to: normalizedEmail,
       subject: "Login Notification",
@@ -403,7 +403,6 @@ exports.verifyAdminOTP = async (req, res) => {
   if (!adminOtpStore[normalizedEmail] || adminOtpStore[normalizedEmail] !== otp) {
     return res.status(400).json({ message: "Invalid OTP" });
   }
-
   delete adminOtpStore[normalizedEmail];
 
   const user = await User.findOne({ email: normalizedEmail });
@@ -578,7 +577,7 @@ exports.resetPassword = async (req, res) => {
 // REFRESH TOKEN Endpoint
 // ================================
 exports.refreshToken = async (req, res) => {
-  console.log("Incoming cookies:", req.cookies);
+  console.log("Incoming cookies:", req.cookies);  // Debug log
   const refreshToken = req.cookies["refreshToken"];
   if (!refreshToken) {
     return res.status(401).json({ message: "No refresh token provided" });
