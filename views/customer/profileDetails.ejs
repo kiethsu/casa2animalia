@@ -1,111 +1,273 @@
+<%
+// (Any server‐side EJS helpers you already have—unchanged)
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Profile Details</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Google Fonts: Roboto -->
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
   <!-- Bootstrap CSS -->
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
   <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- SweetAlert2 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.12/dist/sweetalert2.min.css" />
+
   <style>
     :root {
-      --primary-color: #2a9d8f;
+      --primary: #1E88E5;
+      --primary-dark: #0D47A1;
+      --accent: #90CAF9;
+      --white: #ffffff;
+      --text: #333;
       --secondary-color: #264653;
       --background-color: #f4f7fa;
       --card-bg: #ffffff;
       --border-color: #eaeaea;
     }
-    body {
+    * { box-sizing: border-box; }
+
+    html, body {
       background-color: var(--background-color);
-      font-family: 'Roboto', sans-serif;
-      margin: 0;
-      padding: 20px;
-      color: var(--secondary-color);
+      color: var(--text);
+      margin: 0; padding: 0;
+      font-family: 'Roboto', Arial, sans-serif;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      height: auto !important;
     }
-    .main-container {
-      max-width: 1000px;
-      margin: 40px auto;
+
+    .page-wrapper {
+      min-height: 100vh;
+      padding-bottom: 32px;
+      display: flex;
+      flex-direction: column;
     }
-    /* Profile Overview Card */
-    .profile-overview {
-      background-color: var(--card-bg);
+
+    .card {
       border: 1px solid var(--border-color);
-      border-radius: 10px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-      padding: 20px;
-      margin-bottom: 20px;
+      border-radius: 16px;
+      background: var(--card-bg);
+      box-shadow:
+        0 4px 24px rgba(30,136,229,0.12),
+        0 1.5px 12px rgba(32,39,55,0.08);
+      position: relative;
+    }
+
+    /* Profile overview styled to match select-pets-card size/feel */
+    .profile-overview {
+      border: none;
+      border-radius: 16px;
+      background: var(--card-bg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+      padding: 0;
+      box-shadow:
+        0 4px 24px rgba(30,136,229,0.12),
+        0 1.5px 12px rgba(32,39,55,0.08);
+      min-height: 680px;
+    }
+    .profile-overview .top-section {
+      padding: 28px 24px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
       text-align: center;
     }
+
     .profile-img-container {
       position: relative;
       width: 150px;
       height: 150px;
-      margin: 0 auto 15px;
       border-radius: 50%;
       overflow: hidden;
-      border: 3px solid var(--primary-color);
+      border: 3px solid var(--primary);
       background-color: #e9ecef;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+      flex-shrink: 0;
     }
     .profile-img {
       width: 100%;
       height: 100%;
       object-fit: cover;
     }
-    .upload-overlay {
-      position: absolute;
-      bottom: 5px;
-      right: 5px;
-      background: var(--primary-color);
-      width: 35px;
-      height: 35px;
+    .profile-info {
+      margin-top: 8px;
+      width: 100%;
+    }
+    .profile-info h4 {
+      margin-bottom: 4px;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--primary-dark);
+    }
+    .profile-info .subtext {
+      font-size: 0.85rem;
+      color: #555;
+    }
+
+    .section-divider {
+      height: 1px;
+      background: rgba(0,0,0,0.07);
+      margin: 8px 16px;
+      border-radius: 1px;
+    }
+
+    /* Enhanced contact card */
+    .contact-card {
+      background: #fff;
+      border-radius: 12px;
+      margin: 12px 16px;
+      padding: 12px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      border: 1px solid rgba(0,0,0,0.04);
+    }
+    .contact-row.enhanced {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 14px;
+      background: #f1f5fa;
+      border-radius: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+    .icon-wrapper {
+      flex: 0 0 44px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
+      background: rgba(30,136,229,0.1);
       display: flex;
       align-items: center;
       justify-content: center;
-      cursor: pointer;
-      color: #fff;
-      font-size: 1rem;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
-    .profile-info h4 {
-      margin-bottom: 10px;
-      font-size: 1.8rem;
+    .icon-wrapper i {
+      font-size: 18px;
+      color: var(--primary);
+    }
+    .info {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+    }
+    .label {
+      font-size: 0.75rem;
       font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #555;
+      margin-bottom: 2px;
     }
-    .profile-info p {
-      margin: 0;
-      font-size: 1rem;
-    }
-    .profile-info p.text-muted {
-      color: #6c757d;
-    }
-    /* Tabbed Forms */
-    .nav-tabs .nav-link {
-      color: var(--secondary-color);
+    .value {
+      font-size: 1.05rem;
       font-weight: 500;
+      color: #1f2d45;
+      word-break: break-word;
     }
-    .nav-tabs .nav-link.active {
-      background-color: var(--primary-color);
+    .value.muted {
+      color: #6c757d;
+      font-style: italic;
+    }
+
+    .footer-hint {
+      padding: 10px 16px;
+      font-size: 0.65rem;
+      color: #6c757d;
+      text-align: center;
+      background: rgba(0,0,0,0.03);
+      border-top: 1px solid rgba(0,0,0,0.05);
+    }
+
+    /* Tab header inside card */
+    .profile-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+      background: #f1f5fa;
+      border-radius: 12px 12px 0 0;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .profile-tabs::-webkit-scrollbar { display: none; }
+
+    .profile-tab-item {
+      flex-shrink: 0;
+    }
+    .profile-tab-item button {
+      background: transparent;
+      border: none;
+      padding: 12px 18px;
+      font-weight: 600;
+      cursor: pointer;
+      position: relative;
+      border-radius: 8px 8px 0 0;
+      font-size: 0.95rem;
+      color: #444;
+      transition: background .2s ease, color .2s ease, box-shadow .2s ease;
+      outline: none;
+      line-height: 1;
+    }
+    .profile-tab-item button:hover,
+    .profile-tab-item button:focus {
+      background: transparent;
+      color: var(--primary-dark);
+    }
+    .profile-tab-item.active button {
+      background: var(--primary);
       color: #fff;
-      border-color: var(--primary-color) var(--primary-color) transparent;
     }
-    .tab-content {
-      background-color: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-top: none;
-      border-radius: 0 0 10px 10px;
-      padding: 20px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    .profile-tab-item.active button::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      box-shadow: 0 6px 20px rgba(30,136,229,0.25);
+      border-radius: 8px 8px 0 0;
+      pointer-events: none;
+    }
+
+    .form-section {
+      border-radius: 16px;
+      margin-bottom: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex: 1 1 0;
+      min-height: 0;
+    }
+    .form-body {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
     }
     .form-control {
       border-radius: 5px;
-      box-shadow: none;
       border: 1px solid #ced4da;
+      box-shadow: none;
     }
     .form-control:focus {
-      border-color: var(--primary-color);
-      box-shadow: 0 0 0 0.2rem rgba(42,157,143,0.25);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 0.2rem rgba(30,136,229,0.25);
     }
     label {
       font-weight: 500;
@@ -113,311 +275,566 @@
     }
     button.btn {
       border-radius: 5px;
-      font-weight: 500;
+      font-weight: 600;
     }
-    @media (max-width: 768px) {
-      .profile-overview {
-         margin-bottom: 30px;
+
+    .container-fluid {
+      padding-right: 16px;
+      width: 100%;
+    }
+    .content-wrapper {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 16px;
+      align-items: flex-start;
+      width: 100%;
+      margin-top: 8px;
+    }
+    .left {
+      flex: 1 1 100%;
+      max-width: 560px;
+      padding-left: 12px;
+      min-width: 0;
+    }
+    .right {
+      flex: 1 1 0;
+      padding-right: 12px;
+    }
+    .profile-content {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .requirement-passed { color: green; }
+    .requirement-failed { color: #444; }
+    .small-checklist { margin-top:6px; padding-left:18px; font-size:0.85rem; list-style: none; }
+
+    @media (max-width: 991.98px) {
+      .content-wrapper {
+        flex-wrap: wrap;
+      }
+      .left, .right {
+        flex: 1 1 100%;
+        max-width: 100%;
+        padding-left: 0;
+        padding-right: 0;
+        position: relative;
+      }
+      .profile-overview, .form-section {
+        margin-bottom: 16px;
+      }
+      .container-fluid {
+        padding: 0 8px;
+      }
+      .profile-content {
+        max-height: calc(100vh - 180px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-right: 4px;
       }
     }
   </style>
 </head>
+
 <body>
-  <div class="container main-container">
-    <!-- Removed header text as requested -->
-    <div class="row">
-      <!-- Left Column: Profile Overview -->
-      <div class="col-md-4">
-        <div class="profile-overview text-center">
-          <div class="profile-img-container" id="profileImgContainer">
-            <% if(user.profilePic) { %>
-              <img src="<%= user.profilePic %>" alt="Profile Picture" class="profile-img" id="profilePreview">
-            <% } else { %>
-              <div class="d-flex align-items-center justify-content-center h-100" id="profilePreview">
-                <i class="fas fa-user fa-3x"></i>
+  <div class="page-wrapper">
+    <div class="container-fluid p-0">
+      <div class="content-wrapper">
+        <div class="left">
+          <div class="profile-overview card">
+            <div class="top-section">
+              <div class="profile-img-container mb-2" id="profileImgContainer">
+                <% if (user.profilePic) { %>
+                  <img src="<%= user.profilePic %>" alt="Profile Picture" class="profile-img" id="profilePreview">
+                <% } else { %>
+                  <div class="d-flex align-items-center justify-content-center h-100" id="profilePreview">
+                    <i class="fas fa-user fa-3x"></i>
+                  </div>
+                <% } %>
+                <input type="file" id="profileImageInput" style="display: none;" accept="image/*">
               </div>
-            <% } %>
-            <div class="upload-overlay">
-              <i class="fas fa-plus"></i>
+              <div class="mb-2">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="uploadImageButton">
+                  <i class="fas fa-upload me-1"></i> Upload Image
+                </button>
+              </div>
+              <div class="profile-info">
+                <h4><%= user.username %></h4>
+                <div class="subtext">Profile overview</div>
+              </div>
             </div>
-            <input type="file" id="profileImageInput" style="display: none;" accept="image/*">
-          </div>
-          <div class="profile-info">
-            <h4><%= user.username %></h4>
-            <p class="<%= user.address ? '' : 'text-muted' %>">
-              <i class="fas fa-map-marker-alt"></i>
-              <%= user.address ? user.address : 'No address provided' %>
-            </p>
-            <p class="<%= user.cellphone ? '' : 'text-muted' %>">
-              <i class="fas fa-phone"></i>
-              <%= user.cellphone ? user.cellphone : 'No cellphone number provided' %>
-            </p>
+            <div class="section-divider"></div>
+            <div class="contact-card">
+              <div class="contact-row enhanced">
+                <div class="icon-wrapper">
+                  <i class="fas fa-envelope"></i>
+                </div>
+                <div class="info">
+                  <div class="label">Email</div>
+                  <div class="value <%= user.email ? '' : 'muted' %>">
+                    <%= user.email || 'No email provided' %>
+                  </div>
+                </div>
+              </div>
+              <div class="contact-row enhanced">
+                <div class="icon-wrapper">
+                  <i class="fas fa-map-marker-alt"></i>
+                </div>
+                <div class="info">
+                  <div class="label">Location</div>
+                  <div class="value <%= user.address ? '' : 'muted' %>">
+                    <%= user.address || 'No address provided' %>
+                  </div>
+                </div>
+              </div>
+              <div class="contact-row enhanced">
+                <div class="icon-wrapper">
+                  <i class="fas fa-phone"></i>
+                </div>
+                <div class="info">
+                  <div class="label">Phone</div>
+                  <div class="value <%= user.cellphone ? '' : 'muted' %>">
+                    <%= user.cellphone || 'No cellphone number provided' %>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="footer-hint">
+              Profile picture & info are editable via the form.
+            </div>
           </div>
         </div>
-      </div>
-      <!-- Right Column: Tabbed Forms -->
-      <div class="col-md-8">
-        <ul class="nav nav-tabs" id="profileTab" role="tablist">
-          <li class="nav-item">
-            <a class="nav-link active" id="profile-details-tab" data-toggle="tab" href="#profile-details" role="tab" aria-controls="profile-details" aria-selected="true">
-              Profile Details
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" id="update-email-tab" data-toggle="tab" href="#update-email" role="tab" aria-controls="update-email" aria-selected="false">
-              Update Email
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" id="update-password-tab" data-toggle="tab" href="#update-password" role="tab" aria-controls="update-password" aria-selected="false">
-              Update Password
-            </a>
-          </li>
-        </ul>
-        <div class="tab-content" id="profileTabContent">
-          <!-- Profile Details Form -->
-          <div class="tab-pane fade show active" id="profile-details" role="tabpanel" aria-labelledby="profile-details-tab">
-            <form id="profileDetailsForm">
-              <div class="form-group">
-                <label for="fullName">Username/Full Name</label>
-                <input type="text" class="form-control" id="fullName" value="<%= user.username %>">
-              </div>
-              <div class="form-group">
-                <label for="address">Address</label>
-                <input type="text" class="form-control" id="address" value="<%= user.address || '' %>">
-              </div>
-              <div class="form-group">
-                <label for="cellphone">Cellphone No(s)</label>
-                <input type="text" class="form-control" id="cellphone" value="<%= user.cellphone || '' %>">
-              </div>
-              <button type="submit" class="btn btn-primary btn-block">Update Profile</button>
-            </form>
-          </div>
-          <!-- Update Email Form -->
-          <div class="tab-pane fade" id="update-email" role="tabpanel" aria-labelledby="update-email-tab">
-            <form id="emailUpdateForm">
-              <div class="form-group">
-                <label for="currentEmail">Current Email</label>
-                <input type="email" class="form-control" id="currentEmail" value="<%= user.email %>" readonly>
-              </div>
-              <div class="form-group">
-                <label for="newEmail">New Email</label>
-                <div class="input-group">
-                  <input type="email" class="form-control" id="newEmail" placeholder="Enter new email">
-                  <div class="input-group-append">
-                    <button type="button" class="btn btn-primary" id="sendEmailOTP">Send OTP</button>
-                  </div>
-                </div>
-              </div>
-              <div class="form-group">
-                <label for="emailOTP">Verify OTP</label>
-                <input type="text" class="form-control" id="emailOTP" placeholder="Enter OTP">
-              </div>
-              <button type="submit" class="btn btn-primary btn-block">Update Email</button>
-            </form>
-          </div>
-          <!-- Update Password Form -->
-          <div class="tab-pane fade" id="update-password" role="tabpanel" aria-labelledby="update-password-tab">
-            <form id="passwordUpdateForm">
-              <div class="form-group">
-                <label for="newPassword">New Password</label>
-                <div class="input-group">
-                  <input type="password" class="form-control" id="newPassword" placeholder="Enter new password">
-                  <div class="input-group-append">
-                    <span class="input-group-text toggle-password" style="cursor: pointer;">
-                      <i class="fas fa-eye"></i>
-                    </span>
-                  </div>
-                </div>
-                <small class="form-text text-muted">
-                  Must be at least 8 characters, include one uppercase letter, one special character, and one lowercase letter.
-                </small>
-              </div>
-              <div class="form-group">
-                <label for="confirmPassword">Confirm New Password</label>
-                <div class="input-group">
-                  <input type="password" class="form-control" id="confirmPassword" placeholder="Confirm new password">
-                  <div class="input-group-append">
-                    <span class="input-group-text toggle-password" style="cursor: pointer;">
-                      <i class="fas fa-eye"></i>
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <button type="submit" class="btn btn-primary btn-block">Update Password</button>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- jQuery, Bootstrap Bundle JS, and SweetAlert2 -->
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script>
-      $(document).ready(function(){
-        // Toggle password visibility for both new and confirm password fields
-        $('.toggle-password').on('click', function(){
-          var input = $(this).closest('.input-group').find('input');
-          if(input.attr('type') === 'password'){
-            input.attr('type', 'text');
-            $(this).find('i').removeClass('fa-eye').addClass('fa-eye-slash');
-          } else {
-            input.attr('type', 'password');
-            $(this).find('i').removeClass('fa-eye-slash').addClass('fa-eye');
-          }
-        });
-        
-        // Profile image upload & preview
-        $('.upload-overlay').on('click', function(e) {
-          e.stopPropagation();
-          $('#profileImageInput').click();
-        });
-        $('#profileImageInput').on('change', function(){
-          var file = this.files[0];
-          if(file){
-            var reader = new FileReader();
-            reader.onload = function(e){
-              $('#profileImgContainer').html('<img src="'+e.target.result+'" alt="Profile Picture" class="profile-img" id="profilePreviewImg">');
-            }
-            reader.readAsDataURL(file);
-            var formData = new FormData();
-            formData.append('profilePic', file);
-            $.ajax({
-              url: '/customer/update-profile-image',
-              type: 'POST',
-              data: formData,
-              processData: false,
-              contentType: false,
-              success: function(response){
-                if(response.success){
-                  Swal.fire({ icon: 'success', title: 'Success', text: 'Profile image updated successfully!' });
-                  $('#profilePreviewImg').attr('src', response.profilePic + '?v=' + new Date().getTime());
-                  $('#sidebarProfilePic').attr('src', response.profilePic + '?v=' + new Date().getTime());
-                } else {
-                  Swal.fire({ icon: 'error', title: 'Oops...', text: response.message || 'Failed to update image.' });
-                }
-              },
-              error: function(){
-                Swal.fire({ icon: 'error', title: 'Error', text: 'An error occurred while updating the profile image.' });
-              }
-            });
-          }
-        });
-        
-        // Update Profile Details
-        $('#profileDetailsForm').on('submit', function(e){
-          e.preventDefault();
-          var fullName = $('#fullName').val().trim();
-          if(fullName === ''){
-            Swal.fire({ icon: 'error', title: 'Error', text: 'Full name is required.' });
-            return;
-          }
-          var formData = {
-            fullName: fullName,
-            address: $('#address').val().trim(),
-            cellphone: $('#cellphone').val().trim()
-          };
-          $.ajax({
-            url: '/customer/update-profile-details',
-            method: 'POST',
-            data: formData,
-            success: function(response){
-              if(response.success){
-                Swal.fire({ icon: 'success', title: 'Success', text: 'Profile updated successfully!' });
-              } else {
-                Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'Update failed.' });
-              }
-            },
-            error: function(xhr){
-              Swal.fire({ icon: 'error', title: 'Error', text: xhr.responseJSON.message || 'An error occurred.' });
-            }
-          });
-        });
-        
-        // Send OTP for Email Update
-        $('#sendEmailOTP').on('click', function(){
-          var newEmail = $('#newEmail').val().trim();
-          if(newEmail === ''){
-            Swal.fire({ icon: 'error', title: 'Error', text: 'Please enter a new email.' });
-            return;
-          }
-          $.ajax({
-            url: '/customer/send-email-otp',
-            method: 'POST',
-            data: { newEmail: newEmail },
-            success: function(response) {
-              if(response.success) {
-                Swal.fire({ icon: 'success', title: 'OTP Sent', text: 'OTP sent to your new email.' });
-              } else {
-                Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'Failed to send OTP.' });
-              }
-            },
-            error: function(xhr) {
-              Swal.fire({ icon: 'error', title: 'Error', text: xhr.responseJSON.message || 'An error occurred.' });
-            }
-          });
-        });
-        
-        // Update Email Submission
-        $('#emailUpdateForm').on('submit', function(e){
-          e.preventDefault();
-          var newEmail = $('#newEmail').val().trim();
-          var emailOTP = $('#emailOTP').val().trim();
-          if(newEmail === '' || emailOTP === ''){
-            Swal.fire({ icon: 'error', title: 'Error', text: 'Please enter both new email and OTP.' });
-            return;
-          }
-          $.ajax({
-            url: '/customer/update-email',
-            method: 'POST',
-            data: { newEmail: newEmail, emailOTP: emailOTP },
-            success: function(response) {
-              if(response.success) {
-                Swal.fire({ icon: 'success', title: 'Success', text: 'Email updated successfully!' })
-                  .then(() => { location.reload(); });
-              } else {
-                Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'Failed to update email.' });
-              }
-            },
-            error: function(xhr){
-              Swal.fire({ icon: 'error', title: 'Error', text: xhr.responseJSON.message || 'An error occurred.' });
-            }
-          });
-        });
-        
-        // Update Password Submission
-        $('#passwordUpdateForm').on('submit', function(e){
-          e.preventDefault();
-          var newPassword = $('#newPassword').val().trim();
-          var confirmPassword = $('#confirmPassword').val().trim();
-          if(newPassword === '' || confirmPassword === ''){
-            Swal.fire({ icon: 'error', title: 'Error', text: 'Please fill in all password fields.' });
-            return;
-          }
-          if(newPassword !== confirmPassword){
-            Swal.fire({ icon: 'error', title: 'Error', text: 'Passwords do not match!' });
-            return;
-          }
-          $.ajax({
-            url: '/customer/update-password',
-            method: 'POST',
-            data: { newPassword: newPassword },
-            success: function(response){
-              if(response.success){
-                Swal.fire({ icon: 'success', title: 'Success', text: 'Password updated successfully!' });
-                $('#newPassword, #confirmPassword').val('');
-              } else {
-                Swal.fire({ icon: 'error', title: 'Error', text: response.message || 'Failed to update password.' });
-              }
-            },
-            error: function(xhr){
-              Swal.fire({ icon: 'error', title: 'Error', text: xhr.responseJSON.message || 'An error occurred.' });
-            }
-          });
-        });
-      });
-    </script>
+        <div class="right">
+          <div class="card form-section">
+            <!-- tabs as header -->
+            <ul class="profile-tabs mb-0">
+              <li class="profile-tab-item active" data-target="profile-details">
+                <button type="button">Profile Details</button>
+              </li>
+              <li class="profile-tab-item" data-target="update-email">
+                <button type="button">Update Email</button>
+              </li>
+              <li class="profile-tab-item" data-target="update-password">
+                <button type="button">Update Password</button>
+              </li>
+            </ul>
+            <div class="form-body">
+              <div class="profile-content">
+                <div class="tab-content" id="profileTabContent">
+                  <div class="tab-pane fade show active" id="profile-details" role="tabpanel">
+                    <form id="profileDetailsForm">
+                      <div class="form-group">
+  <label for="fullName">Username/Full Name</label>
+  <input
+    type="text"
+    class="form-control"
+    id="fullName"
+    value="<%= user.username %>"
+    maxlength="40"
+    autocomplete="name"
+    aria-describedby="fullNameHelp fullNameCounter fullNameError"
+  >
+<small id="fullNameHelp" class="form-text text-muted">Up to 40 characters.</small>
+
+  <div class="d-flex justify-content-between mt-1">
+    <small id="fullNameCounter" class="text-muted">0/40</small>
+    <small id="fullNameError" class="text-danger d-none">Invalid character(s).</small>
   </div>
+</div>
+
+                      <div class="form-group">
+                        <label for="address">Address</label>
+                        <input type="text" class="form-control" id="address" value="<%= user.address || '' %>">
+                      </div>
+                      <div class="form-group">
+                        <label for="cellphone">Cellphone No(s)</label>
+                        <input type="text" class="form-control" id="cellphone" value="<%= user.cellphone || '' %>">
+                      </div>
+                      <button type="submit" class="btn btn-primary btn-block">
+                        Update Profile
+                      </button>
+                    </form>
+                  </div>
+                  <div class="tab-pane fade" id="update-email" role="tabpanel">
+                    <form id="emailUpdateForm">
+                      <div class="form-group">
+                        <label for="currentEmail">Current Email</label>
+                        <input type="email" class="form-control" id="currentEmail"
+                               value="<%= user.email %>" readonly>
+                      </div>
+                      <div class="form-group">
+                        <label for="newEmail">New Email</label>
+                        <div class="input-group">
+                          <input type="email" class="form-control" id="newEmail" placeholder="Enter new email">
+                          <div class="input-group-append">
+                            <button type="button" class="btn btn-primary" id="sendEmailOTP">Send OTP</button>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="form-group">
+                        <label for="emailOTP">Verify OTP</label>
+                        <input type="text" class="form-control" id="emailOTP" placeholder="Enter OTP">
+                      </div>
+                      <button type="submit" class="btn btn-primary btn-block">
+                        Update Email
+                      </button>
+                    </form>
+                  </div>
+                  <div class="tab-pane fade" id="update-password" role="tabpanel">
+                    <form id="passwordUpdateForm" novalidate>
+                      <div class="form-group">
+                        <label for="newPassword">New Password</label>
+                        <div class="input-group">
+                          <input type="password" class="form-control" id="newPassword" placeholder="Enter new password" aria-describedby="passwordHelp">
+                          <div class="input-group-append">
+                            <span class="input-group-text toggle-password" style="cursor: pointer;">
+                              <i class="fas fa-eye"></i>
+                            </span>
+                          </div>
+                        </div>
+                        <small id="passwordHelp" class="form-text text-muted">
+                          Password must satisfy all of the following:
+                        </small>
+                        <ul id="password-requirements" class="small-checklist">
+                          <li data-rule="length" class="requirement-failed" style="display:flex; gap:6px;">
+                            <span class="requirement-icon">❌</span> At least 8 characters
+                          </li>
+                          <li data-rule="uppercase" class="requirement-failed" style="display:flex; gap:6px;">
+                            <span class="requirement-icon">❌</span> One uppercase letter
+                          </li>
+                          <li data-rule="lowercase" class="requirement-failed" style="display:flex; gap:6px;">
+                            <span class="requirement-icon">❌</span> One lowercase letter
+                          </li>
+                          <li data-rule="special" class="requirement-failed" style="display:flex; gap:6px;">
+                            <span class="requirement-icon">❌</span> One special character (e.g., !@#$%^&*)
+                          </li>
+                        </ul>
+                      </div>
+                      <div class="form-group">
+                        <label for="confirmPassword">Confirm New Password</label>
+                        <div class="input-group">
+                          <input type="password" class="form-control" id="confirmPassword" placeholder="Confirm new password">
+                          <div class="input-group-append">
+                            <span class="input-group-text toggle-password" style="cursor: pointer;">
+                              <i class="fas fa-eye"></i>
+                            </span>
+                          </div>
+                        </div>
+                        <div id="password-match-feedback" style="margin-top:4px; font-size:0.85rem;"></div>
+                      </div>
+                      <button type="submit" class="btn btn-primary btn-block">
+                        Update Password
+                      </button>
+                    </form>
+                  </div>
+                </div> <!-- /.tab-content -->
+              </div>
+            </div>
+          </div> <!-- /.card -->
+        </div> <!-- /.right -->
+      </div> <!-- /.content-wrapper -->
+    </div> <!-- /.container-fluid -->
+  </div> <!-- /.page-wrapper -->
+
+  <!-- Dependencies -->
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.12/dist/sweetalert2.all.min.js"></script>
+
+ <script>
+  // ---------- Shared helpers ----------
+  // Update overview card + sidebar + (if present) welcome card
+  function refreshProfileOverview(user) {
+    const name = user?.username || '';
+    const email = user?.email || '';
+    const address = user?.address || '';
+    const cellphone = user?.cellphone || '';
+
+    // Overview header
+    $('.profile-info h4').text(name);
+
+    // Sidebar display name
+    $('#sidebarUserName').text(name);
+
+    // Dashboard welcome (if this page has it mounted in your shell)
+    if (document.getElementById('welcomeUser')) {
+      $('#welcomeUser').text((name || '') + '!');
+    }
+
+    // Contact blocks
+    const emailElem = $('.contact-card .contact-row')
+      .filter(function () { return $(this).find('i').hasClass('fa-envelope'); })
+      .find('.value');
+    if (email) emailElem.removeClass('muted').text(email);
+    else       emailElem.addClass('muted').text('No email provided');
+
+    const addrElem = $('.contact-card .contact-row')
+      .filter(function () { return $(this).find('i').hasClass('fa-map-marker-alt'); })
+      .find('.value');
+    if (address) addrElem.removeClass('muted').text(address);
+    else         addrElem.addClass('muted').text('No address provided');
+
+    const phoneElem = $('.contact-card .contact-row')
+      .filter(function () { return $(this).find('i').hasClass('fa-phone'); })
+      .find('.value');
+    if (cellphone) phoneElem.removeClass('muted').text(cellphone);
+    else           phoneElem.addClass('muted').text('No cellphone number provided');
+
+    // Form fields
+    $('#fullName').val(name);
+    $('#address').val(address);
+    $('#cellphone').val(cellphone);
+    $('#currentEmail').val(email);
+  }
+
+  // ---------- Tabs ----------
+  $(document).on('click', '.profile-tab-item button', function () {
+    const parent = $(this).closest('.profile-tab-item');
+    const target = parent.data('target');
+
+    $('.profile-tab-item').removeClass('active');
+    parent.addClass('active');
+
+    $('#profileTabContent .tab-pane').removeClass('show active');
+    $('#' + target).addClass('show active');
+  });
+
+  // ---------- Password visibility ----------
+  $(document).on('click', '.toggle-password', function () {
+    const input = $(this).closest('.input-group').find('input');
+    const icon = $(this).find('i');
+    const isPw = input.attr('type') === 'password';
+    input.attr('type', isPw ? 'text' : 'password');
+    icon.toggleClass('fa-eye fa-eye-slash');
+  });
+
+  // ---------- Profile image upload ----------
+  $(document).on('click', '#uploadImageButton', function (e) {
+    e.preventDefault();
+    $('#profileImageInput').click();
+  });
+
+  $(document).on('change', '#profileImageInput', function () {
+    const file = this.files[0];
+    if (!file) return;
+
+    // local preview
+    const reader = new FileReader();
+    reader.onload = e => {
+      $('#profileImgContainer').find('.profile-img, #profilePreview').remove();
+      $('#profileImgContainer').prepend(
+        `<img src="${e.target.result}" class="profile-img" id="profilePreviewImg">`
+      );
+    };
+    reader.readAsDataURL(file);
+
+    // upload to server
+    const formData = new FormData();
+    formData.append('profilePic', file);
+    $.ajax({
+      url: '/customer/update-profile-image',
+      method: 'POST',
+      data: formData,
+      processData: false,
+      contentType: false
+    })
+      .done(res => {
+        Swal.fire(
+          res.success ? 'Success' : 'Error',
+          res.message || (res.success ? 'Profile image updated.' : 'Failed to update image.'),
+          res.success ? 'success' : 'error'
+        );
+        if (res.success) {
+          // sidebar avatar
+          $('#sidebarProfilePic').attr('src', res.profilePic + '?v=' + Date.now());
+          // notify shell + other pages
+          if (window.applyUserToShell) window.applyUserToShell({ profilePic: res.profilePic });
+          $(document).trigger('user:updated', [{ profilePic: res.profilePic }]);
+        }
+      })
+      .fail(() => {
+        Swal.fire('Error', 'Server error updating image.', 'error');
+      });
+  });
+
+  // ---------- Name limit + validation ----------
+  const NAME_MAX = 40;
+  // Letters, numbers, spaces, period, comma, apostrophe, hyphen (unicode-aware for names)
+  const NAME_ALLOWED_RE = /^[\p{L}\p{N} .,'-]+$/u;
+
+  const $fullName = $('#fullName');
+  const $counter = $('#fullNameCounter');      // optional helper element
+  const $nameErr = $('#fullNameError');        // optional helper element
+
+  function sanitizeName(s) {
+    return String(s || '').replace(/\s+/g, ' ').trim();
+  }
+  function nameLooksValid(s) {
+    if (!s) return false;
+    if (s.length > NAME_MAX) return false;
+    return NAME_ALLOWED_RE.test(s);
+  }
+  function updateNameUI() {
+    if (!$fullName.length) return true;
+    let val = $fullName.val() || '';
+    if (val.length > NAME_MAX) {
+      val = val.slice(0, NAME_MAX);
+      $fullName.val(val);
+    }
+    if ($counter.length) $counter.text(`${val.length}/${NAME_MAX}`);
+    const ok = nameLooksValid(val);
+    if ($nameErr.length) $nameErr.toggleClass('d-none', ok);
+    return ok;
+  }
+  // live counter + validation feedback
+  $fullName.on('input', updateNameUI);
+  // initialize once DOM is ready
+  $(function(){ updateNameUI(); });
+
+  // ---------- Profile details submit ----------
+  $(document).on('submit', '#profileDetailsForm', function (e) {
+    e.preventDefault();
+
+    const rawName = $('#fullName').val();
+    const fullName = sanitizeName(rawName);
+    const address = $('#address').val().trim();
+    const cellphone = $('#cellphone').val().trim();
+
+    if (!fullName) {
+      return Swal.fire('Error', 'Full name is required.', 'error');
+    }
+    if (!nameLooksValid(fullName)) {
+      updateNameUI();
+    return Swal.fire('Error', 'Up to 40 characters.', 'error');
+
+    }
+
+    $.post('/customer/update-profile-details', { fullName, address, cellphone })
+      .done(res => {
+        Swal.fire(res.success ? 'Success' : 'Error', res.message || 'Profile updated.', res.success ? 'success' : 'error');
+        if (res.success && res.user) {
+          // Update local UI
+          refreshProfileOverview(res.user);
+
+          // Inform the shell / other pages
+          if (window.applyUserToShell) window.applyUserToShell(res.user);
+          $(document).trigger('user:updated', [res.user]);
+        }
+      })
+      .fail(xhr => {
+        Swal.fire('Error', xhr.responseJSON?.message || 'Server error.', 'error');
+      });
+  });
+
+  // ---------- Email OTP & update ----------
+  $(document).on('click', '#sendEmailOTP', function () {
+    const newEmail = $('#newEmail').val().trim();
+    if (!newEmail) return Swal.fire('Error', 'Enter a new email.', 'error');
+    $.post('/customer/send-email-otp', { newEmail })
+      .done(res => Swal.fire(res.success ? 'Success' : 'Error', res.message, res.success ? 'success' : 'error'))
+      .fail(xhr => Swal.fire('Error', xhr.responseJSON?.message || 'Server error.', 'error'));
+  });
+
+  $(document).on('submit', '#emailUpdateForm', function (e) {
+    e.preventDefault();
+    const newEmail = $('#newEmail').val().trim();
+    const emailOTP = $('#emailOTP').val().trim();
+    if (!newEmail || !emailOTP) return Swal.fire('Error', 'Email & OTP required.', 'error');
+
+    $.post('/customer/update-email', { newEmail, emailOTP })
+      .done(res => {
+        Swal.fire(res.success ? 'Success' : 'Error', res.message, res.success ? 'success' : 'error');
+        if (res.success && res.user) {
+          refreshProfileOverview(res.user);
+          $('#newEmail').val('');
+          $('#emailOTP').val('');
+        }
+      })
+      .fail(xhr => Swal.fire('Error', xhr.responseJSON?.message || 'Server error.', 'error'));
+  });
+
+  // ---------- Password validation ----------
+  const rules = {
+    length: /.{8,}/,
+    uppercase: /[A-Z]/,
+    lowercase: /[a-z]/,
+    special: /[^A-Za-z0-9]/
+  };
+
+  function updateRequirementUI(password) {
+    Object.entries(rules).forEach(([ruleName, regex]) => {
+      const passed = regex.test(password);
+      const li = $(`#password-requirements li[data-rule="${ruleName}"]`);
+      const icon = li.find('.requirement-icon');
+      icon.text(passed ? '✅' : '❌');
+      li.toggleClass('requirement-passed', passed)
+        .toggleClass('requirement-failed', !passed);
+    });
+  }
+
+  function checkPasswordMatch() {
+    const pw = $('#newPassword').val();
+    const cpw = $('#confirmPassword').val();
+    const feedback = $('#password-match-feedback');
+    if (!cpw) {
+      feedback.text('');
+      return false;
+    }
+    if (pw === cpw) {
+      feedback.text('Passwords match.').css('color', 'green');
+      return true;
+    } else {
+      feedback.text('Passwords do not match.').css('color', 'red');
+      return false;
+    }
+  }
+
+  function passwordMeetsAllRules(pw) {
+    return Object.values(rules).every(r => r.test(pw));
+  }
+
+  $(document).on('input', '#newPassword', function () {
+    const pw = $(this).val();
+    updateRequirementUI(pw);
+    checkPasswordMatch();
+  });
+  $(document).on('input', '#confirmPassword', checkPasswordMatch);
+
+  $(document).on('submit', '#passwordUpdateForm', function (e) {
+    e.preventDefault();
+    const pw = $('#newPassword').val().trim();
+    const cpw = $('#confirmPassword').val().trim();
+
+    if (!pw || !cpw) {
+      return Swal.fire('Error', 'Both password fields are required.', 'error');
+    }
+    if (!passwordMeetsAllRules(pw)) {
+      return Swal.fire(
+        'Error',
+        'Password must be at least 8 characters and include one uppercase letter, one lowercase letter, and one special character.',
+        'error'
+      );
+    }
+    if (pw !== cpw) {
+      return Swal.fire('Error', 'Passwords do not match.', 'error');
+    }
+
+    $.post('/customer/update-password', { newPassword: pw })
+      .done(res => {
+        Swal.fire(res.success ? 'Success' : 'Error', res.message, res.success ? 'success' : 'error');
+        if (res.success) {
+          $('#newPassword').val('');
+          $('#confirmPassword').val('');
+          updateRequirementUI('');
+          $('#password-match-feedback').text('');
+        }
+      })
+      .fail(xhr => Swal.fire('Error', xhr.responseJSON?.message || 'Server error.', 'error'));
+  });
+</script>
+
 </body>
 </html>

@@ -1,36 +1,35 @@
 <!-- views/hr/limitPerHour.ejs -->
 <div class="container-fluid">
-    <h2 class="mt-3">Limit Per Hour Settings</h2>
-    <div class="card p-3">
-      <form id="limitForm">
-        <div class="form-group">
-          <label for="limitPerHour">Limit Per Hour (Default is 5)</label>
-          <input type="number" class="form-control" id="limitPerHour" name="limitPerHour" value="<%= setting.limitPerHour %>">
-        </div>
-        <button type="submit" class="btn btn-primary">Update Limit</button>
-      </form>
-    </div>
+  <h2 class="mt-3">Limit Per Hour Settings</h2>
+  <div class="card p-3">
+    <form id="limitForm">
+      <div class="form-group">
+        <label for="limitPerHour">Limit Per Hour (Default is 5)</label>
+        <input type="number" class="form-control" id="limitPerHour" name="limitPerHour" value="<%= setting.limitPerHour %>">
+      </div>
+      <button type="submit" class="btn btn-primary">Update Limit</button>
+    </form>
   </div>
-  
-  <script>
-    $('#limitForm').submit(function(e){
-      e.preventDefault();
-      var limit = $('#limitPerHour').val();
-      $.ajax({
-        url: '/hr/limit-per-hour',
-        method: 'POST',
-        data: { limitPerHour: limit },
-        success: function(response){
-          if(response.success){
-            alert("Limit updated successfully.");
-          } else {
-            alert("Error updating limit: " + response.message);
-          }
-        },
-        error: function(err){
-          alert("Server error while updating limit.");
+</div>
+
+<script>
+  $('#limitForm').submit(function(e){
+    e.preventDefault();
+    var limit = $('#limitPerHour').val();
+    $.ajax({
+      url: '/hr/limit-per-hour',
+      method: 'POST',
+      data: { limitPerHour: limit },
+      success: function(response){
+        if(response.success){
+          alert("Limit updated successfully.");
+        } else {
+          alert("Error updating limit: " + response.message);
         }
-      });
+      },
+      error: function(err){
+        alert("Server error while updating limit.");
+      }
     });
-  </script>
-  
+  });
+</script>

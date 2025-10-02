@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sales Report</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Bootstrap + Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+
+  <style>
+    body { background:#f6f8fb; }
+    .card { border:0; box-shadow: 0 6px 18px rgba(12,46,96,.06); border-radius:16px; }
+    .kpi-value { font-weight:700; font-size:1.6rem; }
+    .muted { color:#6b7280; }
+    .small-label { font-size:.82rem; color:#6b7280; }
+    .table thead th { font-weight:600; color:#6b7280; border-bottom:1px solid #edf1f7; }
+    .table > :not(caption) > * > * { padding:.75rem .9rem; }
+    .sticky-actions { position: sticky; top: 0; z-index: 15; background: #f6f8fb; padding:.5rem 0 1rem; }
+
+    .text-truncate-2 {
+      overflow:hidden; display:-webkit-box;
+      -webkit-line-clamp:2; -webkit-box-orient:vertical; line-clamp: 2;
+    }
+
+    /* Top Profit Drivers styling (keeps your color coding + rank badges) */
+    #tpdSingle table thead th,
+    #tpdDual   table thead th { background:#f8f9fa; color:#495057 !important; font-weight:600; border-bottom:1px solid #e9ecef; }
+    #tpdSingle table tbody td,
+    #tpdDual   table tbody td { vertical-align: middle; color:#343a40; }
+    #tpdSingle tbody tr:nth-child(odd)  td,
+    #tpdDual   tbody tr:nth-child(odd)  td { background: rgba(0,143,251,0.03); }
+    #tpdSingle tbody tr:nth-child(even) td,
+    #tpdDual   tbody tr:nth-child(even) td { background: rgba(254,176,25,0.03); }
+    #tpdSingle tbody tr:nth-child(1) td,
+    #tpdDual   tbody tr:nth-child(1) td { background: rgba(0,143,251,0.06); }
+    #tpdSingle tbody tr:nth-child(2) td,
+    #tpdDual   tbody tr:nth-child(2) td { background: rgba(254,176,25,0.06); }
+    #tpdSingle tbody tr:nth-child(3) td,
+    #tpdDual   tbody tr:nth-child(3) td { background: rgba(40,167,69,0.06); }
+    #tpdSingle tbody tr:hover td,
+    #tpdDual   tbody tr:hover td { background: rgba(0,0,0,0.03); }
+
+    .rank-badge{
+      display:inline-flex; align-items:center; justify-content:center;
+      width:28px; height:28px; border-radius:50%;
+      font-weight:700; font-size:.9rem; line-height:1; user-select:none;
+      box-shadow: 0 1px 3px rgba(0,0,0,.15);
+      border: 1px solid rgba(0,0,0,.04);
+      vertical-align: middle;
+    }
+    .rank-1{ background: linear-gradient(135deg,#ffd54f,#f6b93b); color:#1c2c45; }
+    .rank-2{ background: linear-gradient(135deg,#cfd8dc,#b0bec5); color:#1c2c45; }
+    .rank-3{ background: linear-gradient(135deg,#d7a86e,#b87333); color:#1c2c45; }
+    .rank-4,.rank-5{ background:#008ffb; color:#fff; }
+
+    .profit-cell .profit-val{ font-weight:600; }
+    .profit-cell .mini-bar{ height:6px; border-radius:999px; background:#eef2f7; margin-top:4px; overflow:hidden; }
+    .profit-cell .mini-bar .bar{ height:100%; border-radius:999px; }
+    .profit-cell .mini-bar .bar.rank-1{ background: linear-gradient(90deg,#008ffb,#66b2ff); }
+    .profit-cell .mini-bar .bar.rank-2{ background: linear-gradient(90deg,#feb019,#ffd480); }
+    .profit-cell .mini-bar .bar.rank-3{ background: linear-gradient(90deg,#28a745,#7cd992); }
+    .profit-cell .mini-bar .bar.rank-4,
+    .profit-cell .mini-bar .bar.rank-5{ background:#6ea8fe; }
+
+    #tpdDual .table-responsive{ flex:1 1 auto; min-height:240px; }
+
+    /* Slow Movers tables — same look */
+    #slowSingle table thead th,
+    #slowDual   table thead th { background:#f8f9fa; color:#495057 !important; font-weight:600; border-bottom:1px solid #e9ecef; }
+    #slowSingle tbody tr:nth-child(odd)  td,
+    #slowDual   tbody tr:nth-child(odd)  td { background: rgba(0,143,251,0.03); }
+    #slowSingle tbody tr:nth-child(even) td,
+    #slowDual   tbody tr:nth-child(even) td { background: rgba(254,176,25,0.03); }
+    #slowSingle tbody tr:hover td,
+    #slowDual   tbody tr:hover td { background: rgba(0,0,0,0.03); }
+
+    .pill {
+      display:inline-block; padding:.15rem .5rem; border-radius:999px; font-size:.75rem;
+      border:1px solid #e5e7eb; background:#fff;
+    }
+    .pill.gray { color:#6b7280; }
+
+    /* === Slow Movers: turn body scrollable when 5+ rows (class toggled by JS) === */
+    .scrollable-table thead,
+    .scrollable-table tbody tr { display: table; width: 100%; table-layout: fixed; }
+    .scrollable-table tbody {
+      display: block;
+      /* ~5 rows visible; adjust if you want a different height */
+      max-height: calc(5 * 2.6rem);
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-fluid py-4">
+
+    <!-- Header (Exports) -->
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+      <div class="btn-group">
+        <button id="btnExportExcel" class="btn btn-success">
+          <i class="bi bi-filetype-xlsx me-1"></i> Export Excel (Date Range)
+        </button>
+        <button id="btnExportCSV" class="btn btn-outline-success">
+          <i class="bi bi-filetype-csv me-1"></i> Export CSV (Date Range)
+        </button>
+        <button id="btnExportPDF" class="btn btn-outline-secondary">
+          <i class="bi bi-filetype-pdf me-1"></i> Export PDF (Date Range)
+        </button>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="sticky-actions">
+      <div class="card">
+        <div class="card-body">
+          <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-3">
+              <label class="form-label small-label mb-1">Start date</label>
+              <input type="date" id="startDate" class="form-control"/>
+            </div>
+            <div class="col-12 col-md-3">
+              <label class="form-label small-label mb-1">End date</label>
+              <input type="date" id="endDate" class="form-control"/>
+            </div>
+            <div class="col-12 col-md-3">
+              <label class="form-label small-label mb-1">Preset</label>
+              <select id="presetSelect" class="form-select">
+                <option value="custom">Custom range</option>
+                <option value="today" selected>Today</option>
+                <option value="7d">Last 7 days</option>
+                <option value="mtd">MTD</option>
+                <option value="ytd">YTD</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-3 d-grid">
+              <button id="btnApply" class="btn btn-primary">
+                <i class="bi bi-funnel me-1"></i>Apply Filters
+              </button>
+            </div>
+
+            <div class="col-12"><hr class="mt-2 mb-1"/></div>
+
+            <div class="col-12 col-lg-4">
+              <div class="small-label mb-1">Breakdown</div>
+              <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" name="breakdown" id="bdProducts" checked>
+                <label class="btn btn-outline-primary" for="bdProducts">Products</label>
+
+                <input type="radio" class="btn-check" name="breakdown" id="bdServices">
+                <label class="btn btn-outline-primary" for="bdServices">Services</label>
+
+                <input type="radio" class="btn-check" name="breakdown" id="bdBoth">
+                <label class="btn btn-outline-primary" for="bdBoth">All</label>
+              </div>
+            </div>
+
+            <!-- Single, dynamic category dropdown -->
+            <div class="col-12 col-lg-4" id="categoryWrap">
+              <label class="form-label small-label mb-1" id="categoryLabel">Category</label>
+              <select id="categorySelect" class="form-select">
+                <option value="">All categories</option>
+              </select>
+            </div>
+
+            <div class="col-12 col-lg-4"></div>
+          </div>
+
+          <div class="d-flex justify-content-end mt-3">
+            <div class="btn-group">
+              <button id="btnExportVisibleCSV" class="btn btn-outline-dark btn-sm">
+                <i class="bi bi-download me-1"></i> Export Visible Table (CSV)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mt-2">
+      <div class="col-12 col-md-6 col-xl-4">
+        <div class="card h-100"><div class="card-body">
+          <div class="small-label">Total Sales</div>
+          <div class="kpi-value" id="kpiSalesAmount">₱0</div>
+          <div class="muted" id="kpiSalesChange">—</div>
+        </div></div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-4">
+        <div class="card h-100"><div class="card-body">
+          <div class="small-label" id="kpiLossLabel">Loss</div>
+          <div class="kpi-value" id="kpiLoss">₱0</div>
+          <div class="muted" id="kpiLossSub">Expired / write-off loss</div>
+        </div></div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-4" id="kpiProfitCol">
+        <div class="card h-100"><div class="card-body">
+          <div class="small-label">Profit</div>
+          <div class="kpi-value" id="kpiProfit">₱0</div>
+          <div class="muted" id="kpiProfitChange">—</div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- Top Profit Drivers + Slow Movers -->
+    <div class="row g-3 mt-3">
+      <div class="col-12 col-xl-7">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0">Top Profit Drivers</h5>
+              <div class="small-label" id="tableRangeLabel"></div>
+            </div>
+
+            <!-- SINGLE TABLE (Products OR Services) -->
+            <div id="tpdSingle">
+              <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                  <thead>
+                    <tr id="tableHead">
+                      <th>Name</th>
+                      <th class="text-end">Units</th>
+                      <th class="text-end">Profit (₱)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tableBody">
+                    <tr><td colspan="3" class="text-center muted py-4">No data.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="small-label mt-2">Tip: filter by category to focus results.</div>
+            </div>
+
+            <!-- DUAL TABLES (Breakdown = All) -->
+            <div id="tpdDual" class="d-none">
+              <div class="row g-3 align-items-stretch">
+                <!-- PRODUCTS -->
+                <div class="col-12 col-xl-6 d-flex">
+                  <div class="border rounded-3 p-2 flex-grow-1 d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <h6 class="mb-0">Products</h6>
+                    </div>
+                    <div class="table-responsive" style="flex:1 1 auto; min-height:240px;">
+                      <table class="table align-middle mb-0">
+                        <thead>
+                          <tr id="tableHeadProd">
+                            <th>Product</th>
+                            <th class="text-end">Units</th>
+                            <th class="text-end">Profit (₱)</th>
+                          </tr>
+                        </thead>
+                        <tbody id="tableBodyProd">
+                          <tr><td colspan="3" class="text-center muted py-4">No data.</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+                <!-- SERVICES -->
+                <div class="col-12 col-xl-6 d-flex">
+                  <div class="border rounded-3 p-2 flex-grow-1 d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <h6 class="mb-0">Services</h6>
+                    </div>
+                    <div class="table-responsive" style="flex:1 1 auto; min-height:240px;">
+                      <table class="table align-middle mb-0">
+                        <thead>
+                          <tr id="tableHeadSvc">
+                            <th>Service</th>
+                            <th class="text-end">Units</th>
+                            <th class="text-end">Profit (₱)</th>
+                          </tr>
+                        </thead>
+                        <tbody id="tableBodySvc">
+                          <tr><td colspan="3" class="text-center muted py-4">No data.</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="small-label mt-2">Top 5 by profit in each group.</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Slow Movers (replaces Write-off Risk) -->
+      <div class="col-12 col-xl-5">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0">Slow Movers (no sales in range)</h5>
+              <div class="small-label" id="slowRangeLabel"></div>
+            </div>
+
+            <!-- Single table -->
+            <div id="slowSingle">
+              <div class="table-responsive">
+                <table class="table align-middle mb-0" id="slowTable">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th class="text-end">Last Sold</th>
+                      <th class="text-end">Days Since</th>
+                    </tr>
+                  </thead>
+                  <tbody id="slowBody">
+                    <tr><td colspan="3" class="text-center muted py-4">No slow movers.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="small-label mt-2">Items/services with zero sales in the selected period.</div>
+            </div>
+
+            <!-- Dual (stacked vertically for "All") -->
+            <div id="slowDual" class="d-none">
+              <div class="vstack gap-3">
+                <div class="border rounded-3 p-2">
+                  <h6 class="mb-2">Products</h6>
+                  <div class="table-responsive">
+                    <table class="table align-middle mb-0" id="slowTableProd">
+                      <thead>
+                        <tr>
+                          <th>Product</th>
+                          <th class="text-end">Last Sold</th>
+                          <th class="text-end">Days Since</th>
+                        </tr>
+                      </thead>
+                      <tbody id="slowBodyProd">
+                        <tr><td colspan="3" class="text-center muted py-4">No slow products.</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="border rounded-3 p-2">
+                  <h6 class="mb-2">Services</h6>
+                  <div class="table-responsive">
+                    <table class="table align-middle mb-0" id="slowTableSvc">
+                      <thead>
+                        <tr>
+                          <th>Service</th>
+                          <th class="text-end">Last Sold</th>
+                          <th class="text-end">Days Since</th>
+                        </tr>
+                      </thead>
+                      <tbody id="slowBodySvc">
+                        <tr><td colspan="3" class="text-center muted py-4">No slow services.</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="small-label mt-2">Zero-sales items/services for the date range.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div> <!-- /row -->
+
+  </div>
+
+  <!-- Endpoints config for the page script -->
+  <script>
+    window.SALES_REPORT_CONFIG = {
+      endpoints: {
+        stats:        '/admin/get-dashboard-stats',
+        categories:   '/admin/get-categories',
+        serviceCats:  '/admin/services/categories/list',
+        byProduct:    '/admin/report/get-sales-by-product',
+        byService:    '/admin/report/get-sales-by-service',
+        byCategory:   '/admin/report/get-sales-by-category',
+        expired:      '/admin/report/expired-products',
+        kpis:         '/admin/report/get-sales-kpis',
+        topProfit:    '/admin/report/top-profit-items',
+        expiringSoon: '/admin/report/expiring-soon',
+        slowMovers:   '/admin/report/slow-movers',
+        exportExcel:  '/admin/report/export-excel',
+
+        exportCSV:    '/admin/downloadSalesCSV',
+        exportPDF:    '/admin/download-sales-report.pdf'
+      }
+    };
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
+  <script src="/js/sales-report.js" defer></script>
+</body>
+</html>

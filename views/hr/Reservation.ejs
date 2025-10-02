@@ -1,122 +1,387 @@
 <%
-  // reservations: array of all reservation objects passed from the server
-  // doctors: array of doctor objects passed from the server (ensure this is not empty)
-  // Each reservation might include:
-  //   - reservation.petAdded   (boolean)
-  //   - reservation.petExists  (boolean; we set this in the GET route)
-  //
-  // Helper function: format date as "YYYY-MM-DD"
-  function formatLocalDate(dateStr) {
+  // ===== Unified helpers (server-side) =====
+  // Default petDetails
+  var petDetails = typeof petDetails !== 'undefined'
+    ? petDetails
+    : { species: [], speciesBreeds: {}, diseases: [], services: [] };
+
+  function pad2(n){ n = parseInt(n,10); if (isNaN(n)) n = 0; return (n<10?'0':'')+n; }
+
+  // Always return local YYYY-MM-DD (used for data-date)
+  function formatLocalDate(dateStr){
+    if(!dateStr) return '';
     var d = new Date(dateStr);
-    var month = '' + (d.getMonth() + 1);
-    var day = '' + d.getDate();
-    var year = d.getFullYear();
-    if (month.length < 2) month = '0' + month;
-    if (day.length < 2) day = '0' + day;
-    return [year, month, day].join('-');
+    if(isNaN(d)) return '';
+    var yyyy = d.getFullYear();
+    var mm = pad2(d.getMonth()+1);
+    var dd = pad2(d.getDate());
+    return yyyy + '-' + mm + '-' + dd;
   }
+
+  // Safe date for sorting
+  function safeDateValue(d){
+    var x = new Date(d);
+    return isNaN(x) ? new Date(0) : x;
+  }
+
+  // Normalize any time to "HH:MM" 24h (defaults to 00:00)
+  function safeTimeHHmm(timeStr){
+    if(!timeStr || typeof timeStr!=='string') return '00:00';
+    var m = timeStr.trim().match(/^(\d{1,2}):?(\d{2})?\s*([AaPp][Mm])?$/);
+    if(!m) return '00:00';
+    var h = parseInt(m[1],10) || 0;
+    var min = parseInt(m[2]||'0',10) || 0;
+    var suf = (m[3]||'').toUpperCase();
+    if(suf==='PM' && h<12) h+=12;
+    if(suf==='AM' && h===12) h=0;
+    if(h<0||h>23) h=0;
+    if(min<0||min>59) min=0;
+    return pad2(h)+':'+pad2(min);
+  }
+
+  // Display "h:mm AM/PM" (— if missing)
+  function formatTime(timeStr){
+    var hhmm = safeTimeHHmm(timeStr);
+    var parts = hhmm.split(':');
+    var h = parseInt(parts[0],10);
+    var m = parts[1];
+    if (isNaN(h)) return '—';
+    var suffix = h<12 ? 'AM':'PM';
+    var h12 = h%12===0 ? 12 : h%12;
+    return h12 + ':' + m + ' ' + suffix;
+  }
+
+  // Choose a reservation's logical date (schema may not have .date)
+  function resolveDate(res){
+    if(!res) return null;
+    return res.date || (res.schedule && res.schedule.scheduleDate) || res.createdAt;
+  }
+
+  // ===== Build & sort lists =====
+  var pendingReservations = (reservations||[])
+    .filter(function(r){ return r && r.status === 'Pending'; })
+    .sort(function(a,b){
+      var d1 = safeDateValue(resolveDate(a)), d2 = safeDateValue(resolveDate(b));
+      if (d1.getTime() !== d2.getTime()) return d1 - d2;
+      var t1 = safeTimeHHmm(a && a.time), t2 = safeTimeHHmm(b && b.time);
+      return t1.localeCompare(t2);
+    });
+
+  var historyReservations = (reservations||[]).filter(function(r){
+    return r && ['Done','Not Attended','Paid'].includes(r.status);
+  });
+
+  var ongoingReservations = (reservations||[]).filter(function(r){
+    return r && (
+      r.status === 'Paid' ||
+      r.status === 'Done' ||
+      !!r.doctor
+    ) && !r.isInitialEntry && !r.isStacked;
+  });
 %>
+
+
 <div class="container-fluid reservation-container">
-  <style>
-    /* Reservation Content Styles */
-    .reservation-container {
-      background-color: #f7f7f7;
-      min-height: 100vh;
-      padding: 2rem;
-    }
-    .card {
-      background: #fff;
-      border: none;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      margin-bottom: 1.5rem;
-      overflow: visible;
-    }
-    .table th,
-    .table td {
-      vertical-align: middle;
-      padding: 0.75rem;
-    }
-    .btn-link {
-      font-weight: 500;
-      color: #2a9d8f;
-      font-size: 14px;
-    }
-    .btn-link:hover {
-      text-decoration: none;
-      color: #237c67;
-    }
-    /* Fixed height container for tables */
-    .fixed-table-container {
-      height: 300px; /* adjust as needed */
-      overflow-y: auto;
-    }
-    /* Approved Reservations styling */
-    .approved-table-wrapper {
-      max-height: 500px;
-      overflow-y: auto;
-      overflow-x: visible;
-    }
-    .approved-reservations .table-responsive table {
-      width: 100%;
-      table-layout: fixed;
-    }
-    .approved-reservations th,
-    .approved-reservations td {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    /* Medication column */
-    .medication-column {
-      min-width: 140px;
-      text-align: center;
-    }
-    /* Datepicker highlighting */
-    .has-appointment a {
-      background-color: #2a9d8f !important;
-      color: #fff !important;
-    }
-    .no-appointment a {
-      background-color: #d9534f !important;
-      color: #fff !important;
-    }
-    /* Dropdown on top */
-    .dropdown-menu {
-      z-index: 2000;
-    }
-    /* Navigation tab styling */
-    .tab-link {
-      cursor: pointer;
-      padding: 5px 10px;
-      text-decoration: none;
-      color: #2a9d8f;
-      font-size: 14px;
-    }
-    .tab-link.active {
-      font-weight: bold;
-      border-bottom: 2px solid #2a9d8f;
-    }
-    /* Header buttons in left column */
-    .header-buttons {
-      font-size: 14px;
-    }
-    .header-buttons button {
-      margin-right: 5px;
-    }
-    /* Search box styling */
-    .search-box {
-      width: 430px;
-      margin-left: 0;
-      height: 30px;
-    }
-    /* Equal button class for consistent sizing */
-    .equal-btn {
-      width: 120px;
-    }
-  </style>
-  
-  <!-- Optional debug output -->
+<style>
+  /* =========================
+     Reservation Content Styles
+     ========================= */
+  .reservation-container {
+    background-color: #f7f7f7;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+  .card {
+    background: #fff;
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1.5rem;
+    overflow: visible;
+  }
+  .table th,
+  .table td {
+    vertical-align: middle;
+    padding: 0.75rem;
+  }
+  .btn-link {
+    font-weight: 500;
+    color: #2a9d8f;
+    font-size: 14px;
+  }
+  .btn-link:hover {
+    text-decoration: none;
+    color: #237c67;
+  }
+
+  /* Fixed height container for tables */
+  .fixed-table-container {
+    height: 300px;
+    overflow-y: auto;
+  }
+
+  /* Approved Reservations styling */
+  .approved-table-wrapper {
+    max-height: 500px;
+    overflow-y: auto;
+    overflow-x: visible;
+  }
+  .approved-reservations .table-responsive table {
+    width: 100%;
+    table-layout: fixed;
+  }
+  .approved-reservations .table-responsive table thead th {
+    width: 33.33%;
+    text-align: center;
+  }
+  .approved-reservations .table-responsive table thead th:first-child {
+    text-align: left;
+  }
+  .approved-reservations th,
+  .approved-reservations td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Medication column */
+  .medication-column {
+    min-width: 140px;
+    text-align: center;
+  }
+
+  /* Datepicker highlighting */
+  .has-appointment a {
+    background-color: #2a9d8f !important;
+    color: #fff !important;
+  }
+  .no-appointment a {
+    background-color: #d9534f !important;
+    color: #fff !important;
+  }
+
+  /* Dropdown on top */
+  .dropdown-menu { z-index: 2000; }
+
+  /* Navigation tab styling */
+  .tab-link {
+    cursor: pointer;
+    padding: 5px 10px;
+    text-decoration: none;
+    color: #2a9d8f;
+    font-size: 14px;
+  }
+  .tab-link.active {
+    font-weight: bold;
+    border-bottom: 2px solid #2a9d8f;
+  }
+
+  /* Header buttons in left column */
+  .header-buttons { font-size: 14px; }
+  .header-buttons button { margin-right: 5px; }
+
+  /* Search box styling */
+  .search-box { width: 430px; margin-left: 0; height: 30px; }
+
+  /* Equal button class for consistent sizing */
+  .equal-btn { width: 120px; }
+
+  /* Center the action buttons */
+  .actions-column { text-align: center; }
+
+  /* ===== Receipt / Services tables (charcoal header, subtle stripes) ===== */
+  #receiptTable thead,
+  #servicesTable thead {
+    background-color: #343a40;
+    color: #ffffff;
+  }
+  #receiptTable tfoot tr,
+  #servicesTable tfoot tr {
+    background-color: #f1f1f1;
+    color: #212529;
+    font-weight: 600;
+  }
+  #medTotal, #svcTotal, #grandTotal { color: #20c997; }
+  #receiptTable tbody tr:hover,
+  #servicesTable tbody tr:hover { background-color: #e9ecef; }
+  #receiptTable.table-striped tbody tr:nth-of-type(odd),
+  #servicesTable.table-sm tbody tr:nth-of-type(odd) { background-color: #fafafa; }
+  #btnMarkPaid { background-color: #20c997; border-color: #17a589; }
+  #btnMarkPaid:hover { background-color: #17a589; }
+  .btn-remove { color: #dc3545; }
+  .btn-remove:hover { color: #bd2130; }
+
+  /* Receipt modal scroll */
+  #medicationModal .modal-body {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding-right: 1rem;
+  }
+
+  /* ---------- Category tables alignment ---------- */
+  #medicationsByCategory .table th:nth-child(1) { width: 40%; } /* product */
+  #medicationsByCategory .table th:nth-child(2) { width: 15%; } /* qty */
+  #medicationsByCategory .table th:nth-child(3) { width: 15%; } /* unit */
+  #medicationsByCategory .table th:nth-child(4) { width: 20%; } /* total */
+  #medicationsByCategory .table th:nth-child(5) { width: 10%; } /* edit */
+  #medicationsByCategory .table-responsive {
+    overflow-x: auto;
+    margin-bottom: 0.5rem;
+  }
+  .med-total-footer {
+    background-color: #f1f1f1;
+    color: #212529;
+    font-weight: 600;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+    width: 100%;
+  }
+  .med-total-footer span#medTotal { color: #20c997; }
+
+  /* ===== HR consult view (match consult.ejs) ===== */
+  .view-details-header{
+    background:#f1f5fa; padding:12px 18px; font-weight:600; font-size:.95rem; color:#444;
+    border-bottom:1px solid rgba(0,0,0,.08); border-radius:12px 12px 0 0;
+  }
+  .details-table{ width:100%; border-collapse:collapse; margin-bottom:1rem; }
+  .details-table th,.details-table td{
+    padding:.75rem 1.25rem; border:1px solid #eaeaea; vertical-align:top; text-align:left;
+  }
+  .details-table th{ background:#f1f5fa; color:#264653; font-weight:600; width:30%; }
+
+  /* Z-index: modals vs backdrops vs SweetAlert */
+  #hrConsultViewModal.modal { z-index: 3000 !important; }
+  .modal-backdrop { z-index: 2499 !important; }
+  #medicationModal.modal, #editMedModal.modal { z-index: 3001 !important; }
+  .swal2-container { z-index: 5001 !important; }
+  .swal2-popup { z-index: 5002 !important; }
+
+  #hrConsultViewModal .modal-dialog { max-width: 600px; width: 100%; }
+  #hrConsultViewModal .modal-content {
+    border: none; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  #hrConsultViewModal .modal-body {
+    flex: 1 1 auto !important; overflow-y: auto !important; padding: 1rem 1.5rem !important;
+  }
+  #hrConsultViewModal .footer-hint {
+    margin-top: auto; padding: 8px 16px; font-size: 0.65rem; color: #6c757d; text-align: center;
+    background: rgba(0,0,0,0.03); border-top: 1px solid rgba(0,0,0,0.05);
+    border-radius: 0 0 12px 12px; width: 100%; box-sizing: border-box;
+  }
+  #hrConsultViewModal .footer-hint .btn { min-width: 120px; margin-top: 6px; }
+
+  /* ==============================
+     Walk-In (+) Modal Facelift
+     ============================== */
+  /* Keep the Walk-In modal above other modals/backdrops */
+  #plusModal.modal { z-index: 3002 !important; }
+  /* jQuery UI spinner hint on the search */
+  #walkinOwnerSearch.ui-autocomplete-loading {
+    background: url('/spinner.svg') right 8px center / 16px 16px no-repeat;
+  }
+  /* Ensure jQuery UI menu shows above Bootstrap modal */
+  .ui-autocomplete { z-index: 4000 !important; }
+
+  /* Layout & shell (match consult card look) */
+  #plusModal .modal-dialog {
+    max-width: 640px;
+    width: auto;
+    margin: .75rem auto;
+  }
+  @media (max-width: 576px){
+    #plusModal .modal-dialog { max-width: calc(100% - 1rem); margin: .5rem; }
+    #plusModal .modal-body { padding: .75rem 1rem !important; }
+  }
+  #plusModal .modal-content{
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(30,136,229,0.12), 0 1.5px 12px rgba(32,39,55,0.08);
+    overflow: hidden;
+  }
+  #plusModal .view-details-header{
+    background:#f1f5fa;
+    padding:12px 18px;
+    font-weight:600;
+    font-size:.95rem;
+    color:#444;
+    border-bottom:1px solid rgba(0,0,0,0.08);
+  }
+  #plusModal .modal-body{
+    padding: 1rem 1.25rem !important;
+    background:#fff;
+  }
+
+  /* Card-like blocks inside the modal */
+  #plusModal .card-like{
+    border:1px solid #eaeaea;
+    border-radius:16px;
+    background:#fff;
+    padding:18px;
+    box-shadow: 0 4px 18px rgba(13,71,161,.10);
+  }
+  #plusModal .section-title{
+    font-weight:700;
+    color:#224b7a;
+    font-size:.95rem;
+    display:flex; align-items:center; gap:8px;
+    margin:0 0 10px;
+  }
+
+  /* Form grid */
+  #plusModal .form-row-grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 14px;
+  }
+  @media (max-width: 576px){
+    #plusModal .form-row-grid{ grid-template-columns: 1fr; }
+  }
+
+  /* Labels/controls */
+  #plusModal .form-group label{
+    font-weight:600;
+    color:#264653;
+    margin-bottom:6px;
+    font-size:.9rem;
+  }
+  #plusModal .form-control{
+    border-radius:8px;
+    border:1px solid #ced4da;
+    box-shadow: none;
+  }
+  #plusModal .form-control:focus{
+    border-color:#1E88E5;
+    box-shadow: 0 0 0 0.2rem rgba(30,136,229,0.25);
+  }
+  #plusModal .helper{
+    font-size:.8rem; color:#6b7a90; margin-top:6px;
+  }
+  #plusModal .btn{ border-radius:10px; font-weight:700; }
+
+  /* Search input with icon */
+  #plusModal .input-icon{ position:relative; }
+  #plusModal .input-icon i{
+    position:absolute; left:10px; top:50%; transform:translateY(-50%);
+    pointer-events:none;
+  }
+  #plusModal .input-icon input{ padding-left:34px; }
+
+  /* Modal footer strip */
+  #plusModal .footer-hint{
+    background:rgba(0,0,0,.03);
+    border-top:1px solid rgba(0,0,0,.06);
+    padding:10px 14px;
+    font-size:.75rem; color:#6c757d;
+  }
+
+  /* Optional inline error under time select (hook for your JS) */
+  #walkinTimeError { color:#dc3545; }
+
+</style>
+
+
+   <!-- Optional debug output -->
   <div id="doctorsDebug" style="display:none;"><%= JSON.stringify(doctors) %></div>
   
   <!-- Content Header -->
@@ -149,40 +414,41 @@
             <thead>
               <tr>
                 <th>Owner Name</th>
+                <th>Time</th>    
                 <th>Service</th>
                 <th class="text-center">Details</th>
                 <th class="text-center">Action</th>
               </tr>
             </thead>
             <tbody id="appointmentsTableBody">
-              <% reservations.forEach(function(reservation) { %>
-                <% if (reservation.status === 'Pending') { %>
-                  <tr id="reservation-<%= reservation._id %>" 
-                      data-date="<%= formatLocalDate(reservation.date) %>" 
-                      data-time="<%= reservation.time.split(':')[0] %>">
-                    <td class="ownerName"><%= reservation.ownerName %></td>
-                    <td><%= reservation.service %></td>
-                    <td>
-                      <div class="text-center">
-                        <button class="btn btn-info btn-sm equal-btn d-block mx-auto" onclick="viewReservation('<%= reservation._id %>')">
-                          View
-                        </button>
-                      </div>
-                    </td>
-                    <td class="text-center">
-                      <button class="btn btn-success btn-sm equal-btn d-block mx-auto" onclick="approveReservation('<%= reservation._id %>')">
-                        Approve
-                      </button>
-                    </td>
-                  </tr>
-                <% } %>
+              <% pendingReservations.forEach(function(reservation) { %>
+                <% const rowDateP = resolveDate(reservation); %>
+                <tr id="reservation-<%= reservation._id %>"
+                    data-date="<%= formatLocalDate(rowDateP) %>"
+                    data-time="<%= safeTimeHHmm(reservation.time) %>">
+                  <td class="ownerName"><%= reservation.ownerName %></td>
+                  <td><%= formatTime(reservation.time) %></td>
+                  <td><%= reservation.service %></td>
+                  <td class="text-center">
+                    <button class="btn btn-info btn-sm equal-btn mx-auto d-block"
+                            onclick="viewReservation('<%= reservation._id %>','pending')">
+                      View
+                    </button>
+                  </td>
+                  <td class="text-center">
+                    <button class="btn btn-success btn-sm equal-btn mx-auto d-block"
+                            onclick="approveReservation('<%= reservation._id %>')">
+                      Approve
+                    </button>
+                  </td>
+                </tr>
               <% }); %>
             </tbody>
           </table>
         </div>
       </div>
-      
-      <!-- Reservation History Card (hidden by default) -->
+
+      <!-- Reservation History Card -->
       <div class="card p-4 shadow-sm mb-4" id="historySection" style="display: none;">
         <h4 class="font-weight-bold mb-3" style="font-size: 16px;">Reservation History</h4>
         <div class="table-responsive fixed-table-container">
@@ -190,21 +456,28 @@
             <thead>
               <tr>
                 <th>Owner Name</th>
+                <th>Time</th>
                 <th>Service</th>
                 <th>Status</th>
                 <th class="text-center">Details</th>
               </tr>
             </thead>
             <tbody>
-              <% let historyReservations = reservations.filter(r => r.status === 'Done'); %>
               <% if (historyReservations.length > 0) { %>
                 <% historyReservations.forEach(function(reservation) { %>
-                  <tr data-date="<%= formatLocalDate(reservation.date) %>">
+                  <% const rowDateH = resolveDate(reservation); %>
+                  <tr data-date="<%= formatLocalDate(rowDateH) %>">
                     <td><%= reservation.ownerName %></td>
+                    <td><%= formatTime(reservation.time) %></td>
                     <td><%= reservation.service %></td>
-                    <td><span class="badge badge-success">Done</span></td>
                     <td class="text-center">
-                      <button class="btn btn-info btn-sm equal-btn" onclick="viewReservation('<%= reservation._id %>')">
+                      <span class="badge badge-<%= reservation.status === 'Not Attended' ? 'danger' : 'success' %>">
+                        <%= reservation.status === 'Not Attended' ? 'Not Attended' : 'Done' %>
+                      </span>
+                    </td>
+                    <td class="text-center">
+                      <button class="btn btn-info btn-sm equal-btn"
+                              onclick="viewReservation('<%= reservation._id %>')">
                         View
                       </button>
                     </td>
@@ -212,18 +485,17 @@
                 <% }); %>
               <% } else { %>
                 <tr>
-                  <td colspan="4" class="text-center">No appointment history found.</td>
+                  <td colspan="5" class="text-center">No appointment history found.</td>
                 </tr>
               <% } %>
             </tbody>
           </table>
         </div>
       </div>
-    </div>
-    
+    </div><!-- /.col-lg-6 -->
+
     <!-- Right Column: Approved & Ongoing -->
     <div class="col-lg-6">
-      <!-- Approved Reservations Card with Navigation Tabs -->
       <div class="card p-4 shadow-sm mb-4 approved-reservations">
         <!-- Navigation Tabs -->
         <div class="d-flex align-items-center" style="font-size: 14px; margin-bottom: 10px;">
@@ -234,130 +506,115 @@
           </button>
         </div>
         <div class="approved-table-wrapper">
-          <!-- Approved View: Reservations with status "Approved" and no doctor assigned -->
-          <!-- Approved Reservations Table -->
-<!-- Approved Reservations Table -->
-<div id="approvedView">
-  <div class="table-responsive fixed-table-container">
-    <table class="table table-hover mb-0">
-      <thead>
-        <tr>
-          <th>Owner Name</th>
-          <th class="text-center">Details</th>
-          <th class="actions-column">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% 
-        // Include reservations that are either Approved or Canceled (from approved flow)
-        // but exclude those canceled while pending (i.e. status "CanceledPending")
-        let approvedReservations = reservations.filter(r => 
-            (r.status === 'Approved' || r.status === 'Canceled') && !r.doctor
-        );
-      %>
-      
-        <% if (approvedReservations.length > 0) { %>
-          <% approvedReservations.forEach(function(reservation) { %>
-            <tr id="approved-<%= reservation._id %>" data-date="<%= formatLocalDate(reservation.date) %>">
-              <td><%= reservation.ownerName %></td>
-              <td>
-                <div class="text-center">
-                  <button class="btn btn-primary btn-sm equal-btn d-block mx-auto" onclick="viewReservation('<%= reservation._id %>')">
-                    View
-                  </button>
-                </div>
-              </td>
-              <td class="actions-column">
-                <% if (reservation.status === 'Canceled') { %>
-                  <!-- If the reservation is canceled, display a canceled badge -->
-                  <span class="badge badge-secondary">Canceled</span>
-                <% } else { %>
-                  <!-- Otherwise, show the dropdown to assign a doctor -->
-                  <div class="dropdown d-inline-block">
-                    <button class="btn btn-primary btn-sm dropdown-toggle equal-btn" type="button" id="doctorDropdown-<%= reservation._id %>" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false">
-                      Assign Doctor
-                    </button>
-                    <div class="dropdown-menu" aria-labelledby="doctorDropdown-<%= reservation._id %>">
-                      <% if (doctors && doctors.length > 0) { %>
-                        <% doctors.forEach(function(doctor) { %>
-                          <a class="dropdown-item" href="#" onclick="assignDoctor('<%= reservation._id %>', '<%= doctor._id %>')">
-                            <%= doctor.username %>
-                          </a>
-                        <% }); %>
-                      <% } else { %>
-                        <span class="dropdown-item">No doctors available</span>
-                      <% } %>
-                    </div>
-                  </div>
-                <% } %>
-              </td>
-            </tr>
-          <% }); %>
-        <% } else { %>
-          <tr>
-            <td colspan="3" class="text-center">No approved appointments found.</td>
-          </tr>
-        <% } %>
-      </tbody>
-    </table>
-  </div>
-</div>
+          <!-- Approved View -->
+          <div id="approvedView">
+            <div class="table-responsive fixed-table-container">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Owner Name</th>
+                    <th class="text-center">Details</th>
+                    <th class="actions-column">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% let approvedReservations = reservations.filter(r =>
+                      (r.status === 'Approved' || r.status === 'Canceled') && !r.doctor
+                  ); %>
+                  <% if (approvedReservations.length > 0) { %>
+                    <% approvedReservations.forEach(function(reservation) { %>
+                      <% const rowDateA = resolveDate(reservation); %>
+                      <tr id="approved-<%= reservation._id %>"
+                          data-date="<%= formatLocalDate(rowDateA) %>">
+                        <td><%= reservation.ownerName %></td>
+                        <td class="text-center">
+                          <button class="btn btn-primary btn-sm equal-btn d-block mx-auto"
+                                  onclick="viewReservation('<%= reservation._id %>')">
+                            View
+                          </button>
+                        </td>
+                        <td class="actions-column">
+                          <% if (reservation.status === 'Canceled') { %>
+                            <span class="badge badge-secondary">Canceled</span>
+                          <% } else { %>
+                            <div class="dropdown d-inline-block">
+                              <button class="btn btn-primary btn-sm dropdown-toggle equal-btn"
+                                      type="button" id="doctorDropdown-<%= reservation._id %>"
+                                      data-toggle="dropdown" data-boundary="window">
+                                Assign Doctor
+                              </button>
+                              <div class="dropdown-menu" aria-labelledby="doctorDropdown-<%= reservation._id %>">
+                                <% if (doctors && doctors.length > 0) { %>
+                                  <% doctors.forEach(function(doctor) { %>
+                                    <a class="dropdown-item" href="#"
+                                       onclick="assignDoctor('<%= reservation._id %>','<%= doctor._id %>')">
+                                      <%= doctor.username %>
+                                    </a>
+                                  <% }); %>
+                                <% } else { %>
+                                  <span class="dropdown-item">No doctors available</span>
+                                <% } %>
+                              </div>
+                            </div>
+                          <% } %>
+                        </td>
+                      </tr>
+                    <% }); %>
+                  <% } else { %>
+                    <tr>
+                      <td colspan="3" class="text-center">No approved appointments found.</td>
+                    </tr>
+                  <% } %>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-          <!-- Ongoing View: Reservations with a doctor assigned, or “Done” but pet not yet added -->
+          <!-- Ongoing View -->
           <div id="ongoingView" style="display: none;">
             <div class="table-responsive fixed-table-container">
               <table class="table table-hover mb-0">
                 <thead>
                   <tr>
                     <th>Owner Name</th>
-                    <th>Doctor Name</th>
+                    <th class="text-center">Doctor Name</th>
                     <th class="text-center">Medication</th>
-                    <th>Status</th>
-                    <th>Action</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <%
-                    // Show a reservation if:
-                    //   1) r.doctor is assigned, or
-                    //   2) r.status === 'Done' but r.petAdded === false
-                    let ongoingReservations = reservations.filter(r => {
-                      if (r.status === 'Done') {
-                        return !r.petAdded;
-                      }
-                      return !!r.doctor;
-                    });
-                  %>
                   <% if (ongoingReservations.length > 0) { %>
                     <% ongoingReservations.forEach(function(reservation) { %>
-                      <tr id="ongoing-<%= reservation._id %>" data-date="<%= formatLocalDate(reservation.date) %>">
+                      <% const rowDateO = resolveDate(reservation); %>
+                      <tr id="ongoing-<%= reservation._id %>"
+                          data-date="<%= formatLocalDate(rowDateO) %>">
                         <td><%= reservation.ownerName %></td>
-                        <td><%= reservation.doctor ? (reservation.doctor.username || 'N/A') : 'N/A' %></td>
+                        <td class="text-center"><%= reservation.doctor?.username || 'N/A' %></td>
                         <td class="medication-column text-center">
-                          <button class="btn btn-info btn-sm equal-btn d-block mx-auto" onclick="viewDetails('<%= reservation._id %>')">
-                            View Details
-                          </button>
+                          <button class="btn btn-info btn-sm equal-btn d-block mx-auto"
+                                  onclick="viewReceipt('<%= reservation._id %>')">View Details</button>
                         </td>
-                        <td>
-                          <% if (reservation.status === 'Done') { %>
+                        <td class="text-center">
+                          <% if (reservation.status === 'Paid') { %>
+                            <span class="badge badge-primary">Paid</span>
+                          <% } else if (reservation.status === 'Done') { %>
                             <span class="badge badge-success">Done</span>
                           <% } else { %>
                             <span class="badge badge-secondary">Ongoing</span>
                           <% } %>
                         </td>
-                        <td>
-                          <% if (reservation.status === 'Done' && !reservation.petAdded) { %>
-                            <% if (reservation.petExists) { %>
-                              <!-- If pet exists, show "Done" button -->
-                              <button class="btn btn-warning btn-sm equal-btn" onclick="markAsDoneAndUpdate('<%= reservation._id %>')">
-                                Done
-                              </button>
-                            <% } else { %>
-                              <!-- If pet doesn't exist, show "Add" button -->
-                              <button class="btn btn-primary btn-sm equal-btn" onclick="addPetFromConsultation('<%= reservation._id %>')">
-                                Add
-                              </button>
-                            <% } %>
+                        <td class="text-center">
+                          <% if (reservation.petExists && !reservation.isStacked && reservation.status === 'Paid') { %>
+                            <button class="btn btn-warning btn-sm"
+                                    onclick="updatePetList('<%= reservation._id %>')">
+                              Update
+                            </button>
+                          <% } else if (!reservation.petExists && reservation.status === 'Paid') { %>
+                            <button class="btn btn-primary btn-sm"
+                                    onclick="addToPetList('<%= reservation._id %>')">
+                              Add
+                            </button>
                           <% } else { %>
                             N/A
                           <% } %>
@@ -380,281 +637,1146 @@
 
 </div>
 
-<!-- Modal for Viewing Consultation Details -->
-<div class="modal fade" id="medicationModal" tabindex="-1" role="dialog" aria-labelledby="medicationModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="medicationModalLabel">Consultation Details</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body" id="medicationDetails">
-        <!-- Consultation details will be loaded here -->
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Plus Modal -->
-<div class="modal fade" id="plusModal" tabindex="-1" role="dialog" aria-labelledby="plusModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="plusModalLabel">Additional Options</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
+<!-- Consultation Receipt Modal -->
+<div class="modal fade" id="medicationModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content border-0 rounded shadow-sm">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title">Consultation Receipt</h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
       </div>
       <div class="modal-body">
-        <p>This is a modal triggered by the plus button.</p>
+        <div id="receiptHeader" class="mb-3"><!-- pet, date, concerns, follow-up --></div>
+
+        <h6 class="d-flex justify-content-start align-items-center">
+          Medications
+          <button id="btnAddMedReceipt" class="btn btn-sm btn-secondary ml-2">Add</button>
+        </h6>
+
+        <div id="receiptMedSelector" class="mb-3" style="display:none;">
+          <div class="form-row">
+            <div class="col">
+              <select id="receiptMedCategory" class="form-control form-control-sm">
+                <option value="">-- Choose category --</option>
+              </select>
+            </div>
+            <div class="col">
+              <select id="receiptMedProduct" class="form-control form-control-sm">
+                <option value="">-- Choose product --</option>
+              </select>
+            </div>
+            <div class="col-2">
+              <input type="number" id="receiptMedQtyInput" class="form-control form-control-sm" placeholder="Qty" min="1">
+            </div>
+            <div class="col-auto">
+              <button id="receiptMedAddConfirm" class="btn btn-sm btn-success">Add</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="medicationsByCategory" class="table-responsive mb-3">
+          <!-- one table per category will be injected here -->
+        </div>
+
+        <h6>Services & Fees</h6>
+        <table class="table table-sm mb-3" id="servicesTable">
+          <thead class="thead-light">
+            <tr>
+              <th>Service</th>
+              <th>Fee</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot>
+            <tr>
+              <th colspan="2" class="text-left">
+                Services Total: ₱ <span id="svcTotal">0.00</span>
+              </th>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div class="d-flex justify-content-end">
+          <h5>Grand Total: ₱ <span id="grandTotal">0.00</span></h5>
+        </div>
       </div>
       <div class="modal-footer">
+        <button id="btnMarkPaid" class="btn btn-success">Mark as Paid</button>
         <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- jQuery, jQuery UI, Bootstrap -->
-<link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<!-- Edit Medication Modal -->
+<div class="modal fade" id="editMedModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+    <div class="modal-content border-0 rounded shadow-sm">
+      <div class="modal-header bg-secondary text-white">
+        <h5 class="modal-title">Edit Medication</h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="editMedForm">
+          <div class="form-group">
+            <label>Product</label>
+            <input type="text" class="form-control" id="editMedName" readonly>
+          </div>
+          <div class="form-group">
+            <label>Quantity</label>
+            <input type="number" class="form-control" id="editMedQty" min="0">
+          </div>
+          <div class="form-group text-right">
+            <button type="button" class="btn btn-danger" id="removeMedBtn">Remove</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 
-<!-- SweetAlert2 -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<!-- Consultation Details Modal (HR) -->
+<div class="modal fade" id="hrConsultViewModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="view-details-header">Consultation Details</div>
+      <div class="modal-body p-4" id="hrConsultDetailsBody"></div>
+      <div class="footer-hint">
+        <span style="display:block; margin-bottom:4px;">
+          Note: Please review all details carefully before closing.
+        </span>
+        <button type="button" class="btn btn-secondary px-4" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Walk-In Reservation Modal -->
+<div class="modal fade" id="plusModal" tabindex="-1" role="dialog" aria-labelledby="plusModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content border-0">
+      <!-- Header -->
+      <div class="view-details-header">
+        New Walk-In Reservation
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="position:absolute; right:12px; top:8px;">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+
+      <form id="walkinForm" novalidate>
+        <input type="hidden" id="isExistingPet" name="isExistingPet" value="false"/>
+
+        <div class="modal-body">
+          <!-- Section: Owner & Pet -->
+          <div class="card-like mb-3">
+            <div class="section-title">
+              <i class="fa-solid fa-user"></i> Owner & Pet
+            </div>
+
+            <div class="form-row-grid">
+              <!-- Owner selector / search / new -->
+              <div class="form-group">
+                <label for="walkinOwnerSelect">Owner</label>
+
+                <!-- Existing owners dropdown (IDs + walk-in names) -->
+                <select class="form-control" id="walkinOwnerSelect" name="ownerId">
+                  <option value="" disabled selected>Select existing owner…</option>
+                  <% 
+                    const entries = Array.isArray(petlistEntries) ? petlistEntries : [];
+                    const seen = new Set();
+                    entries.forEach(e => {
+                      const ownerId    = e?.owner?._id ? String(e.owner._id) : null;
+                      const accName    = e?.owner?.username || null;
+                      const walkinName = e?.ownerName || null;
+                      if (ownerId && accName) {
+                        const key = 'ID::' + ownerId;
+                        if (!seen.has(key)) { %>
+                          <option value="<%= key %>"><%= accName %></option>
+                        <% seen.add(key); }
+                      } else if (walkinName) {
+                        const key = 'NAME::' + walkinName.trim();
+                        if (!seen.has(key)) { %>
+                          <option value="<%= key %>"><%= walkinName %> (walk-in)</option>
+                        <% seen.add(key); }
+                      }
+                    });
+                  %>
+                  <option value="_NEW_">+ New Owner…</option>
+                </select>
+
+                <!-- Search existing owners (jQuery UI autocomplete) -->
+                <div class="input-icon mt-2">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input
+                    type="text"
+                    id="walkinOwnerSearch"
+                    class="form-control"
+                    placeholder="Search existing owner…"
+                    autocomplete="off"
+                  />
+                </div>
+
+                <!-- New owner text input (shown when _NEW_ chosen) -->
+                <input
+                  type="text"
+                  id="walkinOwnerInput"
+                  name="ownerName"
+                  class="form-control mt-2 d-none"
+                  placeholder="Type new owner name"
+                />
+              </div>
+
+              <!-- Pet selector / new pet -->
+              <div class="form-group">
+                <label for="walkinPetSelect">Pet</label>
+                <select class="form-control" id="walkinPetSelect" name="petName" disabled>
+                  <option value="" disabled selected>Select owner first…</option>
+                </select>
+
+                <!-- New pet name (visible when needed) -->
+                <input
+                  type="text"
+                  id="walkinPetInput"
+                  name="petName"
+                  class="form-control mt-2 d-none"
+                  placeholder="Type new pet name"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: Pet Meta -->
+          <div class="card-like mb-3" id="walkinPetMetaRow">
+            <div class="section-title">
+              <i class="fa-solid fa-paw"></i> Pet Details
+            </div>
+
+            <div class="form-row-grid">
+              <!-- Species -->
+              <div class="form-group">
+                <label for="walkinSpecies">Species</label>
+                <select class="form-control" id="walkinSpecies" name="species" required>
+                  <option value="" disabled selected>Select…</option>
+                  <% (petDetails.species || []).forEach(s => { %>
+                    <option value="<%= s %>"><%= s %></option>
+                  <% }) %>
+                </select>
+              </div>
+
+              <!-- Breed -->
+              <div class="form-group">
+                <label for="walkinBreed">Breed</label>
+                <select class="form-control" id="walkinBreed" name="breed" required>
+                  <option value="" disabled selected>Select…</option>
+                </select>
+              </div>
+
+              <!-- Sex -->
+              <div class="form-group">
+                <label for="walkinSex">Sex</label>
+                <select class="form-control" id="walkinSex" name="sex" required>
+                  <option value="" disabled selected>Choose…</option>
+                  <option>Male</option>
+                  <option>Female</option>
+                </select>
+              </div>
+
+              <!-- Existing Disease (+ Other) -->
+              <div class="form-group">
+                <label for="walkinDisease">Existing Disease</label>
+                <select class="form-control" id="walkinDisease" name="existingDisease" required>
+                  <option value="" disabled selected>Select…</option>
+                  <option value="None">None</option>
+                  <option value="Other">Other</option>
+                  <% (petDetails.diseases || []).forEach(d => { %>
+                    <option value="<%= d %>"><%= d %></option>
+                  <% }) %>
+                </select>
+                <input
+                  type="text"
+                  class="form-control mt-2 d-none"
+                  id="walkinOtherDisease"
+                  name="otherDisease"
+                  placeholder="Specify other disease"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: Visit Details -->
+          <div class="card-like mb-3">
+            <div class="section-title">
+              <i class="fa-regular fa-calendar-check"></i> Visit Details
+            </div>
+
+            <div class="form-row-grid">
+              <!-- Service -->
+              <div class="form-group">
+                <label for="walkinService">Service</label>
+                <select class="form-control" id="walkinService" name="service" required>
+                  <option value="" disabled selected>Select service…</option>
+                  <% (petDetails.services || []).forEach(svc => { %>
+                    <option value="<%= svc %>"><%= svc %></option>
+                  <% }) %>
+                </select>
+              </div>
+
+              <!-- Concerns -->
+              <div class="form-group">
+                <label for="walkinConcerns">Concerns</label>
+                <input type="text" class="form-control" id="walkinConcerns" name="concerns" placeholder="Short concern (optional)">
+              </div>
+
+              <!-- Date -->
+              <div class="form-group">
+                <label for="walkinDate">Date</label>
+                <input type="date" class="form-control" id="walkinDate" name="date" required>
+              </div>
+
+              <!-- Time (mirrors consult.ejs rules) -->
+              <div class="form-group">
+                <label for="walkinTimeSelect">Time</label>
+                <select class="form-control" id="walkinTimeSelect" name="time" required></select>
+                <div id="walkinTimeError" class="mt-1" style="min-height:18px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-hint">
+          The date & time follow the same rules as online consults: past times are disabled and full slots are blocked.
+        </div>
+
+        <div class="modal-footer">
+          <button type="submit" id="saveWalkinBtn" class="btn btn-success">Save</button>
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<script>window.petDetails = <%- JSON.stringify(petDetails) %>;</script>
+<script>window.petsData   = <%- JSON.stringify(pets) %>;</script>
+<script>
+  window.doctors = <%- JSON.stringify(doctors || []) %>;
+</script>
+
 
 <script>
-  // Global variable for the active date; default to today.
-  var activeDate = new Date().toISOString().slice(0,10);
+  // on species change, re-populate "Breed"
+  $('#walkinSpecies').on('change', function() {
+    const sp = this.value;
+    const breeds = (window.petDetails?.speciesBreeds?.[sp]) || [];
+    const $b = $('#walkinBreed').empty().append('<option disabled selected>Select…</option>');
+    breeds.forEach(b => $b.append(`<option value="${b}">${b}</option>`));
+  });
 
-  function filterRows() {
-    $('#appointmentsTableBody tr').each(function(){
-      var rowDate = $(this).data('date');
-      if (typeof rowDate === 'undefined') {
-        $(this).show();
-        return;
-      }
-      if (rowDate === activeDate) {
-        $(this).show();
-      } else {
-        $(this).hide();
-      }
+  // show "Other" disease text input  ✅ FIXED: close the handler properly
+  $('#walkinDisease').on('change', function(){
+    const isOther = this.value === 'Other';
+    const $od = $('#walkinOtherDisease');
+    $od.toggleClass('d-none', !isOther)
+       .prop('required', isOther)
+       .prop('disabled', !isOther);
+    if (isOther) {
+      $od.attr('name', 'otherDisease');
+    } else {
+      $od.removeAttr('name').val('');
+    }
+  });
+</script>
+
+
+<script>
+$(function(){
+  // build owner→pets map (optional helper, kept for future use)
+  const ownerPetMap = {};
+  window.petsData.forEach(p => {
+    const owner = p.owner?.username;
+    if (!owner) return;
+    ownerPetMap[owner] = ownerPetMap[owner] || [];
+    if (!ownerPetMap[owner].includes(p.petName)) {
+      ownerPetMap[owner].push(p.petName);
+    }
+  });
+});
+</script>
+<script>
+// Append a fresh Approved row (no reload)
+function appendApprovedRow(res) {
+  if (!res || !res._id) return;
+  const id = String(res._id);
+  // ❗ Hard guard: if it already exists, do nothing
+  if (document.getElementById('approved-' + id)) return;
+
+  const name    = res.ownerName || '—';
+  const dateISO = res.date || res.createdAt || new Date().toISOString();
+
+  const row = `
+    <tr id="approved-${id}" data-date="${(new Date(dateISO)).toISOString().slice(0,10)}">
+      <td>${name}</td>
+      <td class="text-center">
+        <button class="btn btn-primary btn-sm equal-btn d-block mx-auto"
+                onclick="viewReservation('${id}')">View</button>
+      </td>
+      <td class="actions-column">
+        <div class="dropdown d-inline-block">
+          <button class="btn btn-primary btn-sm dropdown-toggle equal-btn"
+                  type="button" id="doctorDropdown-${id}"
+                  data-toggle="dropdown" data-boundary="window">
+            Assign Doctor
+          </button>
+          <div class="dropdown-menu" aria-labelledby="doctorDropdown-${id}">
+            ${
+              (window.doctors || []).length
+                ? window.doctors.map(d => `
+                    <a class="dropdown-item" href="#"
+                       onclick="assignDoctor('${id}','${d._id}')">${d.username}</a>
+                  `).join('')
+                : `<span class="dropdown-item">No doctors available</span>`
+            }
+          </div>
+        </div>
+      </td>
+    </tr>
+  `;
+
+  const $tbody = $('#approvedView tbody');
+  if ($tbody.find('td[colspan="3"]').length) $tbody.empty(); // remove empty-state row
+  $tbody.prepend(row);
+}
+
+</script>
+<script>
+// find doctor by id from the global doctors list you already render
+function getDoctorById(id){
+  return (window.doctors || []).find(d => String(d._id) === String(id));
+}
+
+// Append a fresh Ongoing row (no reload)
+function appendOngoingRow(res, doctorName) {
+  if (!res || !res._id) return;
+  const id = String(res._id);
+  if (document.getElementById('ongoing-' + id)) return;
+
+  const doctor = doctorName || (res.doctor && (res.doctor.username || res.doctor.name)) || 'N/A';
+  const dateISO = res.date || res.createdAt || new Date().toISOString();
+
+  const row = `
+    <tr id="ongoing-${id}" data-date="${(new Date(dateISO)).toISOString().slice(0,10)}">
+      <td>${res.ownerName || '—'}</td>
+      <td class="text-center">${doctor}</td>
+      <td class="medication-column text-center">
+        <button class="btn btn-info btn-sm equal-btn d-block mx-auto"
+                onclick="viewReceipt('${id}')">View Details</button>
+      </td>
+      <td class="text-center">
+        <span class="badge badge-secondary">Ongoing</span>
+      </td>
+      <td class="text-center">
+        N/A
+      </td>
+    </tr>
+  `;
+
+  const $tbody = $('#ongoingView tbody');
+  if ($tbody.find('td[colspan="5"]').length) $tbody.empty(); // remove empty-state
+  $tbody.prepend(row);
+}
+</script>
+
+<script>
+// Recalculate Meds + Services + Grand totals (safe on empty tables)
+function recalcTotals() {
+  // meds
+  let medTotal = 0;
+  $('#medicationsByCategory .line-total').each(function () {
+    const n = parseFloat($(this).text());
+    if (!isNaN(n)) medTotal += n;
+  });
+  $('#medTotal').text(medTotal.toFixed(2));
+
+  // services
+  let svcTotal = 0;
+  $('#servicesTable tbody tr').each(function () {
+    const price = parseFloat($(this).data('service-price'));
+    if (!isNaN(price)) svcTotal += price;
+  });
+  $('#svcTotal').text(svcTotal.toFixed(2));
+
+  // grand
+  $('#grandTotal').text((medTotal + svcTotal).toFixed(2));
+}
+</script>
+
+<script>
+  function hrFormatVisitDate(dateLike) {
+    if (!dateLike) return 'N/A';
+    const d = new Date(dateLike);
+    if (Number.isNaN(d.getTime())) return String(dateLike);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+</script>
+<script>
+  window.ADDED_LABEL = 'Added';
+</script>
+<script>
+$(document).ready(function () {
+  $('.dropdown-toggle').dropdown();
+
+  $('#toggleHistory').on('click', function () {
+    $('#historySection').toggle();
+  });
+
+  // ---- data & helpers ----
+  var reservationsData = <%- JSON.stringify(reservations || []) %>;
+
+  function dateKeyLocal(d){
+    if (!(d instanceof Date)) d = new Date(d);
+    if (isNaN(d)) return '';
+    var yyyy = d.getFullYear();
+    var mm = ('0'+(d.getMonth()+1)).slice(-2);
+    var dd = ('0'+d.getDate()).slice(-2);
+    return yyyy + '-' + mm + '-' + dd;
+  }
+
+  // selected day (yyyy-mm-dd)
+  window.activeDate = dateKeyLocal(new Date());
+
+  // build calendar highlights from Pending reservations (with date fallback)
+  var appointmentDates = Object.create(null);
+  (reservationsData || []).forEach(function(r){
+    if (!r || r.status !== 'Pending') return;
+    var d = r.date || (r.schedule && r.schedule.scheduleDate) || r.createdAt;
+    var key = dateKeyLocal(d);
+    if (key) appointmentDates[key] = true;
+  });
+
+  // filter pending rows by window.activeDate
+  function filterRows(){
+    var shown = 0;
+    $('#appointmentsTableBody tr[data-date]').each(function(){
+      var rd = $(this).data('date');  // already yyyy-mm-dd
+      var show = !window.activeDate || rd === window.activeDate;
+      $(this).toggle(show);
+      if (show) shown++;
     });
+    // empty-state row
     $('#appointmentsTableBody tr.no-appointment').remove();
-    if (
-      $('#appointmentsTableBody tr')
-        .filter(function(){
-          return $(this).attr('data-date') !== undefined && $(this).is(':visible');
-        })
-        .length === 0
-    ) {
+    if (shown === 0) {
       $('#appointmentsTableBody').append(
-        '<tr class="no-appointment"><td colspan="4" class="text-center">No appointments found for the selected date.</td></tr>'
+        '<tr class="no-appointment"><td colspan="5" class="text-center">No appointments found for the selected date.</td></tr>'
       );
     }
   }
-  
-  $(document).ready(function () {
-    $('.dropdown-toggle').dropdown();
 
-    $('#toggleHistory').on('click', function () {
-      $('#historySection').toggle();
-    });
-
-    $('#searchInput').on('keyup', function () {
-      var searchValue = $(this).val().toLowerCase();
-      $('#appointmentsTableBody tr').filter(function () {
-        $(this).toggle($(this).find('.ownerName').text().toLowerCase().indexOf(searchValue) > -1);
-      });
-    });
-
-    $('#btnToday').on('click', function () {
-      activeDate = new Date().toISOString().slice(0,10);
+  // ---- datepicker (single init) ----
+  $("#datepicker").datepicker({
+    dateFormat: "yy-mm-dd",
+    beforeShowDay: function(date){
+      var key = dateKeyLocal(date);
+      return appointmentDates[key]
+        ? [true, "has-appointment", "Pending appointments exist"]
+        : [true, "no-appointment", "No pending appointments"];
+    },
+    onSelect: function(dateText){
+      window.activeDate = dateText;   // yyyy-mm-dd
       filterRows();
-      $('#datepickerContainer').hide();
-    });
+    }
+  });
+  $("#datepicker").datepicker("setDate", window.activeDate);
+  filterRows();
 
-    $('#btnSelectDate').on('click', function () {
-      $('#datepickerContainer').toggle();
-      if ($('#datepickerContainer').is(':visible')) {
-        $("#datepicker").datepicker("show");
-      }
-    });
-
-    var appointmentDates = {};
-    var reservationsData = JSON.parse('<%- JSON.stringify(reservations) %>');
-    reservationsData.forEach(function (r) {
-      if (r.status === 'Pending') {
-        var d = new Date(r.date);
-        var yyyy = d.getFullYear();
-        var mm = ('0' + (d.getMonth() + 1)).slice(-2);
-        var dd = ('0' + d.getDate()).slice(-2);
-        var dateStr = yyyy + '-' + mm + '-' + dd;
-        appointmentDates[dateStr] = true;
-      }
-    });
-
-    $("#datepicker").datepicker({
-      dateFormat: "yy-mm-dd",
-      beforeShowDay: function (date) {
-        var yyyy = date.getFullYear();
-        var mm = ('0' + (date.getMonth() + 1)).slice(-2);
-        var dd = ('0' + date.getDate()).slice(-2);
-        var dateString = yyyy + '-' + mm + '-' + dd;
-        return appointmentDates[dateString]
-          ? [true, "has-appointment", "Pending appointments exist"]
-          : [true, "no-appointment", "No pending appointments"];
-      },
-      onSelect: function (dateText) {
-        activeDate = dateText;
-        filterRows();
-      }
-    });
-    
+  // ---- header buttons ----
+  $('#btnToday').on('click', function(){
+    window.activeDate = dateKeyLocal(new Date());
+    $("#datepicker").datepicker("setDate", window.activeDate);
     filterRows();
-    
-    $('#approvedTab').on('click', function(e) {
-      e.preventDefault();
-      $(this).addClass('active');
-      $('#ongoingTab').removeClass('active');
-      $('#approvedView').show();
-      $('#ongoingView').hide();
-    });
-    $('#ongoingTab').on('click', function(e) {
-      e.preventDefault();
-      $(this).addClass('active');
-      $('#approvedTab').removeClass('active');
-      $('#ongoingView').show();
-      $('#approvedView').hide();
+    $('#datepickerContainer').hide();
+  });
+
+  $('#btnSelectDate').on('click', function(){
+    $('#datepickerContainer').toggle();
+    if ($('#datepickerContainer').is(':visible')) {
+      $("#datepicker").datepicker("show");
+    }
+  });
+
+  // ---- search (only visible rows for selected day) ----
+  $('#searchInput').on('keyup', function(){
+    var q = $(this).val().toLowerCase();
+    $('#appointmentsTableBody tr:visible').each(function(){
+      var match = $(this).find('.ownerName').text().toLowerCase().indexOf(q) > -1;
+      $(this).toggle(match);
     });
   });
 
-  function viewReservation(id) {
-    // Reuse the same "viewDetails" function
-    viewDetails(id);
-  }
-  
-  // ---------- APPROVE RESERVATION ----------
-  function approveReservation(reservationId) {
-    Swal.fire({
-      title: 'Approve Reservation?',
-      text: 'Are you sure you want to approve this reservation?',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Yes, approve',
-      cancelButtonText: 'Cancel'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        $.ajax({
-          url: '/hr/approve-reservation',
-          method: 'POST',
-          data: { reservationId },
-          success: function (response) {
-            if (response.success) {
-              Swal.fire({
-                icon: 'success',
-                title: 'Approved',
-                text: 'Reservation has been approved.',
-              }).then(() => {
-                // remove from pending
-                $('#reservation-' + reservationId).remove();
-                location.reload();
-              });
-            } else {
-              Swal.fire('Error', response.message || 'Error approving reservation.', 'error');
-            }
-          },
-          error: function () {
-            Swal.fire('Error', 'Server error while approving reservation.', 'error');
-          }
-        });
+  // ---- tabs ----
+  $('#approvedTab').on('click', function(e){
+    e.preventDefault();
+    $(this).addClass('active'); $('#ongoingTab').removeClass('active');
+    $('#approvedView').show();  $('#ongoingView').hide();
+  });
+  $('#ongoingTab').on('click', function(e){
+    e.preventDefault();
+    $(this).addClass('active'); $('#approvedTab').removeClass('active');
+    $('#ongoingView').show();   $('#approvedView').hide();
+  });
+
+  // ---- actions exposed for inline onclicks ----
+  window.viewReservation = function(id){ viewDetails(id); };
+
+// Approve -> move from Pending table to Approved list immediately
+window.approveReservation = function(reservationId){
+  Swal.fire({
+    title: 'Approve Reservation?',
+    text: 'Are you sure you want to approve this reservation?',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, approve',
+    cancelButtonText: 'Cancel'
+  }).then((result) => {
+    if (!result.isConfirmed) return;
+
+    $.post('/hr/approve-reservation', { reservationId })
+      .done(function (response) {
+        if (!response?.success) {
+          return Swal.fire('Error', response?.message || 'Error approving reservation.', 'error');
+        }
+
+        // 1) remove from Pending table
+        $('#reservation-' + reservationId).remove();
+
+        // 2) Add to Approved list
+        // Prefer server-returned reservation, else build a minimal one from the row we just removed
+        const res = response.reservation || {
+          _id: reservationId,
+          ownerName: (response.ownerName) ||
+                     ($('#reservation-' + reservationId + ' .ownerName').text() || '—'),
+          createdAt: new Date().toISOString()
+        };
+        appendApprovedRow(res);
+
+        Swal.fire({ icon:'success', title:'Approved', text:'Reservation has been approved.', timer:900, showConfirmButton:false });
+      })
+      .fail(() => Swal.fire('Error','Server error while approving reservation.','error'));
+  });
+};
+
+// Assign Doctor -> move from Approved to Ongoing instantly
+window.assignDoctor = function(reservationId, doctorId){
+  $.post('/hr/assign-doctor', { reservationId, doctorId })
+    .done(function (response) {
+      if (!response?.success) {
+        return Swal.fire('Error', response?.message || 'Error assigning doctor.', 'error');
       }
-    });
+
+      // remove from Approved list
+      $('#approved-' + reservationId).remove();
+
+      // figure out doctor name for the ongoing row
+      const doc = getDoctorById(doctorId);
+      const doctorName = doc ? (doc.username || doc.name) : (response?.doctor?.username || response?.doctor?.name || 'N/A');
+
+      // prefer server reservation for correctness
+      const res = response.reservation || { _id: reservationId, ownerName: response?.ownerName || '—', createdAt: new Date().toISOString() };
+      // append to Ongoing
+      appendOngoingRow(res, doctorName);
+
+      Swal.fire({ icon:'success', title:'Doctor Assigned', text:'Moved to Ongoing.', timer:900, showConfirmButton:false });
+    })
+    .fail(() => Swal.fire('Error', 'Server error while assigning doctor.', 'error'));
+};
+
+
+
+  // ---- details modal ----
+  function viewDetails(reservationId){
+    $.get('/hr/get-consultation', { reservationId })
+      .done(function(resp){
+        if (!resp.success) return Swal.fire('Error', resp.message || 'Error fetching details.', 'error');
+
+        const r = resp.reservation || {};
+        const status = (r.status || '').trim();
+
+        function formatVisitDate(dateStr){
+          if (!dateStr) return 'N/A';
+          const d = new Date(dateStr);
+          const month = d.toLocaleString('en-US',{month:'long'}).toLowerCase();
+          return `${month} ${d.getDate()} ${d.getFullYear()}`;
+        }
+
+        const dateToShow = r.date || (r.schedule && r.schedule.scheduleDate) || r.createdAt;
+        const dateFmt    = formatVisitDate(dateToShow);
+        const allPetNames = Array.isArray(r.pets) && r.pets.length
+          ? r.pets.map(p => (p.petId?.petName || p.petName)).join(', ')
+          : 'N/A';
+
+        let html = '<div class="container-fluid p-0">';
+
+        if (status === 'Pending') {
+          if (Array.isArray(r.petRequests) && r.petRequests.length){
+            html += '<h6 class="mt-1 mb-2" style="font-weight:700;color:#224b7a;">Per-Pet Requests</h6>';
+            html += '<table class="details-table mb-3"><thead><tr><th>Pet</th><th>Service</th><th>Concerns</th></tr></thead><tbody>';
+            r.petRequests.forEach(pr => {
+              html += `<tr>
+                <td>${pr.petName || '—'}</td>
+                <td>${pr.service || '—'}</td>
+                <td>${(pr.concerns && pr.concerns.trim()) ? pr.concerns : '—'}</td>
+              </tr>`;
+            });
+            html += '</tbody></table>';
+          } else {
+            html += '<p class="mb-0">No pet requests found.</p>';
+          }
+          html += '</div>';
+          $('#hrConsultDetailsBody').html(html);
+          return $('#hrConsultViewModal').modal('show');
+        }
+
+        html += '<table class="details-table">';
+        html += `<tr><th>Pet(s)</th><td>${allPetNames}</td></tr>`;
+        html += `<tr><th>Date</th><td>${dateFmt}</td></tr>`;
+        html += `<tr><th>Time</th><td>${r.time || 'N/A'}</td></tr>`;
+        html += `<tr><th>Doctor</th><td>${(r.doctor && r.doctor.username) ? r.doctor.username : 'N/A'}</td></tr>`;
+        html += '</table>';
+
+        if (Array.isArray(r.petRequests) && r.petRequests.length){
+          html += '<h6 class="mt-3">Per-Pet Requests</h6>';
+          html += '<table class="details-table mb-3"><thead><tr><th>Pet</th><th>Service</th><th>Concerns</th></tr></thead><tbody>';
+          r.petRequests.forEach(pr => {
+            html += `<tr>
+              <td>${pr.petName || '—'}</td>
+              <td>${pr.service || '—'}</td>
+              <td>${(pr.concerns && pr.concerns.trim()) ? pr.concerns : '—'}</td>
+            </tr>`;
+          });
+          html += '</tbody></table>';
+        }
+
+        const showPetInfo = (status !== 'Approved' && status !== 'Pending');
+        if (showPetInfo) {
+          const hasExtra = (r.pets || []).some(p => p.petId && (p.petId.birthday || p.petId.species || p.petId.breed || p.petId.sex));
+          if (hasExtra){
+            html += '<h6 class="mt-3">Pet Info</h6>';
+            html += '<table class="details-table mb-3"><thead><tr><th>Pet</th><th>Birthday</th><th>Species</th><th>Breed</th><th>Sex</th></tr></thead><tbody>';
+            (r.pets || []).forEach(p => {
+              const petName = p.petId?.petName || p.petName || '—';
+              const bday    = p.petId?.birthday ? formatVisitDate(p.petId.birthday) : 'N/A';
+              const species = p.petId?.species || '—';
+              const breed   = p.petId?.breed   || '—';
+              const sex     = p.petId?.sex     || '—';
+              html += `<tr><td>${petName}</td><td>${bday}</td><td>${species}</td><td>${breed}</td><td>${sex}</td></tr>`;
+            });
+            html += '</tbody></table>';
+          }
+        }
+
+        if (r.physicalExam) {
+          html += '<table class="details-table mb-3"><thead><tr><th>Weight</th><th>Temperature</th><th>Observations</th></tr></thead><tbody>';
+          html += `<tr><td>${r.physicalExam.weight || 'N/A'}</td><td>${r.physicalExam.temperature || 'N/A'}</td><td>${r.physicalExam.observations || 'N/A'}</td></tr>`;
+          html += '</tbody></table>';
+        }
+        if (r.diagnosis) html += `<div class="mb-3"><strong>Diagnosis:</strong><p>${r.diagnosis}</p></div>`;
+        if (Array.isArray(r.services) && r.services.length){
+          html += '<table class="details-table mb-3"><thead><tr><th>Service</th><th>Details</th><th>File</th></tr></thead><tbody>';
+          r.services.forEach(s => {
+            let url = s.file || '';
+            if (url) {
+              url = url.replace(/^public/, '').replace(/^([^/])/, '/$1');
+              if (!/^https?:\/\//.test(url)) url = window.location.origin + url;
+            }
+            html += `<tr><td>${s.serviceName || ''}</td><td>${s.details || '—'}</td><td>${url ? `<a href="${url}" download>Download</a>` : '—'}</td></tr>`;
+          });
+          html += '</tbody></table>';
+        }
+        if (Array.isArray(r.medications) && r.medications.length){
+          html += '<table class="details-table mb-3"><thead><tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr></thead><tbody>';
+          r.medications.forEach(m => {
+            html += `<tr><td>${m.name || m.medicationName || '—'}</td><td>${m.quantity || '—'}</td><td>${m.dosage || '—'}</td><td>${m.remarks || '—'}</td></tr>`;
+          });
+          html += '</tbody></table>';
+        }
+        if (r.confinementStatus && r.confinementStatus.length) {
+          html += `<p><strong>Confinement:</strong> ${r.confinementStatus.join(', ')}</p>`;
+        }
+        if (r.notes) html += `<p><strong>Additional Notes:</strong> ${r.notes}</p>`;
+        if (r.schedule && (r.schedule.scheduleDate || r.schedule.scheduleDetails)) {
+          const d = r.schedule.scheduleDate
+            ? new Date(r.schedule.scheduleDate).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+            : '';
+          const det = r.schedule.scheduleDetails ? (' — ' + r.schedule.scheduleDetails) : '';
+          html += `<hr><p><strong>Follow-Up:</strong> ${d}${det}</p>`;
+        }
+
+        html += '</div>';
+        $('#hrConsultDetailsBody').html(html);
+        $('#hrConsultViewModal').modal('show');
+      })
+      .fail(() => Swal.fire('Error', 'Server error while fetching details.', 'error'));
   }
-  
-  // ---------- ASSIGN DOCTOR ----------
-  function assignDoctor(reservationId, doctorId) {
-    $.ajax({
-      url: '/hr/assign-doctor',
-      method: 'POST',
-      data: { reservationId, doctorId },
-      success: function (response) {
-        if (response.success) {
+
+  // === Fetch & render the receipt ===
+
+window.viewReceipt = function(reservationId) {
+  $.get('/hr/get-consultation-details', { reservationId })
+    .done(resp => {
+      if (!resp || !resp.success) {
+        return Swal.fire('Error', resp?.message || 'Error fetching consultation details.', 'error');
+      }
+
+      const data        = resp.data || {};
+      const reservation = data.reservation || {};
+      const paid        = !!data.payment || reservation.status === 'Paid';
+
+      // --- helpers ---
+      function escAttr(s) {
+        return String(s || '')
+          .replace(/&/g, '&amp;')
+          .replace(/"/g, '&quot;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/'/g, '&#39;');
+      }
+
+     function fallbackPetName(res, c) {
+    
+  const pets = res.pets || [];
+
+  // prefer explicit names first
+  if (c && c.targetPetName && c.targetPetName !== '-' && c.targetPetName !== '—') return c.targetPetName;
+  if (c && c.petName       && c.petName       !== '-' && c.petName       !== '—') return c.petName;
+
+  // try matching by id string
+  const pidStr = c && (c.targetPetId || c.petId) ? String(c.targetPetId || c.petId) : '';
+  if (pidStr && pets.length) {
+    const byId = pets.find(p => String(p.petId && p.petId._id) === pidStr);
+    if (byId) return byId.petId?.petName || byId.petName || '—';
+  }
+
+  // some old data put the name in the id field
+  if (typeof (c && (c.targetPetId || c.petId)) === 'string' && pets.length) {
+    const nameMaybe = c.targetPetId || c.petId;
+    const byName = pets.find(p => (p.petId?.petName || p.petName) === nameMaybe);
+    if (byName) return byName.petId?.petName || byName.petName || '—';
+  }
+
+  // single-pet fallback
+  if (pets.length === 1) return pets[0].petId?.petName || pets[0].petName || '—';
+
+  return '—';
+}
+
+      // consultations[] -> one per pet (fallback to single consultation shape if backend not yet updated)
+      const consultations = Array.isArray(data.consultations) && data.consultations.length
+        ? data.consultations
+        : (function fallback() {
+            const one = data.consultation || {};
+            return [{
+              petId: one.petId || null,
+              petName: fallbackPetName(reservation, one),
+              medications: Array.isArray(one.medications) ? one.medications : [],
+              services:    Array.isArray(one.services)    ? one.services    : []
+            }];
+          })();
+
+      // ---------- Header ----------
+      const petList = (reservation.pets || [])
+        .map(p => p.petId?.petName || p.petName)
+        .filter(Boolean).join(', ') || '—';
+
+      const visitDate = (reservation.date || reservation.schedule?.scheduleDate || reservation.createdAt)
+        ? new Date(reservation.date || reservation.schedule?.scheduleDate || reservation.createdAt)
+            .toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+        : new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+
+      let hdr  = `<p><strong>Owner:</strong> ${reservation.ownerName || '—'}</p>`;
+          hdr += `<p><strong>Pets:</strong> ${petList}</p>`;
+          hdr += `<p><strong>Date:</strong> ${visitDate}</p>`;
+          hdr += `<p><strong>Concerns:</strong> ${reservation.concerns || '—'}</p>`;
+          hdr += `<p><strong>Follow-Up:</strong>${
+                    reservation.schedule
+                      ? ' ' + new Date(reservation.schedule.scheduleDate)
+                          .toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) +
+                        ' – ' + (reservation.schedule.scheduleDetails || '')
+                      : ' None'
+                  }</p>`;
+      $('#receiptHeader').html(hdr);
+
+      // ---------- Medications (UNIFIED with Pet column) ----------
+      const $medWrap = $('#medicationsByCategory').empty();
+      const $medTbl  = $(`
+        <div class="table-responsive mb-2">
+          <table id="receiptTable" class="table table-sm table-striped mb-0">
+            <thead class="thead-light">
+              <tr>
+                <th>Pet</th><th>Medication</th><th>Qty</th><th>Unit Price</th><th>Line Total</th><th>Edit</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr>
+                <th colspan="6" class="text-left">
+                  Medications Total: ₱ <span id="medTotal">0.00</span>
+                </th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      `);
+      const $medBody = $medTbl.find('tbody');
+
+consultations.forEach(c => {
+  (c.medications || []).forEach(m => {
+    const unit = Number(m.unitPrice ?? m.price ?? 0);
+    const qty  = Number(m.quantity ?? 0);
+    const medName = (m.name || m.medicationName || '');
+    const isAdded = (m.added === true);
+
+    // raw value for data attributes / payloads
+    const petLabelRaw = isAdded ? ADDED_LABEL : fallbackPetName(reservation, c);
+
+    // pretty HTML for the cell (badge when it's an Added row)
+    const petCellHtml = isAdded
+      ? `<span class="badge badge-secondary">${ADDED_LABEL}</span>`
+      : petLabelRaw;
+
+    $medBody.append(`
+      <tr data-unit="${unit}"
+          data-name="${escAttr(medName)}"
+          data-pet="${escAttr(petLabelRaw)}">
+        <td>${petCellHtml}</td>
+        <td>${medName}</td>
+        <td><span class="qty-display">${isNaN(qty) ? 0 : qty}</span></td>
+        <td>₱ ${unit.toFixed(2)}</td>
+        <td class="line-total">${(unit * (isNaN(qty) ? 0 : qty)).toFixed(2)}</td>
+        <td><button class="btn btn-sm btn-primary btn-edit">Edit</button></td>
+      </tr>
+    `);
+  });
+});
+
+      $medWrap.append($medTbl);
+
+      // ---------- Services (add Pet column) ----------
+      $('#servicesTable thead').html(`
+        <tr>
+          <th>Pet</th>
+          <th>Service</th>
+          <th>Fee</th>
+        </tr>
+      `);
+      // ensure footer matches 3 columns
+      $('#servicesTable tfoot').html(`
+        <tr>
+          <th colspan="3" class="text-left">
+            Services Total: ₱ <span id="svcTotal">0.00</span>
+          </th>
+        </tr>
+      `);
+
+      const $svcBody = $('#servicesTable tbody').empty();
+
+      consultations.forEach(c => {
+        const petLabel = fallbackPetName(reservation, c);
+        (c.services || []).forEach(svc => {
+          const fee = Number(svc.price) || 0;
+          $svcBody.append(`
+            <tr data-service-price="${fee}" data-pet="${escAttr(petLabel)}">
+              <td>${petLabel}</td>
+              <td>${svc.serviceName || ''}</td>
+              <td>₱ ${fee.toFixed(2)}</td>
+            </tr>
+          `);
+        });
+      });
+
+      // ---------- Totals + button state ----------
+      recalcTotals();
+
+      $('#btnMarkPaid')
+        .data('id', reservationId)
+        .prop('disabled', paid)
+        .toggleClass('btn-success', !paid)
+        .toggleClass('btn-secondary', paid)
+        .text(paid ? 'Paid' : 'Mark as Paid');
+
+      $('#medicationModal').modal('show');
+    })
+    .fail(() => Swal.fire('Error', 'Error fetching consultation details.', 'error'));
+};
+
+
+
+  // === MARK AS PAID (single delegated handler) ===
+$(document).on('click', '#btnMarkPaid', function() {
+  const $btn = $(this);
+  const reservationId = $btn.data('id');
+  if (!reservationId) return Swal.fire('Error', 'No reservation selected.', 'error');
+
+  const products = [];
+  $('#medicationsByCategory table tbody tr').each(function() {
+    const pet       = $(this).data('pet') || '';
+    const name      = $(this).data('name') || $(this).find('td').eq(1).text().trim();
+    const quantity  = parseInt($(this).find('.qty-display').text(), 10) || 0;
+    const unitPrice = parseFloat($(this).data('unit')) || 0;
+    products.push({ pet, name, quantity, unitPrice, lineTotal: quantity * unitPrice });
+  });
+
+  const services = [];
+  $('#servicesTable tbody tr').each(function() {
+    const pet       = $(this).data('pet') || '';
+    const name      = $(this).find('td').eq(1).text().trim();
+    const unitPrice = parseFloat($(this).data('service-price')) || 0;
+    services.push({ pet, name, quantity: 1, unitPrice, lineTotal: unitPrice });
+  });
+
+  const amount = parseFloat($('#grandTotal').text()) || 0;
+
+  Swal.fire({
+    icon: 'question',
+    title: 'Mark as Paid?',
+    text: `Confirm payment of ₱${amount.toFixed(2)}?`,
+    showCancelButton: true,
+    confirmButtonText: 'Yes, paid'
+  }).then(({ isConfirmed }) => {
+    if (!isConfirmed) return;
+
+    $.post('/hr/mark-paid', { reservationId, amount, products, services })
+      .done(({ success }) => {
+        if (!success) return Swal.fire('Error', 'Could not mark paid.', 'error');
+
+        // update ongoing badge to Paid
+        const $row = $('#ongoing-' + reservationId);
+        $row.find('.badge').removeClass('badge-success badge-secondary').addClass('badge-primary').text('Paid');
+
+        // update modal button
+        $btn.text('Paid').prop('disabled', true).removeClass('btn-success').addClass('btn-secondary');
+
+        Swal.fire('Paid!', 'Consultation has been marked as paid.', 'success');
+      })
+      .fail((xhr) => {
+        const err = xhr.responseJSON?.message || 'Server error while marking paid.';
+        Swal.fire('Error', err, 'error');
+      });
+  });
+});
+  // 3) Live stock check on quantity edits
+  $(document).on('input', '.edit-qty', function() {
+    const $input     = $(this);
+    const $row       = $input.closest('tr');
+    const desiredQty = parseInt($input.val(), 10) || 0;
+const product = $row.data('name') || $row.find('td').eq(1).text().trim();    if (!product) return recalcTotals();
+
+    $.get('/hr/inventory/checkQuantity', { product })
+      .done(r => {
+        const available = r.availableQty||0;
+        if (desiredQty > available) {
           Swal.fire({
-            icon: 'success',
-            title: 'Doctor Assigned',
-            text: 'Reservation remains in Approved until marked as done.'
-          }).then(() => {
-            location.reload();
+            icon: 'error',
+            title: 'Insufficient Stock',
+            text: `You entered ${desiredQty}, but only ${available} available.`,
+            showCancelButton: true,
+            confirmButtonText: `Set to ${available}`,
+            cancelButtonText: 'Cancel'
+          }).then(res => {
+            if (res.isConfirmed) {
+              $input.val(available).removeClass('error-input');
+            } else {
+              $input.addClass('error-input');
+            }
+            recalcTotals();
           });
         } else {
-          Swal.fire('Error', response.message || 'Error assigning doctor.', 'error');
+          $input.removeClass('error-input');
+          recalcTotals();
         }
-      },
-      error: function () {
-        Swal.fire('Error', 'Server error while assigning doctor.', 'error');
+      })
+      .fail(() => recalcTotals());
+  });
+
+  // 4) Remove a medication row (inline)
+  $(document).on('click', '.btn-remove', function() {
+    const $row = $(this).closest('tr');
+    Swal.fire({
+      icon: 'warning',
+      title: 'Remove Item?',
+      text: 'Are you sure?',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, remove',
+      cancelButtonText: 'Cancel'
+    }).then(res => {
+      if (res.isConfirmed) {
+        $row.remove();
+        recalcTotals();
+        Swal.fire('Removed!','Item removed successfully.','success');
       }
     });
-  }
-  
-  // ---------- VIEW DETAILS ----------
-  function formatBirthday(dateStr) {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  }
+  });
 
-  function viewDetails(reservationId) {
-    $.ajax({
-      url: '/hr/get-medication',
-      method: 'GET',
-      data: { reservationId: reservationId },
-      success: function(response) {
-        if (response.success) {
-          let detailsHtml = '';
-          if (response.reservation.pets && response.reservation.pets.length > 0) {
-            let petObj = response.reservation.pets[0].petId || response.reservation.pets[0];
-            detailsHtml += '<strong>Pet Name:</strong> ' + petObj.petName + '<br>';
-            detailsHtml += '<strong>Pet Birthday:</strong> ' + 
-                           (petObj.birthday ? formatBirthday(petObj.birthday) : 'N/A') + '<br>';
-          }
-          if (response.reservation.concerns) {
-            detailsHtml += '<strong>Concerns:</strong> ' + response.reservation.concerns + '<br>';
-          }
-          if (response.reservation.time) {
-            detailsHtml += '<strong>Time:</strong> ' + response.reservation.time + '<br>';
-          }
-          if (response.reservation.medications && response.reservation.medications.length > 0) {
-            detailsHtml += '<hr><strong>Medication Details:</strong><br>';
-            response.reservation.medications.forEach(function(med) {
-              detailsHtml += '<strong>Medication:</strong> ' + med.medicationName + '<br>';
-              detailsHtml += '<strong>Quantity:</strong> ' + med.quantity + '<br>';
+  let $currentRow = null;
 
-              detailsHtml += '<strong>Dosage:</strong> ' + med.dosage + '<br>';
-              detailsHtml += '<strong>Frequency:</strong> ' + med.frequency + '<br>';
-              detailsHtml += '<strong>Admin Time:</strong> ' + med.adminTime + '<br>';
-              if(med.additionalInstructions)
-                detailsHtml += '<strong>Instructions:</strong> ' + med.additionalInstructions + '<br>';
-              detailsHtml += '<hr>';
-            });
-          }
-          $('#medicationDetails').html(detailsHtml);
-          $('#medicationModal').modal('show');
-        } else {
-          Swal.fire('Error', response.message || 'Error fetching consultation details.', 'error');
-        }
-      },
-      error: function() {
-        Swal.fire('Error', 'Server error while fetching consultation details.', 'error');
-      }
+  // 6) Open edit modal (delegated)
+  $(document).on('click', '.btn-edit', function() {
+    $currentRow = $(this).closest('tr');
+    $('#editMedName').val( $currentRow.data('name') );
+    $('#editMedQty').val( $currentRow.find('.qty-display').text() );
+    $('#editMedModal').modal('show');
+  });
+
+  // 7) Handle Save in the edit form
+  $('#editMedForm').on('submit', function(e) {
+    e.preventDefault();
+    const newQty    = parseInt($('#editMedQty').val(), 10) || 0;
+    const unit      = parseFloat($currentRow.data('unit')) || 0;
+    const medName   = $currentRow.data('name');
+    const reservationId = $('#btnMarkPaid').data('id');
+
+    // 1) update the DOM
+    $currentRow.find('.qty-display').text(newQty);
+    $currentRow.find('.line-total').text((newQty * unit).toFixed(2));
+    recalcTotals();
+    $('#editMedModal').modal('hide');
+
+    // 2) persist to the server
+    $.post('/hr/update-medication', {
+      reservationId,
+      medicationName: medName,
+      quantity: newQty
+    }).fail(() => {
+      Swal.fire('Error','Could not save quantity change.','error');
     });
-  }
+  });
+
+  // 8) Handle Remove inside edit modal
+  $('#removeMedBtn').click(function() {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Remove this product?',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, remove'
+    }).then(res => {
+      if (!res.isConfirmed || !$currentRow) return;
+      const medName = $currentRow.data('name');
+      const reservationId = $('#btnMarkPaid').data('id');
+
+      // 1) remove from DOM
+      $currentRow.remove();
+      recalcTotals();
+      $('#editMedModal').modal('hide');
+
+      // 2) persist the removal
+      $.post('/hr/remove-medication', {
+        reservationId,
+        medicationName: medName
+      }).fail(() => {
+        Swal.fire('Error','Could not remove medication.','error');
+      });
+    });
+  });
 
   // ---------- ADD/UPDATE PET FROM CONSULTATION ----------
   function addPetFromConsultation(reservationId) {
@@ -678,7 +1800,6 @@
                 text: 'Pet successfully added!',
                 icon: 'success'
               });
-              // Remove row from the Ongoing table since pet is now added
               $('#ongoing-' + reservationId).remove();
             } else {
               Swal.fire('Error', response.message, 'error');
@@ -714,11 +1835,9 @@
                 text: 'Consultation marked as done and pet details updated!',
                 icon: 'success'
               }).then(() => {
-                // If the pet has been added (petAdded is true), clear the row
                 if(response.reservation && response.reservation.petAdded) {
                   $('#ongoing-' + reservationId).remove();
                 } else {
-                  // Otherwise, update the button back to "Add"
                   $('#ongoing-' + reservationId + ' button').first().text('Add');
                 }
               });
@@ -733,4 +1852,757 @@
       }
     });
   }
+
+// replace these function declarations…
+// function addToPetList(reservationId) { … }
+// function updatePetList(reservationId) { … }
+
+// …with window-bound functions (inside the same $(document).ready):
+window.addToPetList = function(reservationId) {
+  // existing body unchanged
+  Swal.fire({
+    title: 'Add Pet?',
+    text:  'Do you want to add this pet to your list?',
+    icon:  'question',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, add it'
+  }).then(({ isConfirmed }) => {
+    if (!isConfirmed) return;
+    $.post('/hr/add-to-petlist', { reservationId })
+      .done(({ success }) => {
+        if (!success) return Swal.fire('Error','Could not add pet.','error');
+        Swal.fire('Added!','Pet has been added to your list.','success')
+          .then(() => { $('#ongoing-' + reservationId).remove(); });
+      })
+      .fail(() => Swal.fire('Error','Server error.','error'));
+  });
+};
+
+window.updatePetList = function(reservationId) {
+  Swal.fire({
+    title: 'Update Pet?',
+    text:  'Do you want to stack this consultation to the pet?',
+    icon:  'question',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, update it'
+  }).then(({ isConfirmed }) => {
+    if (!isConfirmed) return;
+    $.post('/hr/update-petlist', { reservationId })
+      .done(({ success }) => {
+        if (!success) return Swal.fire('Error','Could not update pet.','error');
+        Swal.fire('Updated!','Consultation stacked to this pet.','success')
+          .then(() => { $('#ongoing-' + reservationId).remove(); });
+      })
+      .fail(() => Swal.fire('Error','Server error.','error'));
+  });
+};
+
+  // quantity sanity check in edit modal
+  $('#editMedQty').on('input', function() {
+    const $input    = $(this);
+    const desiredQty = parseInt($input.val(), 10) || 0;
+    const medName    = $currentRow?.data('name');
+    if (!medName) return;
+
+    $.get('/hr/inventory/checkQuantity', { product: medName })
+      .done(r => {
+        const available = r.availableQty || 0;
+        if (desiredQty > available) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Insufficient Stock',
+            text: `You entered ${desiredQty}, but only ${available} in stock.`,
+            showCancelButton: true,
+            confirmButtonText: `Use ${available} instead`,
+            cancelButtonText: 'Keep typing'
+          }).then(result => {
+            if (result.isConfirmed) {
+              $input.val(available);
+            }
+          });
+        }
+      });
+  });
+
+  // ---- Add medication flow ----
+  $('#btnAddMedReceipt').click(() => {
+    $('#receiptMedSelector').toggle();
+    if ($('#receiptMedSelector').is(':visible')) {
+      $.get('/hr/inventory/categories')
+        .done(({ categories }) => {
+          const $cat = $('#receiptMedCategory').empty()
+                         .append('<option value="">-- Choose category --</option>');
+          categories.forEach(c => $cat.append(`<option>${c}</option>`));
+        });
+    }
+  });
+
+  $('#receiptMedCategory').change(function(){
+    const cat = this.value;
+    $('#receiptMedProduct').empty().append('<option value="">-- Choose product --</option>');
+    if (!cat) return;
+    $.get('/hr/inventory/listByCategory', { category: cat })
+      .done(({ products }) => {
+        products.forEach(p =>
+          $('#receiptMedProduct').append(`<option value="${p.name}" data-unit="${p.price}">${p.name}</option>`)
+        );
+      });
+  });
+
+  function persistNewMedication(reservationId, name, qty) {
+    $.post('/hr/add-medication', {
+      reservationId,
+      medicationName: name,
+      quantity: qty
+    }).fail(() => {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'error',
+        title: 'Save failed',
+        showConfirmButton: false,
+        timer: 1000,
+        width: 200
+      });
+    });
+  }
+
+$('#receiptMedAddConfirm').click(() => {
+  const name = $('#receiptMedProduct').val();
+  const unit = parseFloat($('#receiptMedProduct option:selected').data('unit')) || 0;
+  const qty  = parseInt($('#receiptMedQtyInput').val(), 10) || 1;
+  const cat  = $('#receiptMedCategory').val() || 'Uncategorized';
+
+  $.get('/hr/inventory/checkQuantity', { product: name })
+    .done(r => {
+      const avail = r.availableQty || 0;
+
+      function doAdd(q) {
+        // 👇 force "Added" label in the Pet column for manual rows
+        addRowUnified(name, unit, q, ADDED_LABEL);
+
+        // keep your persistence call (server does not need pet here)
+        persistNewMedication($('#btnMarkPaid').data('id'), name, q);
+
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: 'Added',
+          showConfirmButton: false,
+          timer: 800,
+          width: 200
+        });
+      }
+
+      if (qty > avail) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Low stock',
+          text: `Only ${avail} in stock.`,
+          showCancelButton: true,
+          confirmButtonText: `Use ${avail}`,
+          cancelButtonText: 'Cancel'
+        }).then(res => { if (res.isConfirmed && avail > 0) doAdd(avail); });
+      } else {
+        doAdd(qty);
+      }
+    })
+    .fail(() => {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'error',
+        title: 'Stock check failed',
+        showConfirmButton: false,
+        timer: 1000,
+        width: 200
+      });
+    });
+});
+
+function addRowUnified(name, unit, qty, petLabel) {
+  const label = petLabel || (typeof ADDED_LABEL !== 'undefined' ? ADDED_LABEL : 'Added');
+
+  const $tbl = $('#receiptTable');
+  if (!$tbl.length) return;
+
+  const lineTotal = (unit * qty).toFixed(2);
+  const esc = s => String(s || '')
+    .replace(/&/g,'&amp;')
+    .replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/'/g,'&#39;');
+
+  $tbl.find('tbody').append(`
+    <tr data-origin="added"
+        data-unit="${unit}"
+        data-name="${esc(name)}"
+        data-pet="${esc(label)}">
+      <td><span class="badge badge-secondary">${label}</span></td>
+      <td>${esc(name)}</td>
+      <td><span class="qty-display">${qty}</span></td>
+      <td>₱ ${unit.toFixed(2)}</td>
+      <td class="line-total">${lineTotal}</td>
+      <td>
+        <button class="btn btn-sm btn-primary btn-edit">Edit</button>
+        <button class="btn btn-sm btn-link text-danger btn-remove" title="Remove">Remove</button>
+      </td>
+    </tr>
+  `);
+
+  recalcTotals();
+  $('#receiptMedSelector').hide();
+}
+
+
+  // Remove row (delegated toast-style)
+  $(document).on('click', '.btn-remove', function() {
+    const $row = $(this).closest('tr');
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'warning',
+      title: 'Remove this item?',
+      showCancelButton: true,
+      confirmButtonText: 'Yes',
+      cancelButtonText: 'No',
+      width: 200
+    }).then(res => {
+      if (res.isConfirmed) {
+        const name = $row.data('name');
+        const reservationId = $('#btnMarkPaid').data('id');
+        $row.remove();
+        recalcTotals();
+        $.post('/hr/remove-medication', { reservationId, medicationName: name })
+          .fail(() => {
+            Swal.fire({
+              toast: true,
+              position: 'top-end',
+              icon: 'error',
+              title: 'Remove failed',
+              showConfirmButton: false,
+              timer: 1000,
+              width: 200
+            });
+          });
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: 'Removed',
+          showConfirmButton: false,
+          timer: 800,
+          width: 200
+        });
+      }
+    });
+  });
+
+  // ---------- Walk-in modal name swapping ----------
+  function swapName($keep, keepName, $drop){
+    $keep.attr('name', keepName);
+    $drop.removeAttr('name');
+  }
+
+$('#walkinOwnerSelect').on('change', function(){
+  const raw = this.value;
+
+  // reset pet UI
+  $('#walkinPetSelect')
+    .prop('disabled', true)
+    .html('<option value="" disabled selected>Select owner first…</option>');
+  $('#walkinOwnerInput, #walkinPetInput')
+    .addClass('d-none').prop('required', false).val('');
+
+  // by default, the selects carry the real field names
+  swapName($('#walkinOwnerSelect'), 'ownerId',  $('#walkinOwnerInput'));
+  swapName($('#walkinPetSelect'),   'petName',  $('#walkinPetInput'));
+
+if (raw === '_NEW_') {
+  $('#walkinOwnerInput').removeClass('d-none').prop('required', true);
+  $('#walkinPetInput').removeClass('d-none').prop('required', true);
+
+  swapName($('#walkinOwnerInput'), 'ownerName', $('#walkinOwnerSelect'));
+  swapName($('#walkinPetInput'),   'petName',   $('#walkinPetSelect'));
+
+  // ⭐ ensure species/breed/sex/disease are visible & required for brand-new pets
+  $('#walkinPetMetaRow').slideDown(120);
+  (function requireMeta(on){
+    const $species = $('#walkinSpecies'), $breed = $('#walkinBreed'),
+          $sex = $('#walkinSex'), $dis = $('#walkinDisease'), $other = $('#walkinOtherDisease');
+    $species.prop('required', on).attr('name', on ? 'species' : null);
+    $breed.prop('required', on).attr('name', on ? 'breed' : null);
+    $sex.prop('required', on).attr('name', on ? 'sex' : null);
+    $dis.prop('required', on).attr('name', on ? 'existingDisease' : null);
+    if (!on) { $species.val(''); $breed.val(''); $sex.val(''); $dis.val(''); $other.addClass('d-none').prop('required', false).removeAttr('name').val(''); }
+  })(true);
+  $('#isExistingPet').val('false');
+
+  return;
+}
+
+
+  // Existing entry chosen. It may be:
+  //  - ID::<ObjectId>  (real account owner)
+  //  - NAME::<ownerName> (pure walk-in owner from PetList)
+  const isNameToken = raw.startsWith('NAME::');
+  const isIdToken   = raw.startsWith('ID::');
+
+  if (isNameToken) {
+    const ownerName = raw.slice(6); // after 'NAME::'
+
+    // Ensure we submit ownerName (string), not ownerId
+    swapName($('#walkinOwnerSelect'), 'ownerName', $('#walkinOwnerInput'));
+
+    // Fetch pets by ownerName
+    $.get('/hr/get-owner-pets', { ownerName })
+      .done(({ pets }) => {
+        const opts =
+          `<option value="" disabled selected>Select pet…</option>` +
+          (pets || []).map(p => `<option>${p}</option>`).join('') +
+          `<option value="_NEW_">+ New Pet…</option>`;
+        $('#walkinPetSelect').prop('disabled', false).html(opts);
+      })
+      .fail(() => console.error('Failed to load pets for ownerName:', ownerName));
+  } else if (isIdToken) {
+    const ownerId = raw.slice(4); // after 'ID::'
+
+    // Ensure we submit ownerId (ObjectId)
+    swapName($('#walkinOwnerSelect'), 'ownerId', $('#walkinOwnerInput'));
+
+    // Fetch pets by ownerId
+    $.get('/hr/get-owner-pets', { ownerId })
+      .done(({ pets }) => {
+        const opts =
+          `<option value="" disabled selected>Select pet…</option>` +
+          (pets || []).map(p => `<option>${p}</option>`).join('') +
+          `<option value="_NEW_">+ New Pet…</option>`;
+        $('#walkinPetSelect').prop('disabled', false).html(opts);
+      })
+      .fail(() => console.error('Failed to load pets for ownerId:', ownerId));
+  }
+});
+
+
+ $('#walkinPetSelect').on('change', function(){
+  const val = this.value;
+
+  // helper to toggle "required" + name on meta inputs
+  function requireMeta(on){
+    const $species = $('#walkinSpecies');
+    const $breed   = $('#walkinBreed');
+    const $sex     = $('#walkinSex');
+    const $dis     = $('#walkinDisease');
+    const $other   = $('#walkinOtherDisease');
+
+    // toggle requireds
+    $species.prop('required', on);
+    $breed.prop('required',   on);
+    $sex.prop('required',     on);
+    $dis.prop('required',     on);
+
+    // toggle name attrs so hidden fields don’t get posted
+    if (on) {
+      $species.attr('name','species');
+      $breed.attr('name','breed');
+      $sex.attr('name','sex');
+      $dis.attr('name','existingDisease');
+    } else {
+      $species.removeAttr('name').val('');
+      $breed.removeAttr('name').val('');
+      $sex.removeAttr('name').val('');
+      $dis.removeAttr('name').val('');
+    }
+
+    // “Other” disease input
+    if (on) {
+      const isOther = $dis.val() === 'Other';
+      $other.toggleClass('d-none', !isOther)
+            .prop('required', isOther);
+      if (isOther) $other.attr('name','otherDisease');
+      else         $other.removeAttr('name').val('');
+    } else {
+      $other.addClass('d-none')
+            .prop('required', false)
+            .removeAttr('name')
+            .val('');
+    }
+  }
+
+  if (val === '_NEW_') {
+    // user will TYPE a new pet name
+    $('#walkinPetInput').removeClass('d-none').prop('required', true);
+    // make the typed input carry name="petName"
+    swapName($('#walkinPetInput'), 'petName', $('#walkinPetSelect'));
+
+    // show meta section & require meta
+    $('#walkinPetMetaRow').slideDown(120);
+    requireMeta(true);
+
+    // backend flag
+    $('#isExistingPet').val('false');
+  } else {
+    // existing pet chosen from the list
+    $('#walkinPetInput').addClass('d-none').prop('required', false).val('');
+    swapName($('#walkinPetSelect'), 'petName', $('#walkinPetInput'));
+
+    // hide meta section & remove meta from submission
+    $('#walkinPetMetaRow').slideUp(120);
+    requireMeta(false);
+
+    // backend flag
+    $('#isExistingPet').val('true');
+  }
+});
+
+
+  $('#plusModal').on('show.bs.modal', function(){
+    swapName($('#walkinOwnerSelect'), 'ownerId', $('#walkinOwnerInput'));
+    swapName($('#walkinPetSelect'),   'petName',   $('#walkinPetInput'));
+    $('#walkinPetInput').removeAttr('name');
+     $('#walkinOtherDisease').removeAttr('name').val('').addClass('d-none').prop('required', false);
+  });
+
+$('#walkinForm').on('submit', function (e) {
+  e.preventDefault();
+  e.stopImmediatePropagation();             // 🔒 prevents other submit handlers from also firing
+  if (!validateWalkinTimeAndDate()) return; 
+
+  const $form = $(this);
+
+  // --- 1) Read owner selection and normalize tokens/field name ---
+  const $ownerSel = $('#walkinOwnerSelect');
+  const ownerSelName = $ownerSel.attr('name');          // 'ownerId' or 'ownerName'
+  let ownerSelVal  = ($ownerSel.val() || '').trim();    // may be "ID::xxx" / "NAME::Juan D."
+
+  // strip UI tokens
+  if (ownerSelName === 'ownerId'  && ownerSelVal.startsWith('ID::'))   ownerSelVal = ownerSelVal.slice(4);
+  if (ownerSelName === 'ownerName'&& ownerSelVal.startsWith('NAME::')) ownerSelVal = ownerSelVal.slice(6);
+
+  // If user chose "+ New Owner…" we moved the name to #walkinOwnerInput
+  const typedOwnerName = ($('#walkinOwnerInput').is(':visible') ? $('#walkinOwnerInput').val().trim() : '');
+
+  // Decide final owner fields to send
+  let finalOwnerId   = '';
+  let finalOwnerName = '';
+
+  if (ownerSelName === 'ownerId' && ownerSelVal) {
+    finalOwnerId = ownerSelVal;
+  } else if (ownerSelName === 'ownerName' && ownerSelVal) {
+    finalOwnerName = ownerSelVal;
+  } else if (typedOwnerName) {
+    // brand-new owner typed
+    finalOwnerName = typedOwnerName;
+  }
+
+  // Guard: require one of ownerId/ownerName before posting
+  if (!finalOwnerId && !finalOwnerName) {
+    return Swal.fire('Error', 'Please select an owner or type a new owner name.', 'error');
+  }
+
+  // --- 2) Build payload explicitly instead of raw serialize() ---
+  // Start from serializeArray but drop any accidental/duplicate owner fields
+  const base = {};
+  $form.serializeArray().forEach(({ name, value }) => {
+    if (['ownerId', 'ownerName'].includes(name)) return; // we'll set clean ones below
+    base[name] = value;
+  });
+
+  // Ensure clean, single source of truth for owner fields
+  const payload = {
+    ...base,
+    ownerId:   finalOwnerId || undefined,
+    ownerName: finalOwnerName || undefined
+  };
+
+  // Safety: if isExistingPet === 'true', strip pet meta so Joi .unknown(false) is happy
+  const isExistingPet = String($('#isExistingPet').val()).toLowerCase() === 'true';
+  if (isExistingPet) {
+    delete payload.species;
+    delete payload.breed;
+    delete payload.sex;
+    delete payload.existingDisease;
+    delete payload.otherDisease;
+  } else {
+    // when new pet, make sure meta fields are sent with names
+    // (your change handlers already toggle these names, this is just a sanity check)
+    $('#walkinSpecies').attr('name','species');
+    $('#walkinBreed').attr('name','breed');
+    $('#walkinSex').attr('name','sex');
+    $('#walkinDisease').attr('name','existingDisease');
+    // otherDisease is already handled by your "Other" toggle
+  }
+
+  const $saveBtn = $form.find('button[type="submit"]');
+  $saveBtn.prop('disabled', true);
+
+  $.post('/hr/walkin-reservation', payload)
+    .done((res) => {
+      if (res.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Saved!',
+          text: 'Walk-in added.',
+          timer: 1000,
+          showConfirmButton: false
+        });
+
+        // Optional: show instantly in "Approved" list if you want
+        if (typeof appendApprovedRow === 'function' && res.reservation) {
+          appendApprovedRow(res.reservation);
+        }
+
+        // Reset form & UI
+        $('#plusModal').modal('hide');
+        $form[0].reset();
+
+        $('#walkinOwnerSelect').val('');
+        $('#walkinPetSelect')
+          .prop('disabled', true)
+          .html('<option value="" disabled selected>Select owner first…</option>');
+        $('#walkinOwnerInput, #walkinPetInput')
+          .addClass('d-none')
+          .prop('required', false)
+          .val('');
+        $('#walkinPetMetaRow').hide();
+        $('#isExistingPet').val('false');
+      } else {
+        Swal.fire('Error', res.message || 'Could not save.', 'error');
+      }
+    })
+    .fail((xhr) => {
+      const msg = xhr.responseJSON?.message || 'Server error.';
+      const details = xhr.responseJSON?.details;
+      const text = Array.isArray(details) ? [msg, ...details].join('\n') : msg;
+      Swal.fire('Error', text, 'error');
+    })
+    .always(() => {
+      $saveBtn.prop('disabled', false);
+    });
+});
+
+/* --- Live updates from server (SSE) --- */
+try {
+  const es = new EventSource('/hr/stream');
+
+  es.addEventListener('message', (ev) => {
+    let payload;
+    try { payload = JSON.parse(ev.data); } catch { return; }
+
+   if (payload?.type === 'reservation:walkin') {
+  if (!document.getElementById('approved-' + payload.reservation?._id)) {
+    appendApprovedRow(payload.reservation);
+  }
+}
+
+   if (payload?.type === 'reservation:approved') {
+  // either update or skip if already there
+  if (!document.getElementById('approved-' + payload.reservation?._id)) {
+    appendApprovedRow(payload.reservation);
+  }
+}
+
+    if (payload?.type === 'reservation:assigned') {
+      const id = payload.reservation?._id;
+      if (id) $('#approved-' + id).remove();
+    }
+  });
+} catch (e) {
+  console.warn('SSE not available', e);
+}
+  // --- Owner search (autocomplete) ---
+  $('#walkinOwnerSearch').autocomplete({
+    minLength: 1,
+    delay: 100,
+    source: function(request, response) {
+      $.get('/hr/search-owners', { q: request.term })
+        .done(function(res) {
+          response((res.items || []).map(x => ({ label: x.label, value: x.label, token: x.token })));
+        })
+        .fail(() => response([]));
+    },
+    select: function(event, ui) {
+      const token = ui.item.token;
+      const $sel = $('#walkinOwnerSelect');
+
+      if (!$sel.find(`option[value="${token}"]`).length) {
+        $sel.append(`<option value="${token}">${ui.item.label}</option>`);
+      }
+      $sel.val(token).trigger('change');
+
+      $(this).val(ui.item.label);
+      return false;
+    }
+  });
+
+  // Show suggestions as soon as the first letter is typed
+  $('#walkinOwnerSearch').on('input', function () {
+    const val = $(this).val();
+    $('#walkinOwnerSearch').autocomplete('search', val);
+  });
+
+  // Also open suggestions on focus if there’s already 1+ char
+  $('#walkinOwnerSearch').on('focus', function () {
+    const val = $(this).val();
+    if (val.length >= 1) {
+      $('#walkinOwnerSearch').autocomplete('search', val);
+    }
+  });
+
+  // Keep your existing new-owner flow tidy
+  $('#walkinOwnerSelect').on('change', function() {
+    if (this.value === '_NEW_') $('#walkinOwnerSearch').val('');
+  });
+
+}); // <-- this is the end of $(document).ready(...)
+// shared state
+window.walkinAppointmentLimit = window.walkinAppointmentLimit || 1;
+
+// local YYYY-MM-DD (no UTC shift surprises)
+function walkinLocalToday() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
+function walkinSelectedOrToday() {
+  return $('#walkinDate').val() || walkinLocalToday();
+}
+
+// Build the 8:00–17:00 options once
+function buildWalkinTimeOptionsIfMissing() {
+  if ($('#walkinTimeSelect option').length) return;
+  let html = '';
+  for (let hour = 8; hour <= 17; hour++) {
+    const suffix = hour < 12 ? 'AM' : 'PM';
+    const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+    const display = `${hour12}:00 ${suffix}`;
+    const slug    = `${hour12}${suffix.toLowerCase()}`;
+    html += `<option value="${display}" data-hour="${hour}" id="walkin-slot-${slug}">${display}</option>`;
+  }
+  $('#walkinTimeSelect').html(html);
+}
+
+// Full/remaining check (hits same backend as consult.ejs)
+function walkinCheckTimeSlots() {
+  const selectedDate = walkinSelectedOrToday();
+  $('#walkinTimeSelect option').each(function() {
+    const $opt = $(this);
+    $.ajax({
+      url: '/customer/consult/appointmentCount',
+      method: 'GET',
+      data: { time: $opt.val(), date: selectedDate },
+      success: function(data) {
+        if (data.count >= window.walkinAppointmentLimit) {
+          $opt.prop('disabled', true)
+              .addClass('full-slot')
+              .text($opt.val() + ' - Full')
+              .data('disabled-by-count', true);
+        } else if ($opt.data('disabled-by-count')) {
+          $opt.prop('disabled', false)
+              .removeClass('full-slot')
+              .text($opt.val())
+              .removeData('disabled-by-count');
+        }
+      }
+    });
+  });
+}
+
+// Past-time disabling for "today"
+function updateWalkinTimeDropdownForDate() {
+  buildWalkinTimeOptionsIfMissing();
+
+  const selDate  = walkinSelectedOrToday();
+  const today    = walkinLocalToday();
+  const currHour = new Date().getHours();
+
+  if (selDate === today) {
+    $('#walkinTimeSelect option').each(function() {
+      const $opt = $(this);
+      const slotHour = parseInt($opt.data('hour'), 10);
+      if (slotHour < currHour) {
+        $opt.prop('disabled', true)
+            .attr('data-disabled-by-past', '1')
+            .text($opt.val() + ' - Passed');
+      } else if ($opt.attr('data-disabled-by-past')) {
+        $opt.prop('disabled', false)
+            .removeAttr('data-disabled-by-past')
+            .text($opt.val());
+      }
+    });
+  } else {
+    $('#walkinTimeSelect option[data-disabled-by-past]').each(function() {
+      $(this).prop('disabled', false)
+             .removeAttr('data-disabled-by-past')
+             .text($(this).val());
+    });
+  }
+}
+
+// Validate on submit: same behavior as consult.ejs
+function validateWalkinTimeAndDate() {
+  const $err = $('#walkinTimeError');
+  $err.text('');
+  const date = $('#walkinDate').val();
+  const time = $('#walkinTimeSelect').val();
+
+  const today = walkinLocalToday();
+  if (!date) { $err.text('Please choose a date.'); return false; }
+  if (date < today) { $err.text('Please choose today or a future date.'); return false; }
+  if (!time) { $err.text('Please choose a time.'); return false; }
+
+  // If the currently chosen option is disabled (full or past), block
+  const $chosen = $('#walkinTimeSelect option:selected');
+  if ($chosen.is(':disabled')) {
+    if ($chosen.hasClass('full-slot')) {
+      $err.text('This time slot is full. Please choose another.');
+    } else if ($chosen.attr('data-disabled-by-past')) {
+      $err.text('This time has already passed. Please choose another.');
+    } else {
+      $err.text('This time is not available. Please choose another.');
+    }
+    return false;
+  }
+  return true;
+}
+
+// Boot this logic when the modal opens
+$('#plusModal').on('shown.bs.modal', function() {
+  // min + default date
+  const today = walkinLocalToday();
+  $('#walkinDate').attr('min', today);
+  if (!$('#walkinDate').val() || $('#walkinDate').val() < today) {
+    $('#walkinDate').val(today);
+  }
+
+  buildWalkinTimeOptionsIfMissing();
+
+  // get limit then compute availability
+  $.getJSON('/customer/settings/appointmentLimit')
+    .done(resp => { window.walkinAppointmentLimit = resp?.limit || 1; })
+    .always(() => {
+      updateWalkinTimeDropdownForDate();
+      walkinCheckTimeSlots();
+    });
+});
+
+// React to date change inside modal
+$(document).on('change', '#walkinDate', function() {
+  updateWalkinTimeDropdownForDate();
+  walkinCheckTimeSlots();
+  $('#walkinTimeError').text('');
+});
+
+// Guard on submit
+$(document).on('submit', '#walkinForm', function(e) {
+  if (!validateWalkinTimeAndDate()) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    return false;
+  }
+  // allow your existing submit flow to proceed
+  return true;
+});
 </script>

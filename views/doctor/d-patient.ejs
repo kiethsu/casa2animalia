@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,102 +10,72 @@
   <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
   <!-- SweetAlert2 CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <!-- Optional: FontAwesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-    }
-    body {
-      font-family: Arial, sans-serif;
-      color: #333;
-      background-color: #f7f7f7;
-    }
-    .reservation-container {
-      min-height: 100vh;
-      padding: 2rem;
-      width: 100%;
-      box-sizing: border-box;
-    }
-    .content-header {
-      margin-bottom: 1rem;
-    }
-    .content-header h3 {
-      font-size: 18px;
-      color: #000;
-      font-weight: bold;
-      margin: 0;
-    }
-    .header-row {
-      margin-bottom: 1.5rem;
-    }
-    .search-box {
-      width: 300px;
-      height: 30px;
-    }
-    .custom-table {
-      table-layout: fixed;
-      width: 100%;
-      background-color: #ffffff;
-    }
-    .custom-table thead tr {
-      background-color: #4B9CD3;
-      color: #ffffff;
-    }
-    .custom-table thead th {
-      text-align: center;
-      padding: 12px;
-      font-weight: 600;
-      border: none;
-    }
-    .custom-table tbody tr {
-      border-bottom: 1px solid #dee2e6;
-    }
-    .custom-table tbody td {
-      text-align: center;
-      padding: 12px;
-    }
-    .custom-table tbody tr:hover {
-      background-color: #f9f9f9;
-    }
-    .badge-done {
-      background-color: #28a745;
-      color: #fff;
-      font-size: 0.9em;
-      padding: 0.5em;
-    }
-    .fixed-width {
-      min-width: 120px;
-    }
-    /* Accordion Styling */
-    .card-header {
-      background-color: #f1f1f1;
-      cursor: pointer;
-    }
-    .card-header h6 {
-      margin: 0;
-      font-weight: bold;
-    }
-    .card-body {
-      background-color: #fafafa;
-      font-size: 14px;
-    }
+    html, body { height: 100%; margin: 0; background-color: #f7f7f7; font-family: Arial, sans-serif; }
+    .reservation-container { padding: 2rem; }
+    .content-header h3 { font-size: 24px; color: #0047AB; font-weight: bold; }
+    .search-box { width: 300px; height: 38px; }
+    .custom-table { table-layout: fixed; width: 100%; background-color: #ffffff; border-collapse: separate; border-spacing: 0; }
+    .custom-table thead tr { background-color: #0047AB; color: #ffffff; }
+    .custom-table thead th { text-align: center; padding: 12px; font-weight: 600; border: none; }
+    .custom-table tbody tr { border-bottom: 1px solid #dee2e6; }
+    .custom-table tbody td { text-align: center; padding: 12px; }
+    .custom-table tbody tr:hover { background-color: #f1f1f1; }
+    .badge-done { background-color: #28a745; color: #fff; font-size: 0.9em; padding: 0.5em; }
+    .fixed-width { min-width: 120px; }
+    .modal-content { border: none; border-radius: 8px; overflow: hidden; }
+    .modal-header { background-color: #0047AB; color: #ffffff; border-bottom: none; padding: 1rem 1.5rem; }
+    .modal-header .close { color: #ffffff; opacity: 1; }
+    .modal-body { background-color: #ffffff; padding: 1.5rem; }
+    .modal-footer { background-color: #ffffff; border-top: none; padding: 1rem 1.5rem; }
+    .modal-title { font-size: 20px; font-weight: bold; }
+    .form-control { border-radius: 4px; border: 1px solid #ced4da; }
+    .btn-primary { background-color: #0047AB; border: none; }
+    .btn-primary:hover { background-color: #003b95; }
+    .btn-secondary { background-color: #6c757d; border: none; }
+    .btn-secondary:hover { background-color: #5a6268; }
+    .card { border: 1px solid #e9ecef; border-radius: 4px; margin-bottom: 1.5rem; }
+    .card-header { background-color: #f1f1f1; padding: 0.75rem 1rem; border-bottom: 1px solid #e9ecef; }
+    .card-body { padding: 1rem; }
+    .service-category-block { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 4px; }
+    .error-input { border: 1px solid red !important; }
+    #overviewCard { border: 1px solid #ddd; border-radius: 4px; margin-top: 1.5rem; }
+    #overviewCard .card-header { background-color: #f1f1f1; padding: 0.75rem 1rem; border-bottom: 1px solid #ddd; }
+    #overviewCard .card-body { padding: 1rem; }
+    .remove-file-btn { display: none; border: none; background: transparent; font-size: 16px; line-height: 1; margin-left: 5px; cursor: pointer; }
   </style>
 </head>
 <body>
+
+  <!-- Expose data to client -->
+  <script>
+    // rows: array of { reservationId, ownerName, petId?, petName, service, date, time, petSchedule?, petDone, resStatus }
+    var rowsData = <%- JSON.stringify(typeof rows !== 'undefined' ? rows : []) %>;
+    // categories (optional; safe default to [])
+    var serviceCategoriesClient = <%- JSON.stringify(typeof serviceCategories !== 'undefined' ? serviceCategories : []) %>;
+      var simpleServices = <%- JSON.stringify(typeof simpleServices !== 'undefined' ? simpleServices : []) %>;
+
+  </script>
+
   <div class="container-fluid reservation-container">
     <div class="content-header">
       <h3>Patient Consultations</h3>
     </div>
+
     <div class="row header-row">
       <div class="col-md-12 d-flex justify-content-end align-items-center">
         <input type="text" class="form-control form-control-sm search-box" id="searchInput" placeholder="Search by Owner Name">
       </div>
     </div>
-    <!-- Patients Table -->
+
+    <!-- Patients Table (one row per pet) -->
     <table class="table custom-table mt-3" id="patientsTable">
       <thead>
         <tr>
           <th>Owner Name</th>
+          <th>Pet</th>
           <th>Service</th>
           <th>Consultation View Details</th>
           <th>Consultation</th>
@@ -112,127 +84,260 @@
         </tr>
       </thead>
       <tbody>
-        <% patients.forEach(function(patient) { %>
-          <tr 
-            id="reservation-<%= patient._id %>"
-            data-schedule="<%= (patient.schedule && patient.schedule.scheduleDate) ? new Date(patient.schedule.scheduleDate).toISOString().slice(0,10) : '' %>"
-          >
-            <td class="ownerName"><%= patient.ownerName %></td>
-            <td><%= patient.service %></td>
-            <td>
-              <button class="btn btn-info btn-sm" onclick="viewConsultation('<%= patient._id %>')">
-                View Details
-              </button>
-            </td>
-            <td>
-              <button class="btn btn-primary btn-sm fixed-width" onclick="addConsultation('<%= patient._id %>')">
-                Add
-              </button>
-            </td>
-            <td>
-              <% if (patient.schedule && patient.schedule.scheduleDate) { %>
-                <div>
-                  <strong><%= new Date(patient.schedule.scheduleDate).toISOString().slice(0,10) %></strong><br>
-                  <small><%= patient.schedule.scheduleDetails %></small>
-                </div>
-              <% } else { %>
-                <button class="btn btn-secondary btn-sm fixed-width" onclick="openScheduleModal('<%= patient._id %>')">
-                  Add
+        <% if (!rows || rows.length === 0) { %>
+          <tr><td colspan="7" class="text-center">You don't have consultation today</td></tr>
+        <% } else { %>
+          <% rows.forEach(function(r) { 
+               const rid = String(r.reservationId);
+               const hasId = !!r.petId;
+               const petKey = hasId ? String(r.petId) : (r.petName ? r.petName.toLowerCase().replace(/\s+/g,'-') : 'pet');
+               const rowId = `row-${rid}-${petKey}`;
+          %>
+            <tr id="<%= rowId %>"
+                data-reservation="<%= rid %>"
+                data-pet-id="<%= hasId ? r.petId : '' %>"
+                data-pet-name="<%= r.petName || '' %>">
+              <td class="ownerName"><%= r.ownerName || 'Unknown Owner' %></td>
+              <td><%= r.petName || 'Unknown Pet' %></td>
+              <td><%= r.service || '—' %></td>
+
+              <td>
+                <button class="btn btn-info btn-sm"
+                        onclick="viewConsultation('<%= rid %>', '<%= hasId ? r.petId : '' %>', '<%= !hasId ? (r.petName || '') : '' %>')">
+                  View Details
                 </button>
-              <% } %>
-            </td>
-            <td>
-              <% if (patient.status === 'Done') { %>
-                <span class="badge badge-done">Done</span>
-              <% } else { %>
-                <button class="btn btn-secondary btn-sm" onclick="markAsDone('<%= patient._id %>')">
-                  Mark as Done
-                </button>
-              <% } %>
-            </td>
-          </tr>
-        <% }); %>
+              </td>
+
+             <td>
+  <button class="btn btn-primary btn-sm fixed-width btn-consult"
+          data-res-id="<%= rid %>"
+          data-pet-id="<%= hasId ? r.petId : '' %>"
+          data-pet-name="<%= !hasId ? (r.petName || '') : '' %>"
+          onclick="addConsultation('<%= rid %>', '<%= hasId ? r.petId : '' %>', '<%= !hasId ? (r.petName || '') : '' %>')">
+    <%= r.hasConsultation ? 'Edit Consultation' : 'Add Consultation' %>
+  </button>
+</td>
+
+
+            <td class="scheduleCell">
+  <% if (r.petSchedule && r.petSchedule.scheduleDate) { %>
+    <div>
+      <strong><%= new Date(r.petSchedule.scheduleDate).toISOString().slice(0,10) %></strong><br>
+      <small>
+        <%= (r.petSchedule.service && r.petSchedule.service.name) 
+              ? r.petSchedule.service.name 
+              : (r.petSchedule.scheduleDetails || '') %>
+      </small>
+    </div>
+    <button class="btn btn-link btn-sm p-0"
+            onclick="openScheduleModal('<%= rid %>', '<%= hasId ? r.petId : '' %>', '<%= !hasId ? (r.petName || '') : '' %>')">
+      <i class="fas fa-edit"></i> Edit
+    </button>
+  <% } else { %>
+    <button class="btn btn-secondary btn-sm fixed-width"
+            onclick="openScheduleModal('<%= rid %>', '<%= hasId ? r.petId : '' %>', '<%= !hasId ? (r.petName || '') : '' %>')">
+      Add
+    </button>
+  <% } %>
+</td>
+
+
+              <td class="doneCell">
+                <% if (r.petDone || r.resStatus === 'Done') { %>
+                  <span class="badge badge-done">Done</span>
+                <% } else { %>
+                  <button class="btn btn-secondary btn-sm"
+                          onclick="markAsDone('<%= rid %>', '<%= hasId ? r.petId : '' %>', '<%= !hasId ? (r.petName || '') : '' %>')">
+                    Mark as Done
+                  </button>
+                <% } %>
+              </td>
+            </tr>
+          <% }); %>
+        <% } %>
       </tbody>
     </table>
-    <!-- Modal for Adding Consultation -->
-<div class="modal fade" id="consultationModal" tabindex="-1" role="dialog" aria-labelledby="consultationModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content">
-      <form id="consultationForm">
-        <div class="modal-header">
-          <h5 class="modal-title" id="consultationModalLabel">Add Consultation Details</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          <!-- Consultation Notes -->
-          <div class="form-group">
-            <label for="consultationNotes">Consultation Notes</label>
-            <textarea class="form-control" id="consultationNotes" name="consultationNotes" rows="3" required></textarea>
-          </div>
-          <!-- Medication Details -->
-          <div class="form-group">
-            <label for="medicationName">Medication Name</label>
-            <input type="text" class="form-control" id="medicationName" name="medicationName">
-          </div>
-          <div class="form-group">
-            <label for="dosage">Dosage</label>
-            <input type="text" class="form-control" id="dosage" name="dosage" placeholder="e.g., 500mg">
-          </div>
-          <div class="form-group">
-            <label for="frequency">Frequency</label>
-            <input type="text" class="form-control" id="frequency" name="frequency" placeholder="e.g., Twice a day">
-          </div>
-          <div class="form-group">
-            <label for="adminTime">Administration Time</label>
-            <input type="time" class="form-control" id="adminTime" name="adminTime">
-          </div>
-          <div class="form-group">
-            <label for="additionalInstructions">Additional Instructions</label>
-            <textarea class="form-control" id="additionalInstructions" name="additionalInstructions" rows="2"></textarea>
-          </div>
-          <!-- New Quantity Input (number only) -->
-          <div class="form-group">
-            <label for="quantity">Quantity</label>
-            <input type="number" class="form-control" id="quantity" name="quantity" placeholder="Enter quantity" min="0">
-          </div>
-          <button type="button" class="btn btn-secondary mb-2" id="btnAddMedication">Add Medication</button>
-          <div id="medicationsList" class="mb-3"></div>
-          <!-- Hidden inputs -->
-          <input type="hidden" id="medicationsData" name="medicationsData">
-          <input type="hidden" id="reservationId" name="reservationId">
-        </div>
-        <div class="modal-footer">
-          <button type="submit" class="btn btn-primary">Save Consultation</button>
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
 
-    <!-- Modal for Adding Schedule -->
+    <!-- Pagination container -->
+    <div id="patientsPagination"></div>
+
+    <!-- New Consultation Modal -->
+    <div class="modal fade" id="consultationModal" tabindex="-1" role="dialog" aria-labelledby="consultationModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+          <form id="consultationForm" enctype="multipart/form-data">
+            <div class="modal-header">
+              <h5 class="modal-title" id="consultationModalLabel">Add Consultation Details</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+
+            <div class="modal-body">
+              <!-- Physical Examination -->
+              <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center" data-toggle="collapse" data-target="#physicalExamCollapse" aria-expanded="false" style="cursor: pointer;">
+                  <h6 class="mb-0">Physical Examination</h6>
+                  <button type="button" class="close" aria-label="Close" onclick="event.stopPropagation(); $('#physicalExamCollapse').collapse('hide');"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div id="physicalExamCollapse" class="collapse">
+                  <div class="card-body">
+                    <div class="form-group">
+                      <label for="examWeight">Weight</label>
+                      <input type="text" class="form-control" id="examWeight" name="examWeight" placeholder="Enter weight">
+                    </div>
+                    <div class="form-group">
+                      <label for="examTemperature">Temperature</label>
+                      <input type="text" class="form-control" id="examTemperature" name="examTemperature" placeholder="Enter temperature">
+                    </div>
+                    <div class="form-group">
+                      <label for="examOthers">Other Observations</label>
+                      <textarea class="form-control" id="examOthers" name="examOthers" rows="2" placeholder="Additional details"></textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Services -->
+              <div class="card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <h6 class="mb-0">Services</h6>
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddServiceCategory">Add Category</button>
+                </div>
+                <div class="card-body">
+                  <div id="serviceCategoriesContainer"><!-- dynamic blocks --></div>
+                </div>
+              </div>
+
+              <!-- Diagnosis -->
+              <div class="card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center" data-toggle="collapse" data-target="#diagnosisCollapse" aria-expanded="false" style="cursor: pointer;">
+                  <h6 class="mb-0">Diagnosis</h6>
+                  <button type="button" class="close" aria-label="Close" onclick="closeDiagnosis(event);"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div id="diagnosisCollapse" class="collapse">
+                  <div class="card-body">
+                    <textarea class="form-control" id="diagnosis" name="diagnosis" rows="3" placeholder="Enter diagnosis"></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Medication -->
+              <div class="card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center" data-toggle="collapse" data-target="#medicationCollapse" aria-expanded="false" style="cursor: pointer;">
+                  <h6 class="mb-0">Medication</h6>
+                  <button type="button" class="close" aria-label="Close" onclick="closeMedication(event);"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div id="medicationCollapse" class="collapse">
+                  <div class="card-body">
+                    <table class="table table-bordered" id="medicationTable">
+                      <thead>
+                        <tr>
+                          <th>Medication</th>
+                          <th>Dosage</th>
+                          <th>Remarks</th>
+                          <th>Quantity</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody></tbody>
+                    </table>
+                    <button type="button" class="btn btn-secondary mb-2" id="btnAddMedicationRow">Add Medication Row</button>
+                    <button type="button" class="btn btn-info mb-2" id="btnSelectMedication">Select Medication</button>
+                    <div id="medicationSelectorArea" class="mt-2" style="display:none;">
+                      <div class="form-group">
+                        <label for="medicationCategorySelect">Select Category:</label>
+                        <select id="medicationCategorySelect" class="form-control">
+                          <option value="">-- Choose a category --</option>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label for="medicationProductSelect">Select Product:</label>
+                        <select id="medicationProductSelect" class="form-control">
+                          <option value="">-- Choose a product --</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Notes -->
+              <div class="card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center" data-toggle="collapse" data-target="#notesCollapse" aria-expanded="false" style="cursor: pointer;">
+                  <h6 class="mb-0">Notes</h6>
+                  <button type="button" class="close" aria-label="Close" onclick="event.stopPropagation(); $('#notesCollapse').collapse('hide');"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div id="notesCollapse" class="collapse">
+                  <div class="card-body">
+                    <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Enter any additional notes"></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Confinement -->
+              <div class="card mt-3">
+                <div class="card-header"><h6 class="mb-0">Confinement Status</h6></div>
+                <div class="card-body">
+                  <div class="form-check"><input class="form-check-input" type="checkbox" name="confinementStatus[]" value="inpatient" id="statusInpatient"><label class="form-check-label" for="statusInpatient">Inpatient</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" name="confinementStatus[]" value="outpatient" id="statusOutpatient"><label class="form-check-label" for="statusOutpatient">Outpatient</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" name="confinementStatus[]" value="for release" id="statusForRelease"><label class="form-check-label" for="statusForRelease">For Release</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" name="confinementStatus[]" value="surgical" id="statusSurgical"><label class="form-check-label" for="statusSurgical">Surgical</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" name="confinementStatus[]" value="refuse confinement" id="statusRefuseConfinement"><label class="form-check-label" for="statusRefuseConfinement">Refuse Confinement</label></div>
+                </div>
+              </div>
+
+              <!-- Overview -->
+              <button type="button" id="btnPreviewOverview" class="btn btn-info mb-3">Preview Overview</button>
+              <div class="card" id="overviewCard">
+                <div class="card-header"><h6 class="mb-0">Overview</h6></div>
+                <div class="card-body" id="overviewContent"></div>
+              </div>
+<!-- Hidden inputs -->
+<input type="hidden" id="reservationId" name="reservationId">
+<input type="hidden" id="targetPetId" name="targetPetId"><!-- NEW: so server knows which pet -->
+<!-- ADD THIS LINE -->
+<input type="hidden" id="targetPetName" name="targetPetName"><!-- NEW: fallback by name -->
+
+            </div>
+
+            <div class="modal-footer">
+              <button type="submit" class="btn btn-primary">Save Consultation</button>
+              <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Add Schedule -->
     <div class="modal fade" id="scheduleModal" tabindex="-1" role="dialog" aria-labelledby="scheduleModalLabel" aria-hidden="true">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
           <form id="scheduleForm">
             <div class="modal-header">
               <h5 class="modal-title" id="scheduleModalLabel">Schedule Follow-Up</h5>
-              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-              </button>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
             </div>
             <div class="modal-body">
-              <!-- Inline Calendar for Schedule Date -->
               <div id="scheduleDatePicker"></div>
               <input type="hidden" id="scheduleDate" name="scheduleDate" required>
-              <div class="form-group mt-3">
-                <label for="scheduleDetails">Service Details</label>
-                <input type="text" class="form-control" id="scheduleDetails" name="scheduleDetails" placeholder="e.g., Checkup, Vaccination" required>
-              </div>
-              <input type="hidden" id="scheduleReservationId" name="reservationId">
-            </div>
+
+
+            <div class="form-group mt-3">
+  <label for="scheduleServiceSelect">Follow-up Service</label>
+  <select id="scheduleServiceSelect" class="form-control" required>
+    <option value="">-- Select a service --</option>
+  </select>
+ 
+  <input type="hidden" id="scheduleServiceName"  name="scheduleServiceName">
+  <input type="hidden" id="scheduleServiceId"    name="scheduleServiceId">      
+  <input type="hidden" id="scheduleCategoryId"   name="scheduleCategoryId">     
+  <input type="hidden" id="scheduleCategoryName" name="scheduleCategoryName">
+<input type="hidden" id="scheduleReservationId" name="reservationId">
+<input type="hidden" id="schedulePetId" name="petId">
+<input type="hidden" id="schedulePetName" name="petName">
+
+</div>
+</div>
             <div class="modal-footer">
               <button type="submit" class="btn btn-primary">Save Schedule</button>
               <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
@@ -241,393 +346,704 @@
         </div>
       </div>
     </div>
+
     <!-- Global Calendar Modal -->
     <div class="modal fade" id="globalCalendarModal" tabindex="-1" role="dialog" aria-labelledby="globalCalendarModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="globalCalendarModalLabel">Follow-Up Calendar</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          <div class="modal-body">
-            <div id="globalCalendarPicker"></div>
-            <div id="followUpList" class="mt-3"></div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-          </div>
+          <div class="modal-header"><h5 class="modal-title" id="globalCalendarModalLabel">Follow-Up Calendar</h5><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div>
+          <div class="modal-body"><div id="globalCalendarPicker"></div><div id="followUpList" class="mt-3"></div></div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button></div>
         </div>
       </div>
     </div>
-    <!-- Modal for Viewing Consultation Details (with Accordion History) -->
+
+    <!-- Modal: View Consultation Details -->
     <div class="modal fade" id="viewConsultationModal" tabindex="-1" role="dialog" aria-labelledby="viewConsultationModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="viewConsultationModalLabel">Consultation Details</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          <div class="modal-body" id="consultationDetails">
-            <!-- Consultation details and history will load here -->
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-          </div>
+          <div class="modal-header"><h5 class="modal-title" id="viewConsultationModalLabel">Consultation Details</h5><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div>
+          <div class="modal-body" id="consultationDetails"></div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button></div>
         </div>
       </div>
     </div>
   </div>
-  <!-- jQuery, jQuery UI, Bootstrap JS -->
+
+  <!-- Scripts -->
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
   <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-  <!-- SweetAlert2 JS -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+
   <script>
-    // Standard birthday formatter (if needed elsewhere)
-    function formatBirthday(dateStr) {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    // Utility to build row id consistently (must match server-rendered id)
+    function buildRowId(reservationId, petId, petName) {
+      if (petId) return `row-${reservationId}-${String(petId)}`;
+      const slug = (petName || 'pet').toLowerCase().replace(/\s+/g,'-');
+      return `row-${reservationId}-${slug}`;
     }
+  function findRow(reservationId, petId, petName){
+    const pid = String(petId || '');
+    const pname = String((petName || '').toLowerCase());
+    return (rowsData || []).find(r =>
+      String(r.reservationId) === String(reservationId) &&
+      (String(r.petId || '') === pid || String((r.petName || '').toLowerCase()) === pname)
+    ) || null;
+  }
 
-    // Custom formatter for consultation history dates (e.g., "januar 20 2025")
-    function formatCustomDate(dateStr) {
-      const date = new Date(dateStr);
-      // Get the month name in long format and convert it to lowercase.
-      const month = date.toLocaleString('en-US', { month: 'long' }).toLowerCase();
-      const day = date.getDate();
-      const year = date.getFullYear();
-      return `${month} ${day} ${year}`;
-    }
+  function setRowSchedule(reservationId, petId, petName, scheduleObj){
+    const row = findRow(reservationId, petId, petName);
+    if (row) row.petSchedule = scheduleObj || null;
+  }
+    // --- Close sections via their "x" buttons ---
+    function closeMedication(e){ e.stopPropagation(); $("#medicationCollapse").collapse("hide"); }
+    function closeDiagnosis(e){ e.stopPropagation(); $("#diagnosisCollapse").collapse("hide"); }
 
-    // ----------------- View Consultation (with Accordion History) -----------------
-    function viewConsultation(reservationId) {
-      $.ajax({
-        url: '/doctor/get-consultation',
-        method: 'GET',
-        data: { reservationId: reservationId },
-        success: function(response) {
-          if(response.success) {
-            let detailsHtml = '';
-            // Main Consultation Details
-            if(response.reservation.pets && response.reservation.pets.length > 0) {
-              let petObj = response.reservation.pets[0].petId || response.reservation.pets[0];
-              detailsHtml += '<p><strong>Pet Name:</strong> ' + petObj.petName + '</p>';
-              detailsHtml += '<p><strong>Birthday:</strong> ' + (petObj.birthday ? formatBirthday(petObj.birthday) : 'N/A') + '</p>';
-            }
-            if(response.reservation.concerns) {
-              detailsHtml += '<p><strong>Customer Concerns:</strong> ' + response.reservation.concerns + '</p>';
-            }
-            
-            // Fetch consultation history for the pet
-            if(response.reservation.pets && response.reservation.pets.length > 0) {
-              let petObj = response.reservation.pets[0].petId || response.reservation.pets[0];
-              $.ajax({
-                url: '/hr/get-pet-history',
-                method: 'GET',
-                data: { 
-                  petId: petObj._id,         // adjust if needed
-                  petName: petObj.petName, 
-                  ownerId: response.reservation.owner
-                },
-                success: function(historyResponse) {
-                  if(historyResponse.success && historyResponse.history.length > 0) {
-                    detailsHtml += '<hr><p><strong>Consultation History:</strong></p>';
-                    // Build an accordion for the history
-                    detailsHtml += '<div id="historyAccordion">';
-                    historyResponse.history.forEach(function(record, index) {
-                      // Use updated date field if available, otherwise createdAt
-                      const dateField = record.updatedAt || record.createdAt;
-                      const formattedDate = formatCustomDate(dateField);
-                      detailsHtml += `
-                        <div class="card mb-2">
-                          <div class="card-header" id="heading${index}" data-toggle="collapse" data-target="#collapse${index}" aria-expanded="false" aria-controls="collapse${index}">
-                            <h6 class="mb-0">${formattedDate}</h6>
-                          </div>
-                          <div id="collapse${index}" class="collapse" aria-labelledby="heading${index}" data-parent="#historyAccordion">
-                            <div class="card-body">
-                              <p><strong>Consultation Notes:</strong> ${record.consultationNotes || 'N/A'}</p>`;
-                      if(record.medications && record.medications.length > 0) {
-                        detailsHtml += '<ul>';
-                        record.medications.forEach(function(med) {
-                          detailsHtml += `
-                            <li>
-                              <p><strong>Medication:</strong> ${med.medicationName}</p>
-                              <p><strong>Dosage:</strong> ${med.dosage}</p>
-                              <p><strong>Frequency:</strong> ${med.frequency}</p>
-                              <p><strong>Admin Time:</strong> ${med.adminTime}</p>
-                              <p><strong>Instructions:</strong> ${med.additionalInstructions || 'N/A'}</p>
-                              <p><strong>Quantity:</strong> ${med.quantity || 'N/A'}</p>
-                            </li>`;
-                        });
-                        detailsHtml += '</ul>';
-                      }
-                      if(record.schedule && record.schedule.scheduleDate) {
-                        detailsHtml += `<p><strong>Follow-Up Date:</strong> ${formatCustomDate(record.schedule.scheduleDate)}</p>`;
-                      }
-                      detailsHtml += `
-                            </div>
-                          </div>
-                        </div>`;
-                    });
-                    detailsHtml += '</div>';
-                  }
-                  $("#consultationDetails").html(detailsHtml);
-                  $("#viewConsultationModal").modal("show");
-                },
-                error: function() {
-                  $("#consultationDetails").html(detailsHtml);
-                  $("#viewConsultationModal").modal("show");
-                }
-              });
-            } else {
-              $("#consultationDetails").html(detailsHtml);
-              $("#viewConsultationModal").modal("show");
-            }
-          } else {
-            Swal.fire('Error', response.message || 'Error fetching consultation details.', 'error');
-          }
-        },
-        error: function() {
-          Swal.fire('Error', 'Server error while fetching consultation details.', 'error');
-        }
+    // ----------------- Dynamic Services Section -----------------
+    function addServiceCategoryBlock() {
+      var optionsHtml = '<option value="">Select Category</option>';
+      (serviceCategoriesClient || []).forEach(function(cat) {
+        optionsHtml += '<option value="' + cat._id + '">' + cat.name + '</option>';
       });
-    }
-
-    // ----------------- Medication Handling -----------------
-    let medications = [];
-    function renderMedications() {
-      let container = $("#medicationsList");
-      container.empty();
-      medications.forEach((med, index) => {
-        let medItem = $(`
-          <div class="medication-item" data-index="${index}">
-            <span class="med-name">
-              ${med.medicationName} | ${med.dosage} | ${med.frequency} | ${med.adminTime} | ${med.additionalInstructions} | Qty: ${med.quantity || 'N/A'}
-            </span>
-            <button type="button" class="btn btn-sm btn-warning edit-med">Edit</button>
-            <button type="button" class="btn btn-sm btn-danger remove-med">Remove</button>
+      var block = $(`
+        <div class="service-category-block">
+          <div class="d-flex justify-content-between align-items-center">
+            <select class="form-control service-category-select" style="width:80%;">${optionsHtml}</select>
+            <button type="button" class="close remove-service-category-block" aria-label="Close"><span aria-hidden="true">&times;</span></button>
           </div>
-        `);
-        container.append(medItem);
-      });
+          <div class="services-list mt-2"></div>
+        </div>
+      `);
+      $("#serviceCategoriesContainer").append(block);
     }
+    $(document).ready(function(){ $("#btnAddServiceCategory").click(addServiceCategoryBlock); });
 
-    $("#btnAddMedication").click(function() {
-      let medicationName = $("#medicationName").val().trim();
-      if(medicationName === "") {
-        Swal.fire('Error', 'Medication name is required.', 'error');
-        return;
+    // Load services in selected category
+    $(document).on('change', '.service-category-select', function(){
+  var categoryId = $(this).val();
+  var container = $(this).closest('.service-category-block').find('.services-list');
+  container.empty();
+  if(!categoryId) return;
+
+  $.ajax({
+    url: '/doctor/services/listByCategory',
+    method: 'GET',
+    data: { categoryId },
+    success: function(response){
+      if(response.success && response.services && response.services.length){
+        response.services.forEach(function(service){
+          var html = `
+            <div class="form-group service-item">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="service_${service._id}" name="services[]" value="${service._id}">
+                <label class="form-check-label" for="service_${service._id}" data-service-id="${service._id}">${service.serviceName}</label>
+              </div>
+              <div class="service-extra-fields" style="display:none; margin-left:20px;">
+                <input type="text" class="form-control mb-2" name="serviceText_${service._id}" placeholder="Enter details for ${service.serviceName}">
+                <div class="d-flex align-items-center">
+                  <input type="file" class="form-control-file" name="serviceFile_${service._id}" data-service-id="${service._id}" style="flex:1;">
+                  <button type="button" class="remove-file-btn">&times;</button>
+                </div>
+              </div>
+            </div>`;
+          container.append(html);
+        });
+
+        // 🔁 PREFILL (if any) by category name
+        const selectedCatName = $(container).closest('.service-category-block').find('select.service-category-select option:selected').text();
+        if (window.__prefill && window.__prefill.services && window.__prefill.services[selectedCatName]) {
+          const items = window.__prefill.services[selectedCatName];
+          items.forEach(function(it){
+            // find service by exact label text
+            const $label = container.find('.form-check-label').filter(function(){ return $(this).text().trim() === it.serviceName; }).first();
+            if ($label.length) {
+              const $wrap = $label.closest('.service-item');
+              $wrap.find('input.form-check-input').prop('checked', true).trigger('change');
+              if (it.details) $wrap.find('input[type="text"]').val(it.details);
+            }
+          });
+        }
+      } else {
+        container.html("<p>No services available for this category.</p>");
       }
-      let dosage = $("#dosage").val().trim();
-      let frequency = $("#frequency").val().trim();
-      let adminTime = $("#adminTime").val().trim();
-      let additionalInstructions = $("#additionalInstructions").val().trim();
-      let quantity = $("#quantity").val().trim();
-      let medObj = { medicationName, dosage, frequency, adminTime, additionalInstructions, quantity };
-      medications.push(medObj);
-      // Clear all input fields
-      $("#medicationName, #dosage, #frequency, #adminTime, #additionalInstructions, #quantity").val('');
-      renderMedications();
+    },
+    error: function(){ container.html("<p>Error loading services.</p>"); }
+  });
+});
+
+    // Toggle service details/file inputs
+    $(document).on('change', '.service-item .form-check-input', function(){
+      $(this).closest('.service-item').find('.service-extra-fields').toggle($(this).is(':checked'));
     });
 
-    $("#medicationsList").on("click", ".edit-med", function() {
-      let index = $(this).closest(".medication-item").data("index");
-      let med = medications[index];
-      $("#medicationName").val(med.medicationName);
-      $("#dosage").val(med.dosage);
-      $("#frequency").val(med.frequency);
-      $("#adminTime").val(med.adminTime);
-      $("#additionalInstructions").val(med.additionalInstructions);
-      $("#quantity").val(med.quantity);
-      medications.splice(index, 1);
-      renderMedications();
+    // Remove service-category block
+    $(document).on('click', '.remove-service-category-block', function(){
+      var $this = $(this);
+      Swal.fire({ icon: 'warning', title: 'Remove Category', text: 'Remove this category block?', showCancelButton: true, confirmButtonText: 'Remove' })
+        .then((r)=>{ if(r.isConfirmed){ $this.closest('.service-category-block').remove(); Swal.fire({icon:'success',title:'Removed'}); } });
     });
 
-    $("#medicationsList").on("click", ".remove-med", function() {
-      let index = $(this).closest(".medication-item").data("index");
-      medications.splice(index, 1);
-      renderMedications();
-    });
+    // File remove button
+    $(document).on('change', 'input[type="file"]', function(){ $(this).siblings('.remove-file-btn').toggle(this.files && this.files.length > 0); });
+    $(document).on('click', '.remove-file-btn', function(){ $(this).siblings('input[type="file"]').val(''); $(this).hide(); });
 
-    // ----------------- Consultation Form Submission -----------------
-    $("#consultationForm").submit(function(e) {
+    // ----------------- Consultation Form Submit -----------------
+    $("#consultationForm").submit(function(e){
       e.preventDefault();
-      $("#medicationsData").val(medications.length ? JSON.stringify(medications) : "[]");
-      let formData = $(this).serialize();
+      let formData = new FormData(this);
+
+      // Meds payload
+      let medications = [];
+      $("#medicationTable tbody tr").each(function(){
+        let medName  = $(this).find(".medication-name").val();
+        let dosage   = $(this).find("input[name='medications[][dosage]']").val();
+        let remarks  = $(this).find("input[name='medications[][remarks]']").val();
+        let quantity = $(this).find("input[name='medications[][quantity]']").val();
+        if(medName || dosage || remarks || quantity) medications.push({ name: medName, dosage, remarks, quantity });
+      });
+      formData.append("medicationsData", JSON.stringify(medications));
+
+      // Services payload
+      let services = [];
+      $("#serviceCategoriesContainer .service-category-block").each(function(){
+        let category = $(this).find("select.service-category-select option:selected").text();
+        $(this).find(".service-item").each(function(){
+          if($(this).find("input[type='checkbox']").is(":checked")){
+            let serviceId   = $(this).find("label").data("service-id");
+            let serviceName = $(this).find("label").text();
+            let details     = $(this).find("input[type='text']").val();
+            services.push({ serviceId, serviceName, details, category });
+          }
+        });
+      });
+      formData.append("servicesData", JSON.stringify(services));
+
       $.ajax({
         url: '/doctor/add-consultation',
         method: 'POST',
         data: formData,
-        success: function(response) {
-          if(response.success) {
-            Swal.fire({
-              icon: 'success',
-              title: 'Success',
-              text: 'Consultation details saved.'
-            }).then(() => {
-              $("#consultationModal").modal("hide");
-            });
-          } else {
-            Swal.fire('Error', response.message || 'Error saving consultation details.', 'error');
-          }
-        },
-        error: function() {
-          Swal.fire('Error', 'Server error while saving consultation details.', 'error');
-        }
+        processData: false, contentType: false,
+     success: function(resp){
+  if(resp.success){
+    // Gather context used to identify the exact row/button
+    const reservationId = $("#reservationId").val();
+    const petId   = $("#targetPetId").val();
+    const petName = $("#targetPetName").val();
+
+    // Immediately flip the button label (no reload) and persist the flag server-side
+    $.post('/doctor/save-consult-flag', { reservationId, petId, petName })
+      .always(function(){
+        flipConsultButton(reservationId, petId, petName);
+        Swal.fire({ icon: 'success', title: 'Saved', text: 'Consultation details saved.' })
+          .then(function(){
+            $("#consultationModal").modal("hide");
+            $("#consultationForm")[0].reset();
+            $("#medicationTable tbody").empty();
+            $("#serviceCategoriesContainer").empty();
+            $("#overviewContent").empty();
+          });
+      });
+  } else {
+    Swal.fire('Error', resp.message || 'Error saving consultation details.', 'error');
+  }
+},
+        error: function(){ Swal.fire('Error', 'Server error while saving consultation details.', 'error'); }
       });
     });
 
-    // ----------------- Schedule Modal Handling -----------------
-    function openScheduleModal(reservationId) {
-      $("#scheduleReservationId").val(reservationId);
-      $("#scheduleForm")[0].reset();
-      $("#scheduleDatePicker").datepicker("destroy");
-      $("#scheduleDatePicker").datepicker({
-        dateFormat: "yy-mm-dd",
-        onSelect: function(dateText) {
-          $("#scheduleDate").val(dateText);
+    // ----------------- Pagination -----------------
+    (function setupPagination(){
+      var rowsPerPage = 10;
+      var rows = $("#patientsTable tbody tr");
+      if (rows.length <= rowsPerPage) return;
+      var pageCount = Math.ceil(rows.length / rowsPerPage);
+      var pagination = $('<nav aria-label="Page navigation"><ul class="pagination justify-content-center"></ul></nav>');
+      for (var i = 0; i < pageCount; i++) $('<li class="page-item"><a class="page-link" href="#">' + (i + 1) + '</a></li>').appendTo(pagination.find("ul"));
+      $("#patientsPagination").html(pagination);
+      rows.hide(); rows.slice(0, rowsPerPage).show();
+      $(".pagination li.page-item").on("click", function(e){
+        e.preventDefault();
+        var index = $(this).index();
+        var start = index * rowsPerPage, end = start + rowsPerPage;
+        rows.hide(); rows.slice(start, end).show();
+        $(".pagination li.page-item").removeClass("active"); $(this).addClass("active");
+      });
+      $(".pagination li.page-item:first-child").addClass("active");
+    })();
+
+    // ----------------- Search -----------------
+    $("#searchInput").on("keyup", function(){
+      var v = $(this).val().toLowerCase();
+      $("#patientsTable tbody tr").each(function(){ $(this).toggle($(this).find('.ownerName').text().toLowerCase().indexOf(v) > -1); });
+    });
+
+    // ----------------- Med table rows -----------------
+    $("#btnAddMedicationRow").click(function(){
+      $("#medicationTable tbody").append(`
+        <tr>
+          <td><input type="text" name="medications[][name]" class="form-control medication-name" placeholder="Medication"></td>
+          <td><input type="text" name="medications[][dosage]" class="form-control" placeholder="Dosage"></td>
+          <td><input type="text" name="medications[][remarks]" class="form-control" placeholder="Remarks"></td>
+          <td><input type="number" name="medications[][quantity]" class="form-control" placeholder="Quantity" min="0"></td>
+          <td><button type="button" class="btn btn-danger btn-sm removeMedicationRow">Remove</button></td>
+        </tr>`);
+    });
+    $("#medicationTable").on("click", ".removeMedicationRow", function(){
+      var $row = $(this).closest("tr");
+      Swal.fire({ icon: 'warning', title: 'Remove Medication', text: 'Remove this row?', showCancelButton: true, confirmButtonText: 'Remove' })
+        .then((r)=>{ if(r.isConfirmed){ $row.remove(); Swal.fire({icon:'success',title:'Removed'}); } });
+    });
+
+    // ----------------- Inventory helpers -----------------
+    $("#btnSelectMedication").click(function(){
+      $("#medicationSelectorArea").toggle();
+      $("#medicationCategorySelect").html('<option value="">-- Choose a category --</option>');
+      $("#medicationProductSelect").html('<option value="">-- Choose a product --</option>');
+      $.get('/doctor/inventory/categories').done(function(resp){
+        if(resp.success && resp.categories && resp.categories.length){
+          resp.categories.forEach(function(cat){ $("#medicationCategorySelect").append(`<option value="${cat}">${cat}</option>`); });
         }
       });
-      $("#scheduleModal").modal("show");
+    });
+    $("#medicationCategorySelect").change(function(){
+      var cat = $(this).val();
+      $("#medicationProductSelect").html('<option value="">-- Choose a product --</option>');
+      if(!cat) return;
+      $.get('/doctor/inventory/listByCategory', { category: cat }).done(function(resp){
+        if(resp.success && resp.products && resp.products.length){
+          resp.products.forEach(function(p){ $("#medicationProductSelect").append(`<option value="${p.name}">${p.name}</option>`); });
+        }
+      });
+    });
+    $("#medicationProductSelect").change(function(){
+      var name = $(this).val(); if(!name) return;
+      var $last = $("#medicationTable tbody tr").last();
+      if($last.length === 0) $("#btnAddMedicationRow").click();
+      $("#medicationTable tbody tr").last().find(".medication-name").val(name);
+    });
+    $("#medicationTable").on("input", "input[name='medications[][quantity]']", function(){
+      var $qty = $(this);
+      var n = parseInt($qty.val(), 10);
+      var name = $qty.closest("tr").find(".medication-name").val();
+      if(name && !isNaN(n)){
+        $.get('/doctor/inventory/checkQuantity', { product: name }).done(function(resp){
+          if(resp.success){
+            var max = resp.availableQty;
+            if(n > max){
+              Swal.fire({ icon:'error', title:'Insufficient Stock', text:`Entered ${n} exceeds available ${max}.`, showCancelButton:true, confirmButtonText:`Set to ${max}` })
+                .then((r)=>{ if(r.isConfirmed){ $qty.val(max).removeClass("error-input"); } else { $qty.addClass("error-input"); } });
+            } else { $qty.removeClass("error-input"); }
+          }
+        });
+      } else { $qty.removeClass("error-input"); }
+    });
+
+    // ----------------- Units on blur -----------------
+    $("#examWeight").on('blur', function(){ var v=$(this).val().trim(); if(v && !v.toLowerCase().endsWith("kg")) $(this).val(v + " kg"); });
+    $("#examTemperature").on('blur', function(){ var v=$(this).val().trim(); if(v && !v.toLowerCase().endsWith("°c")) $(this).val(v + " °C"); });
+
+    // ----------------- Overview preview -----------------
+    $("#btnPreviewOverview").click(function(){
+      let examWeight = $("#examWeight").val(), examTemperature = $("#examTemperature").val(), examOthers = $("#examOthers").val();
+      let diagnosis = $("#diagnosis").val(), notes = $("#notes").val();
+      let confinementStatus = []; $("input[name='confinementStatus[]']:checked").each(function(){ confinementStatus.push($(this).val()); });
+      let medications = [];
+      $("#medicationTable tbody tr").each(function(){
+        let medName  = $(this).find(".medication-name").val();
+        let dosage   = $(this).find("input[name='medications[][dosage]']").val();
+        let remarks  = $(this).find("input[name='medications[][remarks]']").val();
+        let quantity = $(this).find("input[name='medications[][quantity]']").val();
+        if(medName || dosage || remarks || quantity) medications.push({ name: medName, dosage, remarks, quantity });
+      });
+
+      let servicesOverview = [];
+      $("#serviceCategoriesContainer .service-category-block").each(function(){
+        let category = $(this).find("select.service-category-select option:selected").text();
+        let selected = [];
+        $(this).find(".service-item").each(function(){
+          if($(this).find("input[type='checkbox']").is(":checked")){
+            let serviceName = $(this).find("label").text();
+            let details     = $(this).find("input[type='text']").val();
+            selected.push({ serviceName, details });
+          }
+        });
+        servicesOverview.push({ category, selected });
+      });
+
+      let html = `<h6>Physical Examination</h6>
+        <p><strong>Weight:</strong> ${examWeight || 'N/A'}</p>
+        <p><strong>Temperature:</strong> ${examTemperature || 'N/A'}</p>
+        <p><strong>Other Observations:</strong> ${examOthers || 'N/A'}</p>
+        <hr><h6>Services</h6>`;
+      servicesOverview.forEach(function(b){
+        html += `<p><strong>Category:</strong> ${b.category}</p>`;
+        if(b.selected.length){
+          html += `<ul>`;
+          b.selected.forEach(function(s){ html += `<li>${s.serviceName}${s.details ? ' - ' + s.details : ''}</li>`; });
+          html += `</ul>`;
+        } else { html += `<p>N/A</p>`; }
+      });
+      html += `<hr><h6>Diagnosis</h6><p>${diagnosis || 'N/A'}</p>
+               <hr><h6>Medications</h6>`;
+      if(medications.length){
+        html += `<table class="table table-sm"><thead><tr><th>Medication</th><th>Dosage</th><th>Remarks</th><th>Quantity</th></tr></thead><tbody>`;
+        medications.forEach(function(m){ html += `<tr><td>${m.name||'N/A'}</td><td>${m.dosage||'N/A'}</td><td>${m.remarks||'N/A'}</td><td>${m.quantity||'N/A'}</td></tr>`; });
+        html += `</tbody></table>`;
+      } else { html += `<p>N/A</p>`; }
+      html += `<hr><h6>Notes</h6><p>${notes || 'N/A'}</p>
+               <hr><h6>Confinement Status</h6><p>${confinementStatus.length ? confinementStatus.join(', ') : 'N/A'}</p>`;
+      $("#overviewContent").html(html);
+    });
+
+    // ----------------- Reservation pets helper -----------------
+    function fetchReservationPets(reservationId){
+      return new Promise((resolve)=>{
+        $.get('/doctor/get-consultation', { reservationId })
+          .done(r => { if(r && r.reservation && Array.isArray(r.reservation.pets)) resolve(r.reservation.pets); else resolve([]); })
+          .fail(()=> resolve([]));
+      });
     }
+    async function choosePet(reservationId, title){
+      const pets = await fetchReservationPets(reservationId);
+      if(!pets || !pets.length){ await Swal.fire('No pets found', 'This reservation has no pets attached.', 'warning'); return null; }
+      const list = pets.map(p => { const obj = p.petId || p; return { id: obj._id || p._id || '', name: obj.petName || '(Unnamed pet)' }; });
+      if(list.length === 1) return list[0];
+      const inputOptions = {}; list.forEach(p => inputOptions[p.id] = p.name);
+      const { value } = await Swal.fire({ title: title || 'Select Pet', input: 'select', inputOptions, inputPlaceholder: 'Choose a pet', showCancelButton: true, confirmButtonText: 'Continue' });
+      if(!value) return null;
+      return list.find(p => p.id === value) || null;
+    }
+function resetConsultationForm(){
+  $("#consultationForm")[0].reset();
+  $("#medicationTable tbody").empty();
+  $("#serviceCategoriesContainer").empty();
+  $("#overviewContent").empty();
+  $("input[name='confinementStatus[]']").prop('checked', false);
+}
 
-    $("#scheduleForm").submit(function(e) {
-      e.preventDefault();
-      let scheduleData = $(this).serialize();
+function prefillConsultation(c){
+  if (!c) return;
+
+  // Physical exam
+  $("#examWeight").val(c.physicalExam?.weight || '');
+  $("#examTemperature").val(c.physicalExam?.temperature || '');
+  $("#examOthers").val(c.physicalExam?.observations || '');
+
+  // Diagnosis / notes
+  $("#diagnosis").val(c.diagnosis || '');
+  $("#notes").val(c.notes || '');
+
+  // Confinement
+  $("input[name='confinementStatus[]']").prop('checked', false);
+  (c.confinementStatus || []).forEach(function(val){
+    $(`input[name='confinementStatus[]'][value="${val}"]`).prop('checked', true);
+  });
+
+  // Medications
+  (c.medications || []).forEach(function(m){
+    $("#btnAddMedicationRow").click();
+    const $row = $("#medicationTable tbody tr").last();
+    $row.find(".medication-name").val(m.name || m.medicationName || '');
+    $row.find("input[name='medications[][dosage]']").val(m.dosage || '');
+    $row.find("input[name='medications[][remarks]']").val(m.remarks || '');
+    if (typeof m.quantity !== 'undefined') $row.find("input[name='medications[][quantity]']").val(m.quantity);
+  });
+
+  // Services (prefill by category + service name)
+  window.__prefill = { services: {} };  // { "Category Name": [ {serviceName, details}, ... ] }
+  (c.services || []).forEach(function(s){
+    const cat = s.category || 'Uncategorized';
+    if (!window.__prefill.services[cat]) window.__prefill.services[cat] = [];
+    window.__prefill.services[cat].push({ serviceName: s.serviceName, details: s.details || '' });
+  });
+
+  // Create blocks and select categories to trigger loading + preselect
+  Object.keys(window.__prefill.services).forEach(function(catName){
+    addServiceCategoryBlock();
+    const $block = $("#serviceCategoriesContainer .service-category-block").last();
+    const $sel = $block.find('select.service-category-select');
+    // select by text
+    $sel.find('option').filter(function(){ return $(this).text().trim() === catName; }).prop('selected', true);
+    $sel.trigger('change'); // will load services and the change handler will apply prefill
+  });
+}
+
+  // ----------------- Add Consultation (UPDATED: set both id+name) -----------------
+// ----------------- Add/Edit Consultation (prefill if exists) -----------------
+async function addConsultation(reservationId, petId, petName){
+  let targetId = petId || '';
+  let targetName = petName || '';
+
+  if(!targetId && !targetName){
+    const chosen = await choosePet(reservationId, 'Select pet for consultation');
+    if(!chosen) return;
+    targetId = chosen.id || '';
+    targetName = chosen.name || '';
+  }
+
+  $("#reservationId").val(reservationId);
+  $("#targetPetId").val(targetId);
+  $("#targetPetName").val(targetName);
+
+  resetConsultationForm();
+  $("#consultationModal").modal("show");
+
+  // Load previous consultation (if any) and prefill
+  $.get('/doctor/consultation/one', { reservationId, petId: targetId, petName: targetName })
+    .done(function(r){
+      if (r.success && r.consultation) prefillConsultation(r.consultation);
+    });
+}
+
+function flipConsultButton(reservationId, petId, petName){
+  // Try exact attribute match first
+  const $btn = $(`.btn-consult[data-res-id="${reservationId}"][data-pet-id="${petId || ''}"][data-pet-name="${petName || ''}"]`);
+  if ($btn.length){
+    $btn.text('Edit Consultation');
+    return;
+  }
+  // Fallback: locate by row id then find button
+  const rowId = buildRowId(reservationId, petId, petName);
+  $("#"+rowId).find(".btn-consult").text('Edit Consultation');
+}
+
+
+    // ----------------- Schedule -----------------
+async function openScheduleModal(reservationId, petId, petName){
+  let target = (petId || petName) ? { id: petId || '', name: petName || '' }
+                                  : await choosePet(reservationId, 'Select pet to schedule');
+  if (!target) return;
+
+  // reset first
+  $("#scheduleForm")[0].reset();
+
+  // datepicker -> hidden input
+  $("#scheduleDatePicker").datepicker("destroy").datepicker({
+    dateFormat: "yy-mm-dd",
+    onSelect: function(dateText){ $("#scheduleDate").val(dateText); }
+  });
+
+  // identifiers
+  $("#scheduleReservationId").val(reservationId);
+  $("#schedulePetId").val(target.id || '');
+  $("#schedulePetName").val(target.name || '');
+
+  // build service dropdown
+  (function buildServiceDropdown(){
+    const $sel = $("#scheduleServiceSelect").empty();
+    $sel.append($('<option>').val('').text('-- Select a service --'));
+    (simpleServices || []).forEach(s => $sel.append($('<option>').val(s).text(s)));
+  })();
+
+  // try to preselect from the row's Service column
+  const rowId = buildRowId(reservationId, target.id, target.name);
+  const currentServiceOnRow = $("#"+rowId).find("td:nth-child(3)").text().trim();
+
+  // ✅ PREFILL from rowsData if schedule exists
+  const row = findRow(reservationId, target.id, target.name);
+  const existing = row && row.petSchedule ? row.petSchedule : null;
+
+  if (existing && existing.scheduleDate){
+    const dt = new Date(existing.scheduleDate);
+    $("#scheduleDate").val(dt.toISOString().slice(0,10));
+    $("#scheduleDatePicker").datepicker('setDate', dt);
+  }
+
+  // pick service name (prefer schedule.service.name, else scheduleDetails, else row’s column)
+  const preService =
+      (existing && existing.service && existing.service.name) ? existing.service.name
+    : (existing && existing.scheduleDetails)                  ? existing.scheduleDetails
+    : (currentServiceOnRow && currentServiceOnRow !== '—')    ? currentServiceOnRow
+    : '';
+
+  if (preService){
+    $("#scheduleServiceSelect").val(preService);
+    $("#scheduleServiceName").val(preService);
+  } else {
+    $("#scheduleServiceName").val('');
+  }
+
+  // keep hidden in sync
+  $("#scheduleServiceSelect").off('change').on('change', function(){
+    $("#scheduleServiceName").val(this.value || '');
+  });
+
+  $("#scheduleModal").modal("show");
+}
+
+
+$("#scheduleForm").submit(function(e){
+  e.preventDefault();
+
+  const dateVal = $("#scheduleDate").val().trim();
+  const svcVal  = $("#scheduleServiceName").val().trim();
+  if (!dateVal) return Swal.fire('Missing date', 'Please pick a follow-up date.', 'warning');
+  if (!svcVal)  return Swal.fire('Missing service', 'Please select a follow-up service.', 'warning');
+
+  const payload = $(this).serialize();
+
+  $.ajax({
+    url: '/doctor/add-schedule',
+    method: 'POST',
+    data: payload,
+    success: function(response){
+      if(!response.success) return Swal.fire('Error', response.message || 'Error saving schedule.', 'error');
+
+      const resId   = $("#scheduleReservationId").val();
+      const petId   = $("#schedulePetId").val();
+      const petName = $("#schedulePetName").val();
+      const rowId   = buildRowId(resId, petId, petName);
+
+      // UI
+      const info = (response.saved && response.saved.service && response.saved.service.name)
+                     ? response.saved.service.name
+                     : (response.saved.scheduleDetails || '');
+      $("#"+rowId).find(".scheduleCell").html(`
+        <div>
+          <strong>${new Date(response.saved.scheduleDate).toISOString().slice(0,10)}</strong><br>
+          <small>${info || ''}</small>
+        </div>
+        <button class="btn btn-link btn-sm p-0"
+                onclick="openScheduleModal('${resId}','${petId}','${petName}')">
+          <i class="fas fa-edit"></i> Edit
+        </button>
+      `);
+
+      // 🧠 keep memory in sync so future edits prefill correctly
+      setRowSchedule(resId, petId, petName, response.saved);
+
+      Swal.fire({ icon:'success', title:'Saved', text:'Schedule saved successfully.' })
+        .then(()=> $("#scheduleModal").modal("hide"));
+    },
+    error: function(){ Swal.fire('Error', 'Server error while saving schedule.', 'error'); }
+  });
+});
+
+    // ----------------- Mark as Done (per-pet; /doctor/mark-done) -----------------
+   function markAsDone(reservationId, petId, petName){
+  Swal.fire({ title:'Mark as Done?', text:'Mark this pet as done?', icon:'warning', showCancelButton:true, confirmButtonText:'Yes, done' })
+    .then((res)=>{
+      if(!res.isConfirmed) return;
       $.ajax({
-        url: '/doctor/add-schedule',
+        url: '/doctor/mark-done',
         method: 'POST',
-        data: scheduleData,
-        success: function(response) {
-          if(response.success) {
-            Swal.fire({
-              icon: 'success',
-              title: 'Success',
-              text: 'Schedule saved successfully.'
-            }).then(() => {
-              let row = $("#reservation-" + response.reservation._id);
-              row.find("td:nth-child(5)").html(
-                `<div>
-                  <strong>${new Date(response.reservation.schedule.scheduleDate).toISOString().slice(0,10)}</strong><br>
-                  <small>${response.reservation.schedule.scheduleDetails}</small>
-                </div>`
-              );
-              $("#scheduleModal").modal("hide");
+        data: { reservationId, petId, petName },
+        success: function(resp){
+          if(resp.success){
+            const rowId = buildRowId(reservationId, petId, petName);
+            const $row = $("#"+rowId);
+            // update cell + remove row
+            $row.find(".doneCell").html('<span class="badge badge-done">Done</span>');
+            $row.fadeOut(200, function(){ $(this).remove(); });
+            // keep in-memory list clean (optional)
+            rowsData = (rowsData || []).filter(function(r){
+              const pid = r.petId ? String(r.petId) : '';
+              const pname = r.petName || '';
+              return !(String(r.reservationId)===String(reservationId) && (pid===String(petId||'') && pname===String(petName||'')));
             });
+            Swal.fire({ icon: 'success', title:'Done', text: resp.allDone ? 'All pets done. Reservation completed.' : 'Pet marked as done.' });
           } else {
-            Swal.fire('Error', response.message || 'Error saving schedule.', 'error');
+            Swal.fire('Error', resp.message || 'Error marking as done.', 'error');
           }
         },
-        error: function() {
-          Swal.fire('Error', 'Server error while saving schedule.', 'error');
-        }
+        error: function(){ Swal.fire('Error', 'Server error while marking as done.', 'error'); }
       });
     });
+}
 
-    // ----------------- Search Functionality -----------------
-    $("#searchInput").on("keyup", function () {
-      var searchValue = $(this).val().toLowerCase();
-      $("#patientsTable tbody tr").filter(function () {
-        $(this).toggle($(this).find('.ownerName').text().toLowerCase().indexOf(searchValue) > -1);
-      });
-    });
 
-    // ----------------- Global Calendar -----------------
-    var patientsData = <%- JSON.stringify(patients) %>;
+    // ----------------- View Consultation -----------------
+    function viewConsultation(reservationId, petId, petName){
+  $.get('/doctor/consultation/one', { reservationId, petId, petName })
+    .done(function(r){
+      if (!r.success) return Swal.fire('Error', r.message || 'Error fetching consultation.', 'error');
+
+      const c = r.consultation;
+      if (!c) {
+        $("#consultationDetails").html('<p>No consultation found for this pet.</p>');
+        return $("#viewConsultationModal").modal("show");
+      }
+
+      let html = '';
+      html += `<p><strong>Consultation Date:</strong> ${new Date(c.updatedAt || c.createdAt || c._id?.toString().slice(0,8)*1000).toLocaleString()}</p>`;
+      html += `<hr><h6>Physical Examination</h6>`;
+      html += `<p><strong>Weight:</strong> ${c.physicalExam?.weight || 'N/A'}</p>`;
+      html += `<p><strong>Temperature:</strong> ${c.physicalExam?.temperature || 'N/A'}</p>`;
+      html += `<p><strong>Other Observations:</strong> ${c.physicalExam?.observations || 'N/A'}</p>`;
+
+      html += `<hr><h6>Services</h6>`;
+      if (c.services && c.services.length){
+        const byCat = {};
+        c.services.forEach(s => {
+          const cat = s.category || 'Uncategorized';
+          if (!byCat[cat]) byCat[cat] = [];
+          byCat[cat].push(s);
+        });
+        Object.keys(byCat).forEach(cat => {
+          html += `<p><strong>Category:</strong> ${cat}</p><ul>`;
+          byCat[cat].forEach(s => {
+            html += `<li>${s.serviceName}${s.details ? ' - ' + s.details : ''}</li>`;
+          });
+          html += `</ul>`;
+        });
+      } else {
+        html += `<p>N/A</p>`;
+      }
+
+      html += `<hr><h6>Diagnosis</h6><p>${c.diagnosis || 'N/A'}</p>`;
+      html += `<hr><h6>Medications</h6>`;
+      if (c.medications && c.medications.length){
+        html += `<table class="table table-sm"><thead><tr><th>Medication</th><th>Dosage</th><th>Remarks</th><th>Quantity</th></tr></thead><tbody>`;
+        c.medications.forEach(m => {
+          html += `<tr><td>${m.name || m.medicationName || 'N/A'}</td><td>${m.dosage || 'N/A'}</td><td>${m.remarks || 'N/A'}</td><td>${typeof m.quantity==='undefined'?'N/A':m.quantity}</td></tr>`;
+        });
+        html += `</tbody></table>`;
+      } else { html += `<p>N/A</p>`; }
+
+      html += `<hr><h6>Notes</h6><p>${c.notes || 'N/A'}</p>`;
+      html += `<hr><h6>Confinement Status</h6><p>${(c.confinementStatus || []).join(', ') || 'N/A'}</p>`;
+
+      $("#consultationDetails").html(html);
+      $("#viewConsultationModal").modal("show");
+    })
+    .fail(function(){ Swal.fire('Error', 'Server error while fetching consultation.', 'error'); });
+}
+
+    // ----------------- Global Calendar (optional UI) -----------------
     var scheduledDates = [];
-    patientsData.forEach(function(patient) {
-      if(patient.schedule && patient.schedule.scheduleDate) {
-        var d = new Date(patient.schedule.scheduleDate).toISOString().slice(0,10);
-        if(scheduledDates.indexOf(d) === -1) {
-          scheduledDates.push(d);
-        }
+    (rowsData || []).forEach(function(r){
+      if(r.petSchedule && r.petSchedule.scheduleDate){
+        var d = new Date(r.petSchedule.scheduleDate).toISOString().slice(0,10);
+        if(scheduledDates.indexOf(d) === -1) scheduledDates.push(d);
       }
     });
-
-    function initGlobalCalendar() {
-      $("#globalCalendarPicker").datepicker("destroy");
-      $("#globalCalendarPicker").datepicker({
-        inline: true,
-        dateFormat: "yy-mm-dd",
-        beforeShowDay: function(date) {
+    function initGlobalCalendar(){
+      $("#globalCalendarPicker").datepicker("destroy").datepicker({
+        inline:true, dateFormat:"yy-mm-dd",
+        beforeShowDay: function(date){
           let dateString = $.datepicker.formatDate("yy-mm-dd", date);
-          if(scheduledDates.indexOf(dateString) !== -1) {
-            return [true, "green-highlight", "Scheduled"];
-          }
-          return [true, "", ""];
+          return (scheduledDates.indexOf(dateString) !== -1) ? [true, "green-highlight", "Scheduled"] : [true, "", ""];
         },
-        onSelect: function(dateText) {
-          let followUps = patientsData.filter(function(patient) {
-            if(patient.schedule && patient.schedule.scheduleDate) {
-              return new Date(patient.schedule.scheduleDate).toISOString().slice(0,10) === dateText;
-            }
-            return false;
+        onSelect: function(dateText){
+          let followUps = (rowsData || []).filter(function(r){
+            return r.petSchedule && r.petSchedule.scheduleDate && (new Date(r.petSchedule.scheduleDate).toISOString().slice(0,10) === dateText);
           });
           let listHtml = "";
-          if(followUps.length > 0) {
-            followUps.forEach(function(fu) {
-              listHtml += "<div><strong>Owner:</strong> " + fu.ownerName + 
-                          " &nbsp; <strong>Service:</strong> " + fu.schedule.scheduleDetails + 
-                          " &nbsp; <strong>Date:</strong> " + new Date(fu.schedule.scheduleDate).toISOString().slice(0,10) + 
+          if(followUps.length){
+            followUps.forEach(function(fu){
+              listHtml += "<div><strong>Owner:</strong> " + (fu.ownerName||'-') +
+                          " &nbsp; <strong>Service:</strong> " + (fu.petSchedule.scheduleDetails||'-') +
+                          " &nbsp; <strong>Date:</strong> " + new Date(fu.petSchedule.scheduleDate).toISOString().slice(0,10) +
                           "</div><hr>";
             });
-          } else {
-            listHtml = "<div>No follow-ups for this date.</div>";
-          }
+          } else { listHtml = "<div>No follow-ups for this date.</div>"; }
           $("#followUpList").html(listHtml);
         }
       });
     }
-
-    // ----------------- Add Consultation (Button) -----------------
-    function addConsultation(reservationId) {
-      $("#reservationId").val(reservationId);
-      $("#consultationForm")[0].reset();
-      medications = [];
-      renderMedications();
-      $("#consultationModal").modal("show");
-    }
-
-    // ----------------- Mark as Done -----------------
-    function markAsDone(reservationId) {
-      Swal.fire({
-        title: 'Mark as Done?',
-        text: 'Are you sure you want to mark this consultation as done?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Yes, done',
-        cancelButtonText: 'Cancel'
-      }).then((result) => {
-        if (result.isConfirmed) {
-          $.ajax({
-            url: '/doctor/mark-as-done',
-            method: 'POST',
-            data: { reservationId: reservationId },
-            success: function(response) {
-              if(response.success) {
-                Swal.fire({
-                  icon: 'success',
-                  title: 'Done',
-                  text: 'Consultation marked as done.'
-                }).then(() => {
-                  $("#reservation-" + reservationId).remove();
-                });
-              } else {
-                Swal.fire('Error', response.message || 'Error marking as done.', 'error');
-              }
-            },
-            error: function() {
-              Swal.fire('Error', 'Server error while marking as done.', 'error');
-            }
-          });
-        }
-      });
-    }
+    // initGlobalCalendar(); // call when you want to show it
   </script>
 </body>
 </html>

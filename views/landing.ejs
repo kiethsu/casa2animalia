@@ -3,424 +3,803 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmartVet - Casa Animalia</title>
+  <title>Casa Animalia - SmartVet</title>
+
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <!-- Icons -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
-  <style>
-    :root {
-      --primary-color: #4B9CD3; /* Carolina blue */
-      --secondary-color: #ffffff; /* White */
-      --text-color: #333333;
-    }
-    /* Global Styles */
-    body, html {
-      height: 100%;
-      background: linear-gradient(to right, #54c3e6, #005a8d);
-      color: white;
-      font-family: 'Roboto', sans-serif;
-      margin: 0;
-      padding: 0;
-    }
-    /* Navbar Styles */
-    .navbar {
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      background-color: var(--secondary-color);
-    }
-    .navbar-brand {
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-      font-weight: 700;
-      font-size: 1rem;
-    }
-    .navbar-brand i {
-      font-size: 1rem;
-    }
-    .navbar-nav {
-      align-items: center;
-    }
-    .nav-link {
-      font-size: 1.1rem;
-      font-weight: 500;
-      transition: color 0.3s ease;
-      cursor: pointer;
-      color: var(--primary-color) !important;
-    }
-    .nav-link:hover {
-      color: #005a8d !important;
-    }
-    /* Sections common padding */
-    section {
-      padding: 60px 0;
-    }
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    /* Hero Section */
-    #homeSection {
-      height: calc(100vh - 56px);
-      display: flex;
-      align-items: center;
-      padding: 0 3%;
-      background: linear-gradient(to right, #54c3e6, #005a8d);
-      color: white;
-    }
-    #homeSection .container {
-      min-height: calc(100vh - 56px);
-    }
-    .hero-content {
-      max-width: 50%;
-    }
-    .hero-content h1 {
-      font-size: 4.5rem;
-      font-weight: 700;
-      text-shadow: 2px 2px 6px rgba(0,0,0,0.3);
-      margin-bottom: 20px;
-      text-align: left;
-    }
-    .hero-content p {
-      font-size: 1.5rem;
-      margin-bottom: 30px;
-      line-height: 1.5;
-      text-align: left;
-    }
-    .btn-primary {
-      font-size: 1.25rem;
-      padding: 12px 30px;
-      margin-top: 20px;
-      border-radius: 8px;
-      transition: background-color 0.3s ease;
-      background-color: #4B9CD3;
-      border: none;
-      color: white;
-    }
-    .btn-primary:hover {
-      background-color: #003f66;
-    }
-    .image-container {
-      height: 450px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .image-container img {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-    }
-    @media (max-width: 768px) {
-      #homeSection {
-        flex-direction: column;
-        text-align: center;
-        padding-top: 30px;
-      }
-      .hero-content {
-        max-width: 100%;
-        text-align: center;
-      }
-      .hero-content h1 {
-        font-size: 3.5rem;
-      }
-    }
-    /* Modal & Input Styling Adjustments (unchanged) */
-    .input-size {
-      height: 40px;
-      font-size: 16px;
-    }
-    .btn.input-size {
-      height: 40px;
-      font-size: 16px;
-      line-height: 40px;
-      padding: 0 20px;
-    }
-    .input-group .btn {
-      height: 40px;
-      border-radius: 0 5px 5px 0;
-    }
-    .input-group input {
-      border-radius: 5px 0 0 5px;
-    }
-    .toggle-password,
-    .toggle-password-login {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 40px;
-      padding: 0;
-    }
-    .toggle-password i,
-    .toggle-password-login i {
-      font-size: 16px;
-    }
-    #registerBtn, #loginBtn {
-      font-size: 16px;
-      padding: 8px 20px;
-    }
-    #registerBtn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .modal-body label {
-      color: #333 !important;
-      font-weight: 500;
-    }
-    .modal-content {
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
-    }
-    .modal-header {
-      border-bottom: none;
-      border-radius: 12px 12px 0 0;
-    }
-    /* Admin OTP Modal */
-    #verifyAdminOTPBtn {
-      font-size: 16px;
-      font-weight: bold;
-      padding: 10px 24px;
-      border-radius: 8px;
-      transition: background-color 0.3s ease;
-    }
-    #verifyAdminOTPBtn:hover {
-      background-color: #003366;
-      color: white;
-    }
-    .modal-dialog {
-      max-width: 400px;
-    }
-    @media (max-width: 576px) {
-      .modal-dialog {
-        margin: 0 auto;
-        width: 95%;
-        max-width: none;
-      }
-    }
-    /* About Section Styles (Updated) */
-    #aboutSection {
-      background-color: #f8f9fa;
-      color: #333;
-      padding: 60px 0;
-    }
-    #aboutSection h2,
-    #aboutSection h3 {
-      text-align: center;
-      color: var(--primary-color);
-      margin-bottom: 20px;
-    }
-    #aboutSection p {
-      text-align: center;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      margin-bottom: 40px;
-      font-size: 1.1rem;
-    }
-    /* Doctors Subsection */
-    #aboutSection .doctor-container {
-      overflow-x: auto;
-      padding-bottom: 10px;
-    }
-    #aboutSection .doctor-container .d-flex {
-      flex-wrap: nowrap;
-    }
-    #aboutSection .card {
-      border: 1px solid #ddd;
-      margin: 0 10px;
-      min-width: 18rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    #aboutSection .card img {
-      height: 200px;
-      object-fit: contain;
-      border-top-left-radius: 8px;
-      border-top-right-radius: 8px;
-    }
-    /* Thin scrollbar for doctor container */
-    #aboutSection .doctor-container::-webkit-scrollbar {
-      height: 4px;
-    }
-    #aboutSection .doctor-container::-webkit-scrollbar-thumb {
-      background: rgba(0, 0, 0, 0.2);
-      border-radius: 2px;
-    }
-    /* Services Subsection */
-    #aboutSection .service-card {
-      border: 1px solid #ddd;
-      margin-bottom: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    #aboutSection .service-card .card-body {
-      background-color: var(--primary-color);
-      color: var(--secondary-color);
-      position: relative;
-      padding-top: 50px;
-    }
-    /* Add an icon to each service card */
-    #aboutSection .service-card .card-body::before {
-      content: "\f0e7"; /* Font Awesome bolt icon */
-      font-family: "Font Awesome 6 Free";
-      font-weight: 900;
-      font-size: 2rem;
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: var(--secondary-color);
-    }
-    /* Responsive Adjustments for About Section */
-    @media (max-width: 768px) {
-      #aboutSection {
-        padding: 30px 15px;
-      }
-      #aboutSection p {
-        font-size: 1rem;
-      }
-      #aboutSection .doctor-container .d-flex {
-        flex-wrap: wrap;
-        justify-content: center;
-      }
-    }
-    /* Contact Section Styles */
-    #contactSection {
-      background-color: #fff;
-      color: #333;
-      padding: 60px 0;
-    }
-  </style>
-  
-  
+<style>
+:root{
+  --primary:#1E88E5;
+  --primary-dark:#0D47A1;
+  --accent:#90CAF9;
+  --white:#ffffff;
+  --text:#333;
+  --bg-dark:#202737;
+  --glass:rgba(255,255,255,.08);
+}
+
+html{scroll-behavior:smooth;}
+body{
+  font-family:'Roboto', sans-serif;
+  color:var(--text);
+  background:var(--white);
+  margin:0;
+}
+section{padding:80px 0;}
+.container{max-width:1200px;}
+
+/* ===== NAVBAR ===== */
+.navbar{
+  background:transparent;
+  position:absolute;
+  width:100%;
+  z-index:10;
+  padding:22px 0;
+  transition:all .25s;
+}
+.navbar.scrolled{
+  background:#fff;
+  box-shadow:0 2px 8px rgba(0,0,0,.08);
+  padding:14px 0;
+}
+.navbar-brand{
+  font-weight:700;
+  color:#fff!important;
+  display:flex;align-items:center;gap:6px;
+}
+.navbar.scrolled .navbar-brand{color:var(--primary-dark)!important;}
+
+.nav-link{
+  color:#fff!important;
+  margin:0 10px;
+  font-weight:500;
+  position:relative;
+  text-decoration:none;
+  transition:color .25s, background .25s;
+  padding:6px 10px;
+  border-radius:8px;
+}
+.nav-link.active::after,
+.nav-link:hover::after{content:none!important;}
+
+@media(min-width:993px){
+  .nav-link:hover,
+  .nav-link.active{
+    background:rgba(30,136,229,.08);
+    color:var(--primary)!important;
+  }
+  .btn-talk{ margin-left:16px; }
+}
+
+.btn-talk{
+  border:1.5px solid #fff;
+  color:#fff!important;
+  padding:8px 24px;
+  border-radius:24px;
+  font-weight:600;
+  transition:.25s;
+}
+.navbar.scrolled .btn-talk{border-color:var(--primary);color:var(--primary)!important;}
+.btn-talk:hover{background:#fff;color:var(--primary)!important;}
+.navbar.scrolled .btn-talk:hover{background:var(--primary);color:#fff!important;}
+
+/* ===== MOBILE NAV DROPDOWN ===== */
+@media (max-width: 992px){
+  .navbar{position:fixed;}
+
+  .navbar .navbar-collapse{
+    background:#fff;
+    position:absolute;
+    top:100%;
+    left:0;
+    width:100%;
+    padding:12px 0 18px;
+    box-shadow:0 12px 28px rgba(0,0,0,.12);
+    border-radius:0 0 18px 18px;
+    z-index:999;
+    opacity:0;
+    transform:translateY(-10px);
+    pointer-events:none;
+    transition:opacity .35s ease, transform .35s ease;
+  }
+  .navbar .navbar-collapse.show{
+    opacity:1;
+    transform:translateY(0);
+    pointer-events:auto;
+  }
+
+  .navbar .navbar-nav{
+    width:100%;
+    padding:0 12px;
+  }
+  .navbar .nav-item{margin:0;}
+  .navbar .nav-link{
+    display:block;
+    padding:10px 14px;
+    margin:4px 0;
+    border-radius:10px;
+    color:var(--primary)!important;
+    background:transparent;
+    text-align:left;
+  }
+  .navbar .nav-link:hover,
+  .navbar .nav-link.active{
+    background:rgba(30,136,229,.08);
+    color:var(--primary)!important;
+  }
+
+  .navbar .btn-talk{
+    display:block;
+    width:100%;
+    margin:8px 0 0;
+    padding:10px 14px;
+    text-align:center;
+    border-radius:10px;
+    border:1.5px solid var(--primary);
+    color:var(--primary)!important;
+  }
+
+  .navbar-toggler{
+    border:0!important;
+    box-shadow:none!important;
+  }
+}
+
+/* ===== HERO ===== */
+#homeSection{
+  position:relative;
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  padding:0;
+  background:var(--primary);
+  overflow:hidden;
+  color:#fff;
+}
+.hero-curve{
+  position:absolute;
+  bottom:-20px;           /* push SVG down */
+  left:0;
+  width:100%;
+  height:55vh;
+  z-index:1;
+  display:block;
+  line-height:0;
+  pointer-events:none;
+}
+.hero-curve path{stroke:none;}
+#homeSection::after{      /* white overlay to cover any gap */
+  content:"";
+  position:absolute;
+  left:0;
+  bottom:-1px;
+  width:100%;
+  height:24px;
+  background:#fff;
+  z-index:3;
+}
+.hero-inner{
+  position:relative;
+  z-index:2;
+  width:100%;
+  padding-top:120px;
+}
+.hero-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:40px;
+  align-items:center;
+}
+.hero-content h1{
+  font-size:3.8rem;
+  font-weight:700;
+  line-height:1.1;
+  margin-bottom:24px;
+}
+.hero-content p{
+  font-size:1.1rem;
+  opacity:.9;
+  max-width:540px;
+  margin-bottom:32px;
+}
+.btn-cta{
+  background:#fff;
+  color:var(--primary)!important;
+  border:none;
+  padding:14px 36px;
+  font-size:1rem;
+  font-weight:600;
+  border-radius:28px;
+  box-shadow:0 8px 18px rgba(0,0,0,.18);
+  text-decoration:none;
+  display:inline-block;
+  transition:transform .25s;
+}
+.btn-cta:hover{transform:translateY(-2px);}
+.hero-photo-wrap{
+  position:relative;
+  width:100%;
+  max-width:460px;
+  margin:0 auto;
+}
+.hero-photo-circle{
+  width:100%;
+  padding-top:100%;
+  border-radius:50%;
+  background:#0d2b57;
+  position:relative;
+  overflow:hidden;
+  box-shadow:0 0 0 14px #fff;
+}
+.hero-photo-circle img{
+  position:absolute;
+  bottom:0;
+  left:50%;
+  transform:translateX(-50%);
+  width:88%;
+  object-fit:contain;
+}
+.ecg-line{
+  position:absolute;
+  inset:0;
+  background:url('/img/ecg-dark.svg') center/cover no-repeat;
+  opacity:.35;
+}
+.paws,.cat-walk{display:none;}
+
+@media(max-width:992px){
+  .hero-grid{grid-template-columns:1fr;text-align:center;}
+  .hero-content h1{font-size:3rem;}
+  .hero-content p{margin:0 auto 28px;}
+  .hero-photo-wrap{margin-top:32px;}
+  .hero-curve{height:38vh;}
+}
+@media(max-width:576px){
+  .hero-content h1{font-size:2.4rem;}
+}
+
+/* ===== SERVICES ===== */
+#servicesSection{
+  margin-top:-2px; /* pull up to eliminate any gap */
+}
+#servicesSection h2{
+  color:var(--primary-dark);
+  font-weight:700;
+  margin-bottom:32px;
+  text-align:center;
+}
+.services-wrap{
+  overflow:hidden;
+  position:relative;
+  padding-bottom:6px;
+}
+.services-scroller{
+  display:flex;
+  gap:24px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scroll-snap-type:x mandatory;
+  padding:4px 0 20px;
+  -webkit-overflow-scrolling:touch;
+  cursor:grab;
+  white-space:nowrap;
+  user-select:none;
+}
+.services-scroller > .service-card:first-child{ margin-left:40px; }
+.services-scroller > .service-card:last-child{  margin-right:40px; }
+.services-scroller::-webkit-scrollbar{display:none;}
+.services-scroller{-ms-overflow-style:none;scrollbar-width:none;}
+
+.service-card{
+  flex:0 0 270px;
+  scroll-snap-align:start;
+  border:none;border-radius:16px;
+  box-shadow:0 8px 20px rgba(0,0,0,.08);
+  overflow:hidden;
+  background:var(--white);
+  display:inline-block;
+  white-space:normal;
+  transition:transform .25s, box-shadow .25s, background .25s, color .25s;
+}
+.service-card:hover{
+  transform:translateY(-6px);
+  box-shadow:0 16px 28px rgba(0,0,0,.12);
+  background:var(--primary);
+  color:#fff;
+}
+.service-card:hover .service-icon{
+  background:#fff;
+  color:var(--primary);
+}
+.service-card:hover h5,
+.service-card:hover p,
+.service-card:hover a{
+  color:#fff !important;
+}
+.service-icon{
+  width:70px;height:70px;border-radius:50%;
+  background:var(--accent);color:var(--primary-dark);
+  display:flex;align-items:center;justify-content:center;
+  font-size:2rem;margin:0 auto 18px auto;
+  transition:background .25s,color .25s;
+}
+.service-card .card-body h5{
+  color:var(--primary-dark);font-weight:600;margin-bottom:10px;
+  transition:color .25s;
+}
+.service-card .card-body p{
+  font-size:.95rem;line-height:1.45;color:#555;
+  transition:color .25s;
+}
+/* Align Get Started links */
+.service-card .card-body{
+  display:flex;
+  flex-direction:column;
+  height:100%;
+}
+.service-card .card-body p{
+  flex:1;
+  margin-bottom:16px;
+}
+.service-card .service-link{
+  margin-top:auto;
+  display:inline-block;
+  text-decoration:none !important;
+  font-weight:600;
+  transition:color .25s;
+}
+
+/* ===== Generic Section Titles ===== */
+#storySection h2,
+#locationSection h2,
+#doctorsSection h2{
+  color:var(--primary-dark);
+  font-weight:700;
+  margin-bottom:40px;
+  text-align:center;
+}
+/* Override for Location title */
+#locationSection h2{ color:#fff; }
+
+.stat{font-size:2rem;font-weight:700;color:var(--primary-dark);}
+.stat-label{font-size:.9rem;color:#555;margin-top:-4px;}
+
+/* ===== LOCATION (Find Us) ===== */
+#locationSection{
+  position:relative;
+  background:var(--bg-dark);
+  color:#fff;
+  overflow:hidden;
+}
+#locationSection::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg width='160' height='160' viewBox='0 0 100 100' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='5' cy='5' r='2' fill='%2390CAF9' fill-opacity='0.12'/%3E%3C/svg%3E");
+  opacity:.5;
+  pointer-events:none;
+}
+.loc-shell{position:relative;z-index:2;}
+.loc-card{
+  background:rgba(42,50,69,.6);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  padding:28px 26px;
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  backdrop-filter: blur(8px);
+}
+.map-wrap{
+  position:relative;
+  border-radius:18px;
+  overflow:hidden;
+  box-shadow:0 10px 28px rgba(0,0,0,.45);
+  border:1px solid rgba(255,255,255,.08);
+}
+.map-embed{
+  width:100%;
+  min-height:380px;
+  border:0;
+  display:block;
+}
+.loc-title{
+  color:#fff;font-weight:600;margin-bottom:16px;font-size:1.25rem;
+  display:flex;align-items:center;gap:10px;
+}
+.loc-list{
+  list-style:none;padding:0;margin:0 0 20px 0;
+}
+.loc-item{
+  display:flex;align-items:flex-start;gap:12px;
+  color:#d0d6e3;font-size:.95rem;line-height:1.45;
+  margin-bottom:12px;
+}
+.loc-item i{color:var(--accent);font-size:1.1rem;margin-top:2px;}
+.direction-btn{
+  background:var(--accent);
+  color:var(--primary-dark)!important;
+  font-weight:600;
+  border:none;
+  border-radius:14px;
+  padding:12px 22px;
+  display:inline-flex;align-items:center;gap:8px;
+  text-decoration:none;
+  box-shadow:0 6px 16px rgba(0,0,0,.25);
+  transition:transform .25s;
+}
+.direction-btn:hover{transform:translateY(-2px);}
+.hours-table{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0 6px;
+  font-size:.9rem;
+  color:#d0d6e3;
+}
+.hours-table td:first-child{width:55%;opacity:.9;}
+.hours-table td:last-child{text-align:right;font-weight:500;}
+.hours-table tr{
+  background:rgba(255,255,255,.05);
+  border-radius:8px;
+}
+.hours-table tr td{padding:6px 12px;}
+
+@media(max-width:992px){
+  .map-embed{min-height:320px;}
+  .loc-card{margin-top:20px;}
+}
+
+/* ===== Doctors ===== */
+.doctor-card{
+  border:none;border-radius:14px;overflow:hidden;
+  box-shadow:0 6px 16px rgba(0,0,0,.08);
+  text-align:center;background:#fff;
+  transition:transform .25s, box-shadow .25s;
+}
+.doctor-card:hover{transform:translateY(-4px);box-shadow:0 12px 24px rgba(0,0,0,.12);}
+.doctor-card img{width:100%;height:220px;object-fit:cover;}
+.doctor-card h6{margin:14px 0 4px;font-weight:600;color:var(--primary-dark);}
+.doctor-card small{color:#777;display:block;margin-bottom:16px;}
+
+/* ===== Footer ===== */
+footer{background:#0f1726;color:#c9d0e1;padding:50px 0 30px;}
+footer h6{color:#fff;font-weight:600;margin-bottom:18px;font-size:1rem;}
+footer a{color:#c9d0e1;text-decoration:none;font-size:.9rem;display:block;margin-bottom:6px;}
+footer a:hover{color:#fff;}
+.footer-bottom{border-top:1px solid rgba(255,255,255,.08);margin-top:24px;padding-top:16px;font-size:.85rem;text-align:center;}
+
+/* ===== Modal/Input shared ===== */
+.input-size{height:40px;font-size:16px;}
+.btn.input-size{height:40px;line-height:40px;padding:0 20px;font-size:16px;}
+.input-group .btn,.input-group-text{
+  height:40px;border-radius:0 5px 5px 0;cursor:pointer;background:#fff;border:1px solid #ced4da;
+}
+.input-group input{border-radius:5px 0 0 5px;}
+.toggle-password,
+.toggle-password-login,
+.toggle-password-reset,
+.toggle-password-reset-confirm{
+  display:flex;align-items:center;justify-content:center;width:40px;padding:0;cursor:pointer;background:#fff;border:1px solid #ced4da;
+}
+.toggle-password i,
+.toggle-password-login i,
+.toggle-password-reset i,
+.toggle-password-reset-confirm i{font-size:16px;color:#333;}
+#registerBtn,#loginBtn{font-size:16px;padding:8px 20px;}
+#registerBtn{display:flex;align-items:center;justify-content:center;}
+.modal-body label{color:#333 !important;font-weight:500;}
+.modal-content{border-radius:12px;padding:20px;box-shadow:0 8px 16px rgba(0,0,0,0.2);}
+.modal-header{border-bottom:none;border-radius:12px 12px 0 0;}
+#verifyAdminOTPBtn{font-size:16px;font-weight:bold;padding:10px 24px;border-radius:8px;transition:background-color .3s;}
+#verifyAdminOTPBtn:hover{background-color:#003366;color:#fff;}
+.modal-dialog{max-width:400px;}
+@media(max-width:576px){.modal-dialog{margin:0 auto;width:95%;max-width:none;}}
+</style>
+
+
 </head>
 <body>
   <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg navbar-light bg-white">
+  <nav class="navbar navbar-expand-lg">
     <div class="container">
-      <a class="navbar-brand" href="#">
-        <i class="fa-solid fa-paw" style="color: #264653; font-size: 22px; margin-right: 5px;"></i>
-        <span style="color: #264653; font-weight: bold;">Smart Vet</span>
+      <a class="navbar-brand" href="#homeSection">
+        <i class="fa-solid fa-paw me-1"></i> Casa Animalia
       </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-        <span class="navbar-toggler-icon"></span>
+      <button class="navbar-toggler border-0 p-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <i class="fa-solid fa-bars fs-2 text-primary"></i>
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav ms-auto">
-          <li class="nav-item"><a class="nav-link" href="#home" id="homeNav">Home</a></li>
-          <li class="nav-item"><a class="nav-link" href="#" id="loginNav" data-bs-toggle="modal" data-bs-target="#loginModal">Login</a></li>
-          <li class="nav-item"><a class="nav-link" href="#about" id="aboutNav">About</a></li>
-          <li class="nav-item"><a class="nav-link" href="#contact" id="contactNav">Contact</a></li>
+        <ul class="navbar-nav ms-auto align-items-lg-center">
+          <li class="nav-item"><a class="nav-link active" href="#homeSection">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="#servicesSection">Services</a></li>
+          <li class="nav-item"><a class="nav-link" href="#locationSection">Location</a></li>
+          <li class="nav-item"><a class="nav-link" href="#doctorsSection">Doctors</a></li>
+          <li class="nav-item ms-lg-3">
+            <a class="btn-talk" href="#" data-bs-toggle="modal" data-bs-target="#loginModal">Login</a>
+          </li>
         </ul>
       </div>
     </div>
   </nav>
-  
-  <!-- Home Section (Landing Hero) -->
+
+  <!-- HERO -->
   <section id="homeSection">
-    <div class="container d-flex flex-wrap align-items-center justify-content-between">
-      <div class="hero-content">
-        <h1>CASA ANIMALIA</h1>
-        <p>
-          Quickly book appointments and access essential pet health information all in one place
-        </p>
-        <div>
-          <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#loginModal">GET STARTED</a>
+    <svg class="hero-curve" viewBox="0 0 1440 320" preserveAspectRatio="none">
+      <path d="M0,260 C220,220 520,160 820,130 C1060,110 1290,120 1440,60 L1440,320 L0,320 Z" fill="#ffffff"></path>
+    </svg>
+
+    <div class="container hero-inner">
+      <div class="hero-grid">
+        <div class="hero-content">
+          <h1>Providing Community<br>Access To Quality<br>Pet Care</h1>
+          <p>The quality of our service and the professionalism of our staff are the reason for clients’ trust.</p>
+          <a href="#" class="btn-cta" data-bs-toggle="modal" data-bs-target="#loginModal">Get Started</a>
         </div>
-      </div>
-      <div class="image-container">
-        <img src="/catddd.png" alt="Casa Animalia">
-      </div>
-    </div>
-  </section>
-  
-  <!-- About Section -->
-<!-- In landing.ejs, About Section -->
-  <!-- About Section -->
-  <section id="aboutSection">
-    <div class="container">
-      <h2 class="mb-4">About Our Clinic</h2>
-      <p>
-        <%= about && about.aboutDescription ? about.aboutDescription : "Welcome to Smart Vet, where compassionate care meets advanced veterinary services. Our dedicated team is committed to providing your pet with the highest quality care." %>
-      </p>
-      <!-- Doctors Subsection -->
-      <h3 class="mb-3">Doctors</h3>
-      <% if (about && about.doctors && about.doctors.length > 0) { %>
-        <div class="doctor-container">
-          <div class="d-flex flex-nowrap">
-            <% about.doctors.forEach(function(doc) { %>
-              <div class="card">
-                <img src="<%= doc.pic ? doc.pic : 'https://via.placeholder.com/350x200' %>" class="card-img-top" alt="<%= doc.name %>">
-                <div class="card-body text-center">
-                  <h5 class="card-title"><%= doc.name %></h5>
-                  <p class="card-text"><%= doc.description %></p>
-                </div>
-              </div>
-            <% }) %>
+
+        <div class="hero-photo-wrap">
+          <div class="hero-photo-circle">
+            <div class="ecg-line"></div>
+            <img src="/casalogo.png" alt="Vet">
           </div>
         </div>
-      <% } else { %>
-        <p class="text-center">No doctor information available at the moment.</p>
-      <% } %>
-      <!-- Our Services Subsection -->
-      <h3 class="mt-4">Our Services</h3>
-      <% if (about && about.services && about.services.length > 0) { %>
-        <div class="row">
-          <% about.services.forEach(function(service) { %>
-            <div class="col-md-3 col-sm-6 mb-3">
-              <div class="card service-card">
-                <div class="card-body text-center">
-                  <h5 class="card-title"><%= service %></h5>
-                </div>
-              </div>
-            </div>
-          <% }); %>
-        </div>
-      <% } else { %>
-        <p class="text-center">No services information available at the moment.</p>
-      <% } %>
+      </div>
     </div>
   </section>
 
-
-  
-  <!-- Contact Section -->
-  <section id="contactSection" style="display:none;">
+  <!-- SERVICES -->
+  <section id="servicesSection">
     <div class="container">
-      <h2 class="text-center mb-4">Contact Us</h2>
-      <div class="row">
-        <div class="col-md-6 mb-4">
-          <!-- Embedded Google Map -->
-          <iframe src="https://maps.google.com/maps?q=Vet%20Clinic%20Location&t=&z=13&ie=UTF8&iwloc=&output=embed" width="100%" height="300" style="border:0;" allowfullscreen="" loading="lazy"></iframe>
+      <h2>Our Services</h2>
+
+      <div class="services-wrap">
+        <div class="services-scroller" id="servicesScroller">
+
+          <div class="card service-card">
+            <div class="card-body text-center p-4">
+              <div class="service-icon"><i class="fa-solid fa-stethoscope"></i></div>
+              <h5>General Check‑up</h5>
+              <p>Comprehensive wellness exams to keep your pet healthy and happy.</p>
+              <a href="#" class="small service-link text-primary" data-bs-toggle="modal" data-bs-target="#loginModal">Get Started →</a>
+            </div>
+          </div>
+
+          <div class="card service-card">
+            <div class="card-body text-center p-4">
+              <div class="service-icon"><i class="fa-solid fa-syringe"></i></div>
+              <h5>Vaccinations</h5>
+              <p>Up-to-date immunizations to protect against common pet diseases.</p>
+              <a href="#" class="small service-link text-primary" data-bs-toggle="modal" data-bs-target="#loginModal">Get Started →</a>
+            </div>
+          </div>
+
+          <div class="card service-card">
+            <div class="card-body text-center p-4">
+              <div class="service-icon"><i class="fa-solid fa-flask"></i></div>
+              <h5>Lab Tests</h5>
+              <p>Accurate diagnostics to guide proper treatment plans for your pet.</p>
+              <a href="#" class="small service-link text-primary" data-bs-toggle="modal" data-bs-target="#loginModal">Get Started →</a>
+            </div>
+          </div>
+
+          <div class="card service-card">
+            <div class="card-body text-center p-4">
+              <div class="service-icon"><i class="fa-solid fa-scissors"></i></div>
+              <h5>Grooming</h5>
+              <p>Pamper your pets with gentle, professional grooming services.</p>
+              <a href="#" class="small service-link text-primary" data-bs-toggle="modal" data-bs-target="#loginModal">Get Started →</a>
+            </div>
+          </div>
+
+          <div class="card service-card">
+            <div class="card-body text-center p-4">
+              <div class="service-icon"><i class="fa-solid fa-bone"></i></div>
+              <h5>Nutrition Plans</h5>
+              <p>Personalized diets to keep pets in top shape.</p>
+              <a href="#" class="small service-link text-primary" data-bs-toggle="modal" data-bs-target="#loginModal">Get Started →</a>
+            </div>
+          </div>
+
         </div>
-        <div class="col-md-6">
-          <!-- Contact Form -->
-          <form id="contactForm">
-            <div class="mb-3">
-              <label for="contactName" class="form-label">Name</label>
-              <input type="text" class="form-control" id="contactName" placeholder="Your Name" required>
+      </div>
+    </div>
+  </section>
+
+  <!-- Story -->
+  <section id="storySection">
+    <div class="container">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-5">
+          <img src="/story.jpg" alt="story" class="img-fluid rounded-3 shadow-sm">
+        </div>
+        <div class="col-lg-7">
+          <h2>Short Story About Our Clinic</h2>
+          <p style="color:#555;">We’re dedicated to compassionate veterinary care—from preventive wellness to advanced treatments. Our team blends expertise and heart to make every visit stress‑free for pets and owners.</p>
+
+          <div class="row mt-4 g-3">
+            <div class="col-6 col-md-3 text-center">
+              <div class="stat">1200+</div>
+              <div class="stat-label">Happy Pets</div>
             </div>
-            <div class="mb-3">
-              <label for="contactEmail" class="form-label">Email</label>
-              <input type="email" class="form-control" id="contactEmail" placeholder="Your Email" required>
+            <div class="col-6 col-md-3 text-center">
+              <div class="stat">300+</div>
+              <div class="stat-label">Expert Staff</div>
             </div>
-            <div class="mb-3">
-              <label for="contactMessage" class="form-label">Message</label>
-              <textarea class="form-control" id="contactMessage" rows="4" placeholder="Your Message" required></textarea>
+            <div class="col-6 col-md-3 text-center">
+              <div class="stat">150+</div>
+              <div class="stat-label">Awards</div>
             </div>
-            <button type="submit" class="btn btn-primary w-100">Send Message</button>
+            <div class="col-6 col-md-3 text-center">
+              <div class="stat">350+</div>
+              <div class="stat-label">Rooms</div>
+            </div>
+          </div>
+
+          <a href="#" class="btn btn-primary mt-4 px-4 py-2" data-bs-toggle="modal" data-bs-target="#loginModal">Learn More</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOCATION -->
+  <section id="locationSection">
+    <div class="container loc-shell">
+      <h2>Find Us Easily</h2>
+      <div class="row g-4 align-items-stretch">
+        <div class="col-lg-7">
+          <div class="map-wrap">
+            <iframe
+              class="map-embed"
+              src="https://www.google.com/maps?q=15.459209354216386,120.94969566072031&hl=en&z=17&output=embed"
+              allowfullscreen=""
+              loading="lazy"
+              referrerpolicy="no-referrer-when-downgrade">
+            </iframe>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="loc-card h-100 d-flex flex-column">
+            <h5 class="loc-title"><i class="fa-solid fa-location-dot"></i> Our Clinic</h5>
+
+            <ul class="loc-list mb-3">
+              <li class="loc-item">
+                <i class="fa-solid fa-map-pin"></i>
+                <span>Km111 H. Concepcion,<br>Cabanatuan City, Nueva Ecija</span>
+              </li>
+              <li class="loc-item">
+                <i class="fa-solid fa-phone"></i>
+                <a href="tel:09150811294" style="color:#fff;text-decoration:none;">0915 081 1294</a>
+              </li>
+              <li class="loc-item">
+                <i class="fa-solid fa-clock"></i>
+                <span>Mon – Sat: 8:00 AM – 5:00 PM</span>
+              </li>
+            </ul>
+
+            <table class="hours-table mb-4">
+              <tr><td>Monday – Friday</td><td>8:00 AM – 5:00 PM</td></tr>
+              <tr><td>Saturday</td><td>8:00 AM – 5:00 PM</td></tr>
+              <tr><td>Sunday / Holiday</td><td>Closed</td></tr>
+            </table>
+
+            <a class="direction-btn mt-auto" target="_blank"
+               href="https://www.google.com/maps/dir/?api=1&destination=15.459209354216386,120.94969566072031">
+              <i class="fa-solid fa-route"></i> Get Directions
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+<!-- Doctors -->
+<section id="doctorsSection">
+  <div class="container">
+    <h2>Our Dedicated Doctors</h2>
+    <div class="row g-4">
+      <div class="col-md-3 col-6">
+        <div class="doctor-card">
+          <img src="/images/janica.jpg" alt="Dr. Janica">
+          <h6>Dr. Janica</h6>
+          <small>Neurology Specialist</small>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="doctor-card" style="box-shadow:0 0 0 3px var(--primary) inset;">
+          <img src="/images/thirdy.jpg" alt="Dr. Thirdy">
+          <h6>Dr. Thirdy</h6>
+          <small>Cardiology Specialist</small>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="doctor-card">
+          <img src="/images/rachel.jpg" alt="Dr. Rachel">
+          <h6>Dr. Rachel</h6>
+          <small>Gynecology Specialist</small>
+        </div>
+      </div>
+     
+    </div>
+  </div>
+</section>
+
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="row g-4">
+        <div class="col-md-3">
+          <h6>Casa Animalia</h6>
+          <p style="font-size:.9rem;opacity:.85;">The quality of our service and the professionalism of our staff are the reason for clients’ trust.</p>
+          <div class="d-flex gap-2">
+            <a href="#"><i class="bi bi-facebook"></i></a>
+            <a href="#"><i class="bi bi-instagram"></i></a>
+            <a href="#"><i class="bi bi-twitter"></i></a>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <h6>Department</h6>
+          <a href="#">Cardiology</a>
+          <a href="#">Pediatrics</a>
+          <a href="#">Gynecology</a>
+          <a href="#">Psychology</a>
+        </div>
+        <div class="col-md-3">
+          <h6>Useful Links</h6>
+          <a href="#homeSection">Home</a>
+          <a href="#servicesSection">Services</a>
+          <a href="#locationSection">Location</a>
+          <a href="#doctorsSection">Doctors</a>
+        </div>
+        <div class="col-md-3">
+          <h6>Services</h6>
+          <a href="#">General Check-up</a>
+          <a href="#">Vaccinations</a>
+          <a href="#">Surgery</a>
+          <a href="#">Laboratory Tests</a>
+        </div>
+      </div>
+      <div class="footer-bottom mt-4">
+        © 2025 Casa Animalia. All Rights Reserved.
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===================== MODALS (unchanged) ===================== -->
+  <!-- Admin OTP Modal -->
+  <div class="modal fade" id="adminOTPModal" tabindex="-1" aria-labelledby="adminOTPModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content shadow-lg">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="adminOTPModalLabel">Admin OTP Verification</h5>
+          <button type="button" class="btn-close text-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="adminOTPForm">
+            <input type="hidden" id="admin-email" />
+            <div class="mb-3 text-center">
+              <label for="admin-otp" class="form-label fw-bold text-dark">Enter OTP</label>
+              <input type="text" class="form-control text-center input-size" id="admin-otp" placeholder="6-digit OTP" maxlength="6" />
+            </div>
+            <div class="text-center">
+              <button type="button" class="btn btn-primary px-4 py-2" id="verifyAdminOTPBtn">
+                Verify OTP <i class="bi bi-shield-lock"></i>
+              </button>
+            </div>
+            <div class="text-center mt-3">
+              <small class="text-muted">
+                Didn't receive the code?
+                <a href="#" class="text-primary" id="resendAdminOTP">Resend OTP</a>
+              </small>
+            </div>
           </form>
         </div>
       </div>
     </div>
-  </section>
-  
+  </div>
+
   <!-- Login Modal -->
   <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -432,28 +811,26 @@
         <div class="modal-body">
           <form id="loginForm">
             <div class="mb-2">
-                <label for="login-identifier" class="form-label">Email</label>
-                <input type="text" class="form-control input-size" id="login-identifier" placeholder="Enter email" />
-                <small id="email-error" class="text-danger d-none"></small>
+              <label for="login-identifier" class="form-label">Email</label>
+              <input type="text" class="form-control input-size" id="login-identifier" placeholder="Enter email" />
+              <small id="email-error" class="text-danger d-none"></small>
             </div>
             <div class="mb-2 position-relative">
-                <label for="login-password" class="form-label">Password</label>
-                <div class="input-group">
-                    <input type="password" class="form-control input-size" id="login-password" placeholder="Enter password" />
-                    <button class="btn btn-outline-secondary toggle-password-login" type="button">
-                        <i class="bi bi-eye-slash"></i>
-                    </button>
-                </div>
-                <small id="password-error" class="text-danger d-none"></small>
+              <label for="login-password" class="form-label">Password</label>
+              <div class="input-group">
+                <input type="password" class="form-control input-size" id="login-password" placeholder="Enter password" />
+                <span class="input-group-text toggle-password-login"><i class="bi bi-eye-slash"></i></span>
+              </div>
+              <small id="password-error" class="text-danger d-none"></small>
             </div>
             <div class="mb-3">
-              <div class="g-recaptcha" data-sitekey="6LcpivkqAAAAANeMBOZto3g2lX0ypH9B7FZ5hHaY"></div>
+              <div class="g-recaptcha" data-sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"></div>
             </div>
             <div class="mb-2">
-                <a href="#" id="openForgotPasswordModal" class="text-primary small">Forgot Password?</a>
+              <a href="#" id="openForgotPasswordModal" class="text-primary small" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#forgotPasswordModal">Forgot Password?</a>
             </div>
             <div class="text-center mt-2">
-                <button type="button" class="btn btn-primary w-100" id="loginBtn">Login</button>
+              <button type="button" class="btn btn-primary w-100" id="loginBtn">Login</button>
             </div>
           </form>
           <div class="mt-3 text-center">
@@ -466,7 +843,7 @@
       </div>
     </div>
   </div>
-  
+
   <!-- Register Modal -->
   <div class="modal fade" id="registerModal" tabindex="-1" aria-labelledby="registerModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -490,9 +867,7 @@
                 <label for="reg-password" class="form-label">Password</label>
                 <div class="input-group">
                   <input type="password" class="form-control input-size" id="reg-password" placeholder="Enter password" />
-                  <button class="btn btn-outline-secondary toggle-password" type="button">
-                    <i class="bi bi-eye-slash"></i>
-                  </button>
+                  <span class="input-group-text toggle-password"><i class="bi bi-eye-slash"></i></span>
                 </div>
                 <div id="password-checklist" class="mt-2">
                   <small id="criteria-length" class="d-block text-danger">• 8+ characters</small>
@@ -531,44 +906,12 @@
     </div>
   </div>
 
-  <!-- Admin OTP Verification Modal -->
-  <div class="modal fade" id="adminOTPModal" tabindex="-1" aria-labelledby="adminOTPModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content shadow-lg">
-        <div class="modal-header bg-primary text-white">
-          <h5 class="modal-title" id="adminOTPModalLabel">Admin OTP Verification</h5>
-          <button type="button" class="btn-close text-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <form id="adminOTPForm">
-            <input type="hidden" id="admin-email" />
-            <div class="mb-3 text-center">
-              <label for="admin-otp" class="form-label fw-bold text-dark">Enter OTP</label>
-              <input type="text" class="form-control text-center input-size" id="admin-otp" placeholder="6-digit OTP" maxlength="6" />
-            </div>
-            <div class="text-center">
-              <button type="button" class="btn btn-primary px-4 py-2" id="verifyAdminOTPBtn">
-                Verify OTP <i class="bi bi-shield-lock"></i>
-              </button>
-            </div>
-            <div class="text-center mt-3">
-              <small class="text-muted">
-                Didn't receive the code?
-                <a href="#" class="text-primary" id="resendOTP">Resend OTP</a>
-              </small>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
-  
   <!-- Forgot Password Modal -->
   <div class="modal fade" id="forgotPasswordModal" tabindex="-1" aria-labelledby="forgotPasswordModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title text-dark">Forgot Password</h5>
+          <h5 class="modal-title text-dark" id="forgotPasswordModalLabel">Forgot Password</h5>
           <button type="button" class="btn-close" id="forgotCloseBtn" aria-label="Close"></button>
         </div>
         <div class="modal-body">
@@ -593,9 +936,12 @@
               Didn't receive an OTP? <a href="#" id="resendOTP" class="text-primary">Resend OTP</a>
             </small>
           </div>
-          <div id="step3" style="display:none;">
+            <div id="step3" style="display:none;">
             <label for="new-password" class="form-label">New Password</label>
-            <input type="password" class="form-control input-size" id="new-password" placeholder="Enter new password" />
+            <div class="input-group mb-2">
+              <input type="password" class="form-control input-size" id="new-password" placeholder="Enter new password" />
+              <span class="input-group-text toggle-password-reset"><i class="bi bi-eye-slash"></i></span>
+            </div>
             <small id="new-password-error" class="text-danger d-none">Please fill out this field.</small>
             <div id="password-reset-checklist" class="mt-2">
               <small id="reset-criteria-length" class="d-block text-danger">• 8+ characters</small>
@@ -605,7 +951,10 @@
               <small id="reset-criteria-symbol" class="d-block text-danger">• Special character (!@#$%^&*)</small>
             </div>
             <label for="confirm-new-password" class="form-label mt-2">Confirm New Password</label>
-            <input type="password" class="form-control input-size" id="confirm-new-password" placeholder="Confirm new password" />
+            <div class="input-group mb-2">
+              <input type="password" class="form-control input-size" id="confirm-new-password" placeholder="Confirm new password" />
+              <span class="input-group-text toggle-password-reset-confirm"><i class="bi bi-eye-slash"></i></span>
+            </div>
             <small id="confirm-password-error" class="text-danger d-none">Please fill out this field.</small>
             <small id="password-mismatch-error" class="text-danger d-none">Passwords do not match.</small>
             <button type="button" class="btn btn-primary input-size w-100 mt-3" id="resetPasswordBtn">Reset Password</button>
@@ -618,252 +967,326 @@
       </div>
     </div>
   </div>
-  
-  
-  <!-- JavaScript: Navigation Switching -->
-  <!-- JavaScript: Navigation Switching -->
- <!-- JavaScript: Navigation Switching -->
- <script>
-  document.addEventListener('DOMContentLoaded', function(){
-    const homeSection = document.getElementById('homeSection');
-    const aboutSection = document.getElementById('aboutSection');
-    const contactSection = document.getElementById('contactSection');
-    
-    // Initially show homeSection only
-    homeSection.style.display = 'block';
-    aboutSection.style.display = 'none';
-    contactSection.style.display = 'none';
-    
-    document.getElementById('homeNav').addEventListener('click', function(e){
-      e.preventDefault();
-      homeSection.style.display = 'block';
-      aboutSection.style.display = 'none';
-      contactSection.style.display = 'none';
-    });
-    document.getElementById('aboutNav').addEventListener('click', function(e){
-      e.preventDefault();
-      homeSection.style.display = 'none';
-      aboutSection.style.display = 'block';
-      contactSection.style.display = 'none';
-    });
-    document.getElementById('contactNav').addEventListener('click', function(e){
-      e.preventDefault();
-      homeSection.style.display = 'none';
-      aboutSection.style.display = 'none';
-      contactSection.style.display = 'block';
-    });
-  });
-</script>
-  
-  <!-- JavaScript: Existing Modal and Form Logic (from your landing.ejs) -->
+
+  <!-- ===================== SCRIPTS ===================== -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+
   <script>
-    /* ---------------------------------------------
-       Switching Modals: Login <-> Register
-    --------------------------------------------- */
-    document.getElementById("openRegisterModal").addEventListener("click", function (event) {
-      event.preventDefault();
-      var loginModalEl = document.getElementById("loginModal");
-      var registerModalEl = document.getElementById("registerModal");
-      var loginModal = bootstrap.Modal.getInstance(loginModalEl);
-      var registerModal = new bootstrap.Modal(registerModalEl, { backdrop: "static", keyboard: false });
-      loginModal.hide();
-      setTimeout(() => {
-        registerModal.show();
-      }, 300);
-      registerModalEl.addEventListener("hidden.bs.modal", function () {
+  document.addEventListener('DOMContentLoaded', function(){
+  let isSendingRegOtp = false;
+  let regOtpCountdownTimer = null;
+    // Forgot Password (reset) OTP guards
+  let isSendingResetOtp = false;
+  let resetOtpCountdownTimer = null;
+
+    /* Active link on scroll & navbar color switch */
+    const sections = document.querySelectorAll('section');
+    const navLinks = document.querySelectorAll('.nav-link[href^="#"]');
+    function onScroll(){
+      let current = "";
+      sections.forEach(sec=>{
+        const top = window.scrollY;
+        const offset = sec.offsetTop - 100;
+        const height = sec.offsetHeight;
+        if(top >= offset && top < offset + height){
+          current = "#" + sec.id;
+        }
+      });
+      navLinks.forEach(a=>{
+        a.classList.remove('active');
+        if(a.getAttribute('href') === current){
+          a.classList.add('active');
+        }
+      });
+      const nav=document.querySelector('.navbar');
+      if(window.scrollY>60){nav.classList.add('scrolled');}
+      else{nav.classList.remove('scrolled');}
+    }
+    window.addEventListener('scroll', onScroll);
+
+    /* Drag scroll for services */
+    (function(){
+      const scroller = document.getElementById('servicesScroller');
+      if(!scroller) return;
+      let isDown = false;
+      let startX = 0, scrollLeft = 0;
+
+      scroller.addEventListener('mousedown', (e)=>{
+        isDown = true;
+        startX = e.pageX - scroller.offsetLeft;
+        scrollLeft = scroller.scrollLeft;
+      });
+      scroller.addEventListener('mouseleave', ()=>{ isDown=false; });
+      scroller.addEventListener('mouseup', ()=>{ isDown=false; });
+      scroller.addEventListener('mousemove', (e)=>{
+        if(!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - scroller.offsetLeft;
+        const walk = (x - startX) * 1.5;
+        scroller.scrollLeft = scrollLeft - walk;
+      });
+
+      // touch
+      let touchStartX = 0, touchScrollLeft = 0;
+      scroller.addEventListener('touchstart', (e)=>{
+        touchStartX = e.touches[0].pageX;
+        touchScrollLeft = scroller.scrollLeft;
+      }, {passive:true});
+      scroller.addEventListener('touchmove', (e)=>{
+        const x = e.touches[0].pageX;
+        const walk = (x - touchStartX) * 1.2;
+        scroller.scrollLeft = touchScrollLeft - walk;
+      }, {passive:true});
+    })();
+
+    /* Mobile dropdown anim helper */
+    const navCollapse = document.getElementById('navbarNav');
+    if(navCollapse){
+      navCollapse.addEventListener('show.bs.collapse', () => {
+        navCollapse.classList.add('animate');
+      });
+      navCollapse.addEventListener('hidden.bs.collapse', () => {
+        navCollapse.classList.remove('animate');
+      });
+    }
+
+    /* ===== ALL MODAL / FORM JS (unchanged) ===== */
+    const $ = (sel) => document.querySelector(sel);
+
+    /* switching modals */
+    const openRegisterModalBtn = $("#openRegisterModal");
+    if(openRegisterModalBtn){
+      openRegisterModalBtn.addEventListener("click", function (event) {
+        event.preventDefault();
+        var loginModalEl = $("#loginModal");
+        var registerModalEl = $("#registerModal");
+        var loginModal = bootstrap.Modal.getInstance(loginModalEl);
+        var registerModal = new bootstrap.Modal(registerModalEl, { backdrop: "static", keyboard: false });
+        loginModal.hide();
+        setTimeout(() => { registerModal.show(); }, 300);
+        registerModalEl.addEventListener("hidden.bs.modal", function () {
           var reopenLoginModal = new bootstrap.Modal(loginModalEl, { backdrop: "static", keyboard: false });
           reopenLoginModal.show();
-      }, { once: true });
-    });
-    
-    // Step 1 "Next" button event handler.
-    document.getElementById("nextBtn").addEventListener("click", () => {
-      document.querySelector("#reg-username").classList.remove("is-invalid");
-      document.querySelector("#reg-password").classList.remove("is-invalid");
-      const username = document.querySelector("#reg-username").value.trim();
-      const password = document.querySelector("#reg-password").value;
-      const usernameFeedback = document.querySelector("#username-feedback");
-      let valid = true;
-      if (!username) {
-        document.querySelector("#reg-username").classList.add("is-invalid");
-        valid = false;
-      }
-      if (usernameFeedback.classList.contains("text-danger") && usernameFeedback.textContent.trim() !== "") {
-        document.querySelector("#reg-username").classList.add("is-invalid");
-        valid = false;
-      }
-      const lengthCriteria = password.length >= 8;
-      const uppercaseCriteria = /[A-Z]/.test(password);
-      const lowercaseCriteria = /[a-z]/.test(password);
-      const numberCriteria = /[0-9]/.test(password);
-      const specialCharCriteria = /[!@#$%^&*]/.test(password);
-      if (!(lengthCriteria && uppercaseCriteria && lowercaseCriteria && numberCriteria && specialCharCriteria)) {
-        document.querySelector("#reg-password").classList.add("is-invalid");
-        valid = false;
-      }
-      if (valid) {
-        document.getElementById("reg-step1").style.display = "none";
-        document.getElementById("reg-step2").style.display = "block";
-      }
-    });
-    
-    // Send OTP to Email (Register Modal)
-    document.querySelector("#sendCodeBtn").addEventListener("click", async () => {
-      const email = document.querySelector("#reg-email").value;
-      if (!email) return alert("Enter an email!");
-      let response = await fetch("/send-otp", {
+        }, { once: true });
+      });
+    }
+
+    const nextBtn = $("#nextBtn");
+    if(nextBtn){
+      nextBtn.addEventListener("click", () => {
+        $("#reg-username").classList.remove("is-invalid");
+        $("#reg-password").classList.remove("is-invalid");
+        const username = $("#reg-username").value.trim();
+        const password = $("#reg-password").value;
+        const usernameFeedback = $("#username-feedback");
+        let valid = true;
+        if (!username) { $("#reg-username").classList.add("is-invalid"); valid = false; }
+        if (usernameFeedback.classList.contains("text-danger") && usernameFeedback.textContent.trim() !== "") {
+          $("#reg-username").classList.add("is-invalid"); valid = false;
+        }
+        const lengthCriteria = password.length >= 8;
+        const uppercaseCriteria = /[A-Z]/.test(password);
+        const lowercaseCriteria = /[a-z]/.test(password);
+        const numberCriteria = /[0-9]/.test(password);
+const specialCharCriteria = /[^A-Za-z0-9]/.test(password);
+        if (!(lengthCriteria && uppercaseCriteria && lowercaseCriteria && numberCriteria && specialCharCriteria)) {
+          $("#reg-password").classList.add("is-invalid"); valid = false;
+        }
+        if (valid) {
+          $("#reg-step1").style.display = "none";
+          $("#reg-step2").style.display = "block";
+        }
+      });
+    }
+
+    const sendCodeBtn = $("#sendCodeBtn");
+if (sendCodeBtn) {
+  sendCodeBtn.addEventListener("click", async () => {
+    const email = $("#reg-email").value.trim();
+    if (!email) { alert("Enter an email!"); return; }
+
+    // block re-entry immediately
+    if (isSendingRegOtp || sendCodeBtn.disabled) return;
+    isSendingRegOtp = true;
+
+    const originalText = sendCodeBtn.textContent;
+    sendCodeBtn.disabled = true;
+    sendCodeBtn.textContent = "Sending...";
+
+    try {
+      const resp = await fetch("/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email })
       });
-      let data = await response.json();
-      if (data.message.includes("OTP sent")) {
-        const otpInfo = document.getElementById("otp-info");
-        otpInfo.textContent = "Check your email for OTP";
-        otpInfo.classList.remove("d-none");
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        // server rejected (cooldown, invalid, etc.)
+        alert(data.message || "Failed to send OTP.");
+        sendCodeBtn.disabled = false;
+        sendCodeBtn.textContent = originalText;
+        isSendingRegOtp = false;
+        return;
       }
-      const sendBtn = document.getElementById("sendCodeBtn");
-      sendBtn.disabled = true;
+
+      // success → start 60s countdown
+      const otpInfo = $("#otp-info");
+      otpInfo.textContent = "Check your email for OTP";
+      otpInfo.classList.remove("d-none");
+
       let countdown = 60;
-      const originalText = "Send";
-      const timerInterval = setInterval(() => {
-        sendBtn.textContent = `${countdown}s`;
+      sendCodeBtn.textContent = `${countdown}s`;
+      if (regOtpCountdownTimer) clearInterval(regOtpCountdownTimer);
+      regOtpCountdownTimer = setInterval(() => {
         countdown--;
-        if (countdown < 0) {
-          clearInterval(timerInterval);
-          sendBtn.textContent = originalText;
-          sendBtn.disabled = false;
+        sendCodeBtn.textContent = `${countdown}s`;
+        if (countdown <= 0) {
+          clearInterval(regOtpCountdownTimer);
+          sendCodeBtn.textContent = originalText;
+          sendCodeBtn.disabled = false;
         }
       }, 1000);
-    });
-    
-    // Real-Time Email Availability Check for Register Modal (with Gmail check)
-    document.querySelector("#reg-email").addEventListener("input", async function () {
-      const email = this.value.trim();
-      const feedbackElement = document.querySelector("#email-feedback");
-      const sendButton = document.querySelector("#sendCodeBtn");
-      if (!email) {
-        feedbackElement.textContent = "";
-        sendButton.disabled = true;
-        return;
-      }
-      if (!email.includes("@gmail.com")) {
-        feedbackElement.textContent = "Email must be a Gmail address.";
-        feedbackElement.classList.remove("text-success");
-        feedbackElement.classList.add("text-danger");
-        sendButton.disabled = true;
-        return;
-      }
-      try {
-        let response = await fetch(`/check-email?email=${encodeURIComponent(email)}`);
-        let data = await response.json();
-        if (data.available) {
-          feedbackElement.textContent = "Email is available!";
-          feedbackElement.classList.remove("text-danger");
-          feedbackElement.classList.add("text-success");
-          sendButton.disabled = false;
-        } else {
-          feedbackElement.textContent = data.message;
+    } catch (e) {
+      console.error(e);
+      alert("Network error sending OTP.");
+      sendCodeBtn.disabled = false;
+      sendCodeBtn.textContent = originalText;
+    } finally {
+      isSendingRegOtp = false;
+    }
+  });
+}
+
+    const regEmail = $("#reg-email");
+    if(regEmail){
+      regEmail.addEventListener("input", async function () {
+        const email = this.value.trim();
+        const feedbackElement = $("#email-feedback");
+        const sendButton = $("#sendCodeBtn");
+        if (!email) { feedbackElement.textContent = ""; sendButton.disabled = true; return; }
+        if (!email.includes("@gmail.com")) {
+          feedbackElement.textContent = "Email must be a Gmail address.";
           feedbackElement.classList.remove("text-success");
           feedbackElement.classList.add("text-danger");
           sendButton.disabled = true;
+          return;
         }
-      } catch (error) {
-        console.error("Error checking email:", error);
-        feedbackElement.textContent = "Error checking email!";
-        feedbackElement.classList.add("text-danger");
-        sendButton.disabled = true;
-      }
-    });
-    
-    // Register User
-    document.querySelector("#registerBtn").addEventListener("click", async () => {
-      document.querySelector("#reg-username").classList.remove("is-invalid");
-      document.querySelector("#reg-password").classList.remove("is-invalid");
-      document.querySelector("#reg-email").classList.remove("is-invalid");
-      document.querySelector("#otp-code").classList.remove("is-invalid");
-      const username = document.querySelector("#reg-username").value.trim();
-      const password = document.querySelector("#reg-password").value;
-      const email = document.querySelector("#reg-email").value.trim();
-      const otp = document.querySelector("#otp-code").value.trim();
-      let valid = true;
-      if (!username) {
-        document.querySelector("#reg-username").classList.add("is-invalid");
-        valid = false;
-      }
-      const lengthCriteria = password.length >= 8;
-      const uppercaseCriteria = /[A-Z]/.test(password);
-      const lowercaseCriteria = /[a-z]/.test(password);
-      const numberCriteria = /[0-9]/.test(password);
-      const specialCharCriteria = /[!@#$%^&*]/.test(password);
-      if (!(lengthCriteria && uppercaseCriteria && lowercaseCriteria && numberCriteria && specialCharCriteria)) {
-        document.querySelector("#reg-password").classList.add("is-invalid");
-        valid = false;
-      }
-      if (!email || !email.includes("@gmail.com")) {
-        document.querySelector("#reg-email").classList.add("is-invalid");
-        valid = false;
-      }
-      if (!otp) {
-        document.querySelector("#otp-code").classList.add("is-invalid");
-        valid = false;
-      }
-      if (!valid) {
-        return;
-      }
-      const registerBtn = document.querySelector("#registerBtn");
-      registerBtn.textContent = "Loading...";
-      registerBtn.disabled = true;
-      let response = await fetch("/verify-register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, email, otp }),
+        try {
+          let response = await fetch(`/check-email?email=${encodeURIComponent(email)}`);
+          let data = await response.json();
+          if (data.available) {
+            feedbackElement.textContent = "Email is available!";
+            feedbackElement.classList.remove("text-danger");
+            feedbackElement.classList.add("text-success");
+            sendButton.disabled = false;
+          } else {
+            feedbackElement.textContent = data.message;
+            feedbackElement.classList.remove("text-success");
+            feedbackElement.classList.add("text-danger");
+            sendButton.disabled = true;
+          }
+        } catch (error) {
+          console.error("Error checking email:", error);
+          feedbackElement.textContent = "Error checking email!";
+          feedbackElement.classList.add("text-danger");
+          sendButton.disabled = true;
+        }
       });
-      let data = await response.json();
-      if (data.message === "Successfully registered!") {
-        document.querySelector("#otp-code").classList.remove("is-invalid");
-        const registerSuccessDiv = document.getElementById("registerSuccess");
-        registerSuccessDiv.textContent = "Successfully registered!";
-        registerSuccessDiv.classList.remove("d-none");
-        registerBtn.textContent = "Register";
-        registerBtn.disabled = false;
-      }
-      else if (data.message.toLowerCase().includes("otp")) {
-        document.querySelector("#otp-code").classList.add("is-invalid");
-        registerBtn.textContent = "Register";
-        registerBtn.disabled = false;
-      } else {
-        alert(data.message);
-        registerBtn.textContent = "Register";
-        registerBtn.disabled = false;
-      }
-    });
-    
-    document.querySelector("#otp-code").addEventListener("input", function () {
-      this.classList.remove("is-invalid");
-    });
-    
-    // Password Checklist for Register Modal
-    document.querySelector("#reg-password").addEventListener("input", function () {
-      const password = this.value;
-      const lengthCriteria = password.length >= 8;
-      const uppercaseCriteria = /[A-Z]/.test(password);
-      const lowercaseCriteria = /[a-z]/.test(password);
-      const numberCriteria = /[0-9]/.test(password);
-      const specialCharCriteria = /[!@#$%^&*]/.test(password);
-      document.getElementById("criteria-length").classList.toggle("text-success", lengthCriteria);
-      document.getElementById("criteria-length").classList.toggle("text-danger", !lengthCriteria);
-      document.getElementById("criteria-uppercase").classList.toggle("text-success", uppercaseCriteria);
-      document.getElementById("criteria-uppercase").classList.toggle("text-danger", !uppercaseCriteria);
-      document.getElementById("criteria-lowercase").classList.toggle("text-success", lowercaseCriteria);
-      document.getElementById("criteria-lowercase").classList.toggle("text-danger", !lowercaseCriteria);
-      document.getElementById("criteria-number").classList.toggle("text-success", numberCriteria);
-      document.getElementById("criteria-number").classList.toggle("text-danger", !numberCriteria);
-      document.getElementById("criteria-symbol").classList.toggle("text-success", specialCharCriteria);
-      document.getElementById("criteria-symbol").classList.toggle("text-danger", !specialCharCriteria);
-    });
-    
-    // Ensure modals don’t close when clicking outside
+    }
+
+    const registerBtn = $("#registerBtn");
+    if(registerBtn){
+      registerBtn.addEventListener("click", async () => {
+        $("#reg-username").classList.remove("is-invalid");
+        $("#reg-password").classList.remove("is-invalid");
+        $("#reg-email").classList.remove("is-invalid");
+        $("#otp-code").classList.remove("is-invalid");
+        const username = $("#reg-username").value.trim();
+        const password = $("#reg-password").value;
+        const email = $("#reg-email").value.trim();
+        const otp = $("#otp-code").value.trim();
+        let valid = true;
+        if (!username) { $("#reg-username").classList.add("is-invalid"); valid = false; }
+        const lengthCriteria = password.length >= 8;
+        const uppercaseCriteria = /[A-Z]/.test(password);
+        const lowercaseCriteria = /[a-z]/.test(password);
+        const numberCriteria = /[0-9]/.test(password);
+const specialCharCriteria = /[^A-Za-z0-9]/.test(password);
+        if (!(lengthCriteria && uppercaseCriteria && lowercaseCriteria && numberCriteria && specialCharCriteria)) {
+          $("#reg-password").classList.add("is-invalid"); valid = false;
+        }
+        if (!email || !email.includes("@gmail.com")) {
+          $("#reg-email").classList.add("is-invalid"); valid = false;
+        }
+        if (!otp) { $("#otp-code").classList.add("is-invalid"); valid = false; }
+        if (!valid) return;
+        const btn = $("#registerBtn");
+        btn.textContent = "Loading...";
+        btn.disabled = true;
+        let response = await fetch("/verify-register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password, email, otp }),
+        });
+        let data = await response.json();
+        if (data.message === "Successfully registered!") {
+          const registerSuccessDiv = $("#registerSuccess");
+          registerSuccessDiv.textContent = "Successfully registered!";
+          registerSuccessDiv.classList.remove("d-none");
+          btn.textContent = "Register";
+          btn.disabled = false;
+          setTimeout(() => {
+            const registerModalEl = $("#registerModal");
+            const registerModal = bootstrap.Modal.getInstance(registerModalEl);
+            registerModal.hide();
+            const loginModalEl = $("#loginModal");
+            const loginModal = new bootstrap.Modal(loginModalEl, { backdrop: "static", keyboard: false });
+            loginModal.show();
+          }, 800);
+        } else if (data.message.toLowerCase().includes("otp")) {
+          $("#otp-code").classList.add("is-invalid");
+          btn.textContent = "Register";
+          btn.disabled = false;
+        } else {
+          alert(data.message);
+          btn.textContent = "Register";
+          btn.disabled = false;
+        }
+      });
+    }
+
+    const otpCode = $("#otp-code");
+    if(otpCode){
+      otpCode.addEventListener("input", function () {
+        this.classList.remove("is-invalid");
+      });
+    }
+
+    const regPassword = $("#reg-password");
+    if(regPassword){
+      regPassword.addEventListener("input", function () {
+        const password = this.value;
+        const len = password.length >= 8;
+        const up = /[A-Z]/.test(password);
+        const low = /[a-z]/.test(password);
+        const num = /[0-9]/.test(password);
+const spe = /[^A-Za-z0-9]/.test(password);  // any symbol
+$("#criteria-length").classList.toggle("text-success", len);
+$("#criteria-length").classList.toggle("text-danger", !len);
+$("#criteria-uppercase").classList.toggle("text-success", up);
+$("#criteria-uppercase").classList.toggle("text-danger", !up);
+$("#criteria-lowercase").classList.toggle("text-success", low);
+$("#criteria-lowercase").classList.toggle("text-danger", !low);
+$("#criteria-number").classList.toggle("text-success", num);
+$("#criteria-number").classList.toggle("text-danger", !num);
+$("#criteria-symbol").classList.toggle("text-success", spe);
+$("#criteria-symbol").classList.toggle("text-danger", !spe);
+
+      });
+    }
+
     document.querySelectorAll(".modal").forEach((modal) => {
       modal.addEventListener("shown.bs.modal", function () {
         var modalInstance = bootstrap.Modal.getInstance(this);
@@ -871,14 +1294,16 @@
         modalInstance._config.keyboard = false;
       });
     });
-    
-    // Custom close for Forgot Password Modal
-    document.getElementById("forgotCloseBtn").addEventListener("click", function () {
-      let modalEl = document.getElementById("forgotPasswordModal");
-      let modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-      modalInstance.hide();
-    });
-    
+
+    const forgotCloseBtn = $("#forgotCloseBtn");
+    if(forgotCloseBtn){
+      forgotCloseBtn.addEventListener("click", function () {
+        let modalEl = $("#forgotPasswordModal");
+        let modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modalInstance.hide();
+      });
+    }
+
     document.querySelectorAll(".btn-close").forEach((btn) => {
       if (btn.id !== "forgotCloseBtn") {
         btn.addEventListener("click", function () {
@@ -888,477 +1313,524 @@
         });
       }
     });
-    
-    // Login User
-    document.querySelector("#loginBtn").addEventListener("click", async (event) => {
-      event.preventDefault();
-      const emailInput = document.querySelector("#login-identifier");
-      const passwordInput = document.querySelector("#login-password");
-      const emailError = document.querySelector("#email-error");
-      const passwordError = document.querySelector("#password-error");
-      emailError.classList.add("d-none");
-      passwordError.classList.add("d-none");
-      
-      const email = emailInput.value.trim();
-      const password = passwordInput.value.trim();
-      if (!email || !password) {
-        if (!email) {
-          emailError.textContent = "Please enter your Gmail.";
-          emailError.classList.remove("d-none");
+
+    const loginBtn = $("#loginBtn");
+    if(loginBtn){
+      loginBtn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        const emailInput = $("#login-identifier");
+        const passwordInput = $("#login-password");
+        const emailError = $("#email-error");
+        const passwordError = $("#password-error");
+        emailError.classList.add("d-none");
+        passwordError.classList.add("d-none");
+        const email = emailInput.value.trim();
+        const password = passwordInput.value.trim();
+        if (!email || !password) {
+          if (!email) { emailError.textContent = "Please enter your Gmail."; emailError.classList.remove("d-none"); }
+          if (!password) { passwordError.textContent = "Please enter your password."; passwordError.classList.remove("d-none"); }
+          return;
         }
-        if (!password) {
-          passwordError.textContent = "Please enter your password.";
-          passwordError.classList.remove("d-none");
-        }
-        return;
-      }
-      
-      const captchaResponse = grecaptcha.getResponse();
-      if (!captchaResponse) {
-        alert("Please complete the CAPTCHA.");
-        return;
-      }
-      
-      let response = await fetch("/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, captchaResponse })
-      });
-      
-      if (response.status === 429) {
-        const data = await response.json();
-        alert(data.message || "Too many failed attempts. Please try again in 5 minutes.");
-        const loginBtn = document.querySelector("#loginBtn");
-        loginBtn.disabled = true;
-        let countdown = 300;
-        const originalText = loginBtn.textContent;
-        const intervalId = setInterval(() => {
-          loginBtn.textContent = `Wait ${countdown} seconds`;
-          countdown--;
-          if (countdown < 0) {
-            clearInterval(intervalId);
-            loginBtn.textContent = originalText;
-            loginBtn.disabled = false;
-          }
-        }, 1000);
-        return;
-      }
-      
-      const data = await response.json();
-      
-      if (data.passwordError) {
-        passwordError.textContent = data.passwordError;
-        passwordError.classList.remove("d-none");
-      } else if (data.emailError) {
-        emailError.textContent = data.emailError;
-        emailError.classList.remove("d-none");
-      } else if (data.requireOTP) {
-        var loginModal = bootstrap.Modal.getInstance(document.getElementById("loginModal"));
-        var adminOTPModal = new bootstrap.Modal(document.getElementById("adminOTPModal"));
-        loginModal.hide();
-        document.body.classList.remove("modal-open");
-        document.querySelector(".modal-backdrop")?.remove();
-        document.querySelector("#admin-email").value = email;
-        adminOTPModal.show();
-      } else if (data.message && data.message.includes("successful")) {
-        window.location.href = data.redirect;
-      }
-    });
-    
-    // Verify Admin OTP
-    document.querySelector("#verifyAdminOTPBtn").addEventListener("click", async () => {
-      const email = document.querySelector("#admin-email").value;
-      const otp = document.querySelector("#admin-otp").value;
-      if (!otp) return alert("Enter OTP!");
-      let response = await fetch("/verify-admin-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp }),
-      });
-      let data = await response.json();
-      alert(data.message);
-      if (data.message.includes("OTP verified")) {
-        window.location.href = data.redirect;
-      }
-    });
-    
-    // Toggle password visibility in Register Modal
-    document.querySelector(".toggle-password").addEventListener("click", function () {
-      const passwordInput = document.querySelector("#reg-password");
-      const icon = this.querySelector("i");
-      if (passwordInput.type === "password") {
-        passwordInput.type = "text";
-        icon.classList.remove("bi-eye-slash");
-        icon.classList.add("bi-eye");
-      } else {
-        passwordInput.type = "password";
-        icon.classList.remove("bi-eye");
-        icon.classList.add("bi-eye-slash");
-      }
-    });
-    
-    // Toggle password visibility in Login Modal
-    document.querySelector(".toggle-password-login").addEventListener("click", function () {
-      const passwordInput = document.querySelector("#login-password");
-      const icon = this.querySelector("i");
-      if (passwordInput.type === "password") {
-        passwordInput.type = "text";
-        icon.classList.remove("bi-eye-slash");
-        icon.classList.add("bi-eye");
-      } else {
-        passwordInput.type = "password";
-        icon.classList.remove("bi-eye");
-        icon.classList.add("bi-eye-slash");
-      }
-    });
-    
-    // Real-time username check
-    document.querySelector("#reg-username").addEventListener("input", async function () {
-      const username = this.value.trim();
-      const feedbackElement = document.querySelector("#username-feedback");
-      if (!username) {
-        feedbackElement.textContent = "";
-        return;
-      }
-      try {
-        let response = await fetch(`/check-username?username=${encodeURIComponent(username)}`);
-        let data = await response.json();
-        if (data.available) {
-          feedbackElement.textContent = "Username is available!";
-          feedbackElement.classList.remove("text-danger");
-          feedbackElement.classList.add("text-success");
-        } else {
-          feedbackElement.textContent = data.message;
-          feedbackElement.classList.remove("text-success");
-          feedbackElement.classList.add("text-danger");
-        }
-      } catch (error) {
-        console.error("Error checking username:", error);
-        feedbackElement.textContent = "Error checking username!";
-        feedbackElement.classList.add("text-danger");
-      }
-    });
-    
-    // Real-Time Email Availability Check for Register Modal (with Gmail check)
-    document.querySelector("#reg-email").addEventListener("input", async function () {
-      const email = this.value.trim();
-      const feedbackElement = document.querySelector("#email-feedback");
-      const sendButton = document.querySelector("#sendCodeBtn");
-      if (!email) {
-        feedbackElement.textContent = "";
-        sendButton.disabled = true;
-        return;
-      }
-      if (!email.includes("@gmail.com")) {
-        feedbackElement.textContent = "Email must be a Gmail address.";
-        feedbackElement.classList.remove("text-success");
-        feedbackElement.classList.add("text-danger");
-        sendButton.disabled = true;
-        return;
-      }
-      try {
-        let response = await fetch(`/check-email?email=${encodeURIComponent(email)}`);
-        let data = await response.json();
-        if (data.available) {
-          feedbackElement.textContent = "Email is available!";
-          feedbackElement.classList.remove("text-danger");
-          feedbackElement.classList.add("text-success");
-          sendButton.disabled = false;
-        } else {
-          feedbackElement.textContent = data.message;
-          feedbackElement.classList.remove("text-success");
-          feedbackElement.classList.add("text-danger");
-          sendButton.disabled = true;
-        }
-      } catch (error) {
-        console.error("Error checking email:", error);
-        feedbackElement.textContent = "Error checking email!";
-        feedbackElement.classList.add("text-danger");
-        sendButton.disabled = true;
-      }
-    });
-    
-    // Password Strength Validation with Checklist for Register Modal
-    document.querySelector("#reg-password").addEventListener("input", function () {
-      const password = this.value;
-      const lengthCriteria = password.length >= 8;
-      const uppercaseCriteria = /[A-Z]/.test(password);
-      const lowercaseCriteria = /[a-z]/.test(password);
-      const numberCriteria = /[0-9]/.test(password);
-      const specialCharCriteria = /[!@#$%^&*]/.test(password);
-      document.getElementById("criteria-length").classList.toggle("text-success", lengthCriteria);
-      document.getElementById("criteria-length").classList.toggle("text-danger", !lengthCriteria);
-      document.getElementById("criteria-uppercase").classList.toggle("text-success", uppercaseCriteria);
-      document.getElementById("criteria-uppercase").classList.toggle("text-danger", !uppercaseCriteria);
-      document.getElementById("criteria-lowercase").classList.toggle("text-success", lowercaseCriteria);
-      document.getElementById("criteria-lowercase").classList.toggle("text-danger", !lowercaseCriteria);
-      document.getElementById("criteria-number").classList.toggle("text-success", numberCriteria);
-      document.getElementById("criteria-number").classList.toggle("text-danger", !numberCriteria);
-      document.getElementById("criteria-symbol").classList.toggle("text-success", specialCharCriteria);
-      document.getElementById("criteria-symbol").classList.toggle("text-danger", !specialCharCriteria);
-    });
-    
-    // Open Forgot Password Modal
-    document.getElementById("openForgotPasswordModal").addEventListener("click", function (event) {
-      event.preventDefault();
-      var loginModalEl = document.getElementById("loginModal");
-      var forgotPasswordModalEl = document.getElementById("forgotPasswordModal");
-      var loginModal = bootstrap.Modal.getInstance(loginModalEl);
-      var forgotPasswordModal = new bootstrap.Modal(forgotPasswordModalEl, { backdrop: "static", keyboard: false });
-      loginModal.hide();
-      setTimeout(() => {
-        forgotPasswordModal.show();
-      }, 300);
-      forgotPasswordModalEl.addEventListener("hidden.bs.modal", function () {
-          var reopenLoginModal = new bootstrap.Modal(loginModalEl, { backdrop: "static", keyboard: false });
-          reopenLoginModal.show();
-      }, { once: true });
-    });
-    
-    // Send OTP Button for Forgot Password (Step 1 -> Step 2)
-    document.getElementById("sendResetOTPBtn").addEventListener("click", async function () {
-      const emailInput = document.getElementById("reset-email");
-      const emailError = document.getElementById("reset-email-error");
-      const email = emailInput.value.trim();
-      emailError.textContent = "";
-      emailError.classList.add("d-none");
-      emailInput.classList.remove("is-invalid");
-      if (!email.includes("@gmail.com")) {
-        emailError.textContent = "Invalid Gmail address! Please enter a valid @gmail.com email.";
-        emailError.classList.remove("d-none");
-        emailInput.classList.add("is-invalid");
-        return;
-      }
-      let response = await fetch("/send-reset-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      let data = await response.json();
-      if (data.message.includes("OTP sent")) {
-        document.getElementById("step1").style.display = "none";
-        document.getElementById("step2").style.display = "block";
-      } else {
-        emailError.textContent = data.message;
-        emailError.classList.remove("d-none");
-        emailInput.classList.add("is-invalid");
-      }
-    });
-    
-    // Verify OTP Button for Forgot Password (Step 2 -> Step 3)
-    document.getElementById("verifyResetOTPBtn").addEventListener("click", async function () {
-      const email = document.getElementById("reset-email").value.trim();
-      const otp = document.getElementById("reset-otp").value.trim();
-      const otpInput = document.getElementById("reset-otp");
-      const otpError = document.getElementById("otpError");
-      otpInput.classList.remove("is-invalid");
-      otpError.classList.add("d-none");
-      let response = await fetch("/verify-reset-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp }),
-      });
-      let data = await response.json();
-      if (data.message.includes("OTP verified")) {
-        document.getElementById("step2").style.display = "none";
-        document.getElementById("step3").style.display = "block";
-      } else {
-        otpInput.classList.add("is-invalid");
-        otpError.textContent = "Invalid OTP";
-        otpError.classList.remove("d-none");
-      }
-    });
-    
-    // Resend OTP Link for Forgot Password
-    document.getElementById("resendOTP").addEventListener("click", async function (e) {
-      e.preventDefault();
-      const resendLink = this;
-      resendLink.classList.add("disabled");
-      let countdown = 60;
-      resendLink.textContent = `${countdown}s`;
-      const interval = setInterval(() => {
-        countdown--;
-        resendLink.textContent = `${countdown}s`;
-        if (countdown <= 0) {
-          clearInterval(interval);
-          resendLink.textContent = "Resend OTP";
-          resendLink.classList.remove("disabled");
-        }
-      }, 1000);
-      const email = document.getElementById("reset-email").value.trim();
-      await fetch("/send-reset-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-    });
-    
-    // Reset Password Button (Step 3)
-    document.getElementById("resetPasswordBtn").addEventListener("click", async function () {
-      const newPasswordInput = document.getElementById("new-password");
-      const confirmPasswordInput = document.getElementById("confirm-new-password");
-      const newPasswordError = document.getElementById("new-password-error");
-      const confirmPasswordError = document.getElementById("confirm-password-error");
-      const passwordMismatchError = document.getElementById("password-mismatch-error");
-      const successMessage = document.getElementById("password-reset-success");
-      
-      newPasswordError.classList.add("d-none");
-      confirmPasswordError.classList.add("d-none");
-      passwordMismatchError.classList.add("d-none");
-      newPasswordInput.classList.remove("is-invalid");
-      confirmPasswordInput.classList.remove("is-invalid");
-      
-      let valid = true;
-      if (newPasswordInput.value.trim() === "") {
-        newPasswordInput.classList.add("is-invalid");
-        newPasswordError.textContent = "Please fill out this field.";
-        newPasswordError.classList.remove("d-none");
-        valid = false;
-      }
-      if (confirmPasswordInput.value.trim() === "") {
-        confirmPasswordInput.classList.add("is-invalid");
-        confirmPasswordError.classList.remove("d-none");
-        valid = false;
-      }
-      if (newPasswordInput.value !== confirmPasswordInput.value) {
-        passwordMismatchError.classList.remove("d-none");
-        confirmPasswordInput.classList.add("is-invalid");
-        valid = false;
-      }
-      const password = newPasswordInput.value;
-      const lengthCriteria = password.length >= 8;
-      const uppercaseCriteria = /[A-Z]/.test(password);
-      const lowercaseCriteria = /[a-z]/.test(password);
-      const numberCriteria = /[0-9]/.test(password);
-      const specialCharCriteria = /[!@#$%^&*]/.test(password);
-      if (!(lengthCriteria && uppercaseCriteria && lowercaseCriteria && numberCriteria && specialCharCriteria)) {
-        newPasswordInput.classList.add("is-invalid");
-        newPasswordError.textContent = "Password does not meet security requirements.";
-        newPasswordError.classList.remove("d-none");
-        valid = false;
-      }
-      if (!valid) return;
-      
-      const email = document.getElementById("reset-email").value.trim();
-      try {
-        const response = await fetch("/reset-password", {
+        const captchaResponse = grecaptcha.getResponse();
+        if (!captchaResponse) { alert("Please complete the CAPTCHA."); return; }
+        let response = await fetch("/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, newPassword: password })
+          body: JSON.stringify({ email, password, captchaResponse })
         });
+        if (response.status === 429) {
+          const data = await response.json();
+          alert(data.message || "Too many failed attempts. Please try again in 5 minutes.");
+          const btn = $("#loginBtn");
+          btn.disabled = true;
+          let countdown = 300;
+          const originalText = btn.textContent;
+          const intervalId = setInterval(() => {
+            btn.textContent = `Wait ${countdown} seconds`;
+            countdown--;
+            if (countdown < 0) {
+              clearInterval(intervalId);
+              btn.textContent = originalText;
+              btn.disabled = false;
+            }
+          }, 1000);
+          return;
+        }
         const data = await response.json();
-        if (response.ok) {
-          successMessage.classList.remove("d-none");
-          successMessage.textContent = data.message;
+        if (data.passwordError) {
+          passwordError.textContent = data.passwordError;
+          passwordError.classList.remove("d-none");
+        } else if (data.emailError) {
+          emailError.textContent = data.emailError;
+          emailError.classList.remove("d-none");
+        } else if (data.requireOTP) {
+          var loginModal = bootstrap.Modal.getInstance($("#loginModal"));
+          var adminOTPModal = new bootstrap.Modal($("#adminOTPModal"));
+          loginModal.hide();
+          document.body.classList.remove("modal-open");
+          document.querySelector(".modal-backdrop")?.remove();
+          $("#admin-email").value = email;
+          adminOTPModal.show();
+        } else if (data.message && data.message.includes("successful")) {
+          window.location.href = data.redirect;
+        }
+      });
+    }
+
+    const verifyAdminOTPBtn = $("#verifyAdminOTPBtn");
+    if(verifyAdminOTPBtn){
+      verifyAdminOTPBtn.addEventListener("click", async () => {
+        const email = $("#admin-email").value;
+        const otp = $("#admin-otp").value;
+        if (!otp) return alert("Enter OTP!");
+        let response = await fetch("/verify-admin-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, otp }),
+        });
+        let data = await response.json();
+        alert(data.message);
+        if (data.message.includes("OTP verified")) {
+          window.location.href = data.redirect;
+        }
+      });
+    }
+
+    const togglePass = $(".toggle-password");
+    if(togglePass){
+      togglePass.addEventListener("click", function () {
+        const passwordInput = $("#reg-password");
+        const icon = this.querySelector("i");
+        if (passwordInput.type === "password") {
+          passwordInput.type = "text";
+          icon.classList.remove("bi-eye-slash");
+          icon.classList.add("bi-eye");
         } else {
-          alert(data.message);
+          passwordInput.type = "password";
+          icon.classList.remove("bi-eye");
+          icon.classList.add("bi-eye-slash");
         }
-      } catch (error) {
-        console.error("Error resetting password:", error);
-        alert("An error occurred while resetting your password.");
-      }
-    });
-    
-    var forgotPasswordModalEl = document.getElementById("forgotPasswordModal");
-    forgotPasswordModalEl.addEventListener("hidden.bs.modal", function () {
-      document.getElementById("step1").style.display = "block";
-      document.getElementById("step2").style.display = "none";
-      document.getElementById("step3").style.display = "none";
-      document.getElementById("reset-email").value = "";
-      document.getElementById("reset-otp").value = "";
-      document.getElementById("new-password").value = "";
-      document.getElementById("confirm-new-password").value = "";
-    });
-    
-    var registerModalEl = document.getElementById("registerModal");
-    registerModalEl.addEventListener("hidden.bs.modal", function () {
-      document.getElementById("registerForm").reset();
-      document.querySelectorAll("#registerForm .is-invalid").forEach(function(el) {
-        el.classList.remove("is-invalid");
       });
-      document.getElementById("registerSuccess").classList.add("d-none");
-      document.getElementById("criteria-length").classList.remove("text-success");
-      document.getElementById("criteria-length").classList.add("text-danger");
-      document.getElementById("criteria-uppercase").classList.remove("text-success");
-      document.getElementById("criteria-uppercase").classList.add("text-danger");
-      document.getElementById("criteria-lowercase").classList.remove("text-success");
-      document.getElementById("criteria-lowercase").classList.add("text-danger");
-      document.getElementById("criteria-number").classList.remove("text-success");
-      document.getElementById("criteria-number").classList.add("text-danger");
-      document.getElementById("criteria-symbol").classList.remove("text-success");
-      document.getElementById("criteria-symbol").classList.add("text-danger");
-      document.getElementById("reg-step1").style.display = "block";
-      document.getElementById("reg-step2").style.display = "none";
-    });
-    
-    document.addEventListener("DOMContentLoaded", function () {
-      var registerModalEl = document.getElementById("registerModal");
-      registerModalEl.addEventListener("hidden.bs.modal", function () {
-        var registerForm = document.getElementById("registerForm");
-        if (registerForm) {
-          registerForm.reset();
+    }
+
+    const togglePassLogin = $(".toggle-password-login");
+    if(togglePassLogin){
+      togglePassLogin.addEventListener("click", function () {
+        const passwordInput = $("#login-password");
+        const icon = this.querySelector("i");
+        if (passwordInput.type === "password") {
+          passwordInput.type = "text";
+          icon.classList.remove("bi-eye-slash");
+          icon.classList.add("bi-eye");
+        } else {
+          passwordInput.type = "password";
+          icon.classList.remove("bi-eye");
+          icon.classList.add("bi-eye-slash");
         }
-        registerForm.querySelectorAll(".is-invalid").forEach(function (el) {
-          el.classList.remove("is-invalid");
-        });
-        var registerSuccess = document.getElementById("registerSuccess");
-        if (registerSuccess) {
-          registerSuccess.classList.add("d-none");
-        }
-        var criteriaIDs = [
-          "criteria-length",
-          "criteria-uppercase",
-          "criteria-lowercase",
-          "criteria-number",
-          "criteria-symbol"
-        ];
-        criteriaIDs.forEach(function (id) {
-          var el = document.getElementById(id);
-          if (el) {
-            el.classList.remove("text-success");
-            el.classList.add("text-danger");
+      });
+    }
+
+    const regUsername = $("#reg-username");
+    if(regUsername){
+      regUsername.addEventListener("input", async function () {
+        const username = this.value.trim();
+        const feedbackElement = $("#username-feedback");
+        if (!username) { feedbackElement.textContent = ""; return; }
+        try {
+          let response = await fetch(`/check-username?username=${encodeURIComponent(username)}`);
+          let data = await response.json();
+          if (data.available) {
+            feedbackElement.textContent = "Username is available!";
+            feedbackElement.classList.remove("text-danger");
+            feedbackElement.classList.add("text-success");
+          } else {
+            feedbackElement.textContent = data.message;
+            feedbackElement.classList.remove("text-success");
+            feedbackElement.classList.add("text-danger");
           }
-        });
-        var step1 = document.getElementById("reg-step1");
-        var step2 = document.getElementById("reg-step2");
-        if (step1 && step2) {
-          step1.style.display = "block";
-          step2.style.display = "none";
+        } catch (error) {
+          console.error("Error checking username:", error);
+          feedbackElement.textContent = "Error checking username!";
+          feedbackElement.classList.add("text-danger");
         }
       });
-    });
-    
-    // Real-time password validation for Reset Password (Forgot Password Modal)
-    document.getElementById("new-password").addEventListener("input", function () {
-      const password = this.value;
-      const lengthCriteria = password.length >= 8;
-      const uppercaseCriteria = /[A-Z]/.test(password);
-      const lowercaseCriteria = /[a-z]/.test(password);
-      const numberCriteria = /[0-9]/.test(password);
-      const specialCharCriteria = /[!@#$%^&*]/.test(password);
-      document.getElementById("reset-criteria-length").classList.toggle("text-success", lengthCriteria);
-      document.getElementById("reset-criteria-length").classList.toggle("text-danger", !lengthCriteria);
-      document.getElementById("reset-criteria-uppercase").classList.toggle("text-success", uppercaseCriteria);
-      document.getElementById("reset-criteria-uppercase").classList.toggle("text-danger", !uppercaseCriteria);
-      document.getElementById("reset-criteria-lowercase").classList.toggle("text-success", lowercaseCriteria);
-      document.getElementById("reset-criteria-lowercase").classList.toggle("text-danger", !lowercaseCriteria);
-      document.getElementById("reset-criteria-number").classList.toggle("text-success", numberCriteria);
-      document.getElementById("reset-criteria-number").classList.toggle("text-danger", !numberCriteria);
-      document.getElementById("reset-criteria-symbol").classList.toggle("text-success", specialCharCriteria);
-      document.getElementById("reset-criteria-symbol").classList.toggle("text-danger", !specialCharCriteria);
-    });
-    
-    // Password match validation
-    document.getElementById("confirm-new-password").addEventListener("input", function () {
-      const newPassword = document.getElementById("new-password").value;
-      const confirmPassword = this.value;
-      const mismatchError = document.getElementById("password-mismatch-error");
-      if (confirmPassword !== newPassword) {
-        mismatchError.classList.remove("d-none");
-      } else {
-        mismatchError.classList.add("d-none");
+    }
+const sendResetOTPBtn = $("#sendResetOTPBtn");
+if (sendResetOTPBtn) {
+  sendResetOTPBtn.addEventListener("click", async function () {
+    if (isSendingResetOtp) return; // guard against double-clicks
+    isSendingResetOtp = true;
+
+    const emailInput = $("#reset-email");
+    const emailError = $("#reset-email-error");
+    const btn = this;
+
+    emailError.textContent = "";
+    emailError.classList.add("d-none");
+    emailInput.classList.remove("is-invalid");
+
+    const email = emailInput.value.trim();
+    if (!email.includes("@gmail.com")) {
+      emailError.textContent = "Invalid Gmail address! Please enter a valid @gmail.com email.";
+      emailError.classList.remove("d-none");
+      emailInput.classList.add("is-invalid");
+      isSendingResetOtp = false;
+      return;
+    }
+
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Sending...";
+
+    try {
+      const resp = await fetch("/send-reset-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      // If server throttles (429), respect the wait time
+      if (resp.status === 429) {
+        const data = await resp.json().catch(() => ({}));
+        const m = (data.message || "").match(/wait\s+(\d+)s/i);
+        let wait = m ? parseInt(m[1], 10) : 60;
+
+        clearInterval(resetOtpCountdownTimer);
+        resetOtpCountdownTimer = setInterval(() => {
+          btn.textContent = `Wait ${wait}s`;
+          wait--;
+          if (wait < 0) {
+            clearInterval(resetOtpCountdownTimer);
+            btn.textContent = originalText;
+            btn.disabled = false;
+          }
+        }, 1000);
+
+        return; // stop here (button stays disabled until countdown ends)
       }
-    });
+
+      const data = await resp.json();
+
+      if (resp.ok && data.message?.includes("OTP sent")) {
+        // success → move to step 2 (button disappears there)
+        $("#step1").style.display = "none";
+        $("#step2").style.display = "block";
+        // no countdown needed here because Step 1 UI is hidden now
+      } else {
+        // server error: show and re-enable button
+        emailError.textContent = data.message || "Failed to send OTP.";
+        emailError.classList.remove("d-none");
+        emailInput.classList.add("is-invalid");
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    } catch (e) {
+      console.error(e);
+      emailError.textContent = "Failed to send OTP.";
+      emailError.classList.remove("d-none");
+      emailInput.classList.add("is-invalid");
+      btn.disabled = false;
+      btn.textContent = originalText;
+    } finally {
+      isSendingResetOtp = false;
+    }
+  });
+}
+
+
+    const verifyResetOTPBtn = $("#verifyResetOTPBtn");
+    if(verifyResetOTPBtn){
+      verifyResetOTPBtn.addEventListener("click", async function () {
+        const email = $("#reset-email").value.trim();
+        const otp = $("#reset-otp").value.trim();
+        const otpInput = $("#reset-otp");
+        const otpError = $("#otpError");
+        otpInput.classList.remove("is-invalid");
+        otpError.classList.add("d-none");
+        let response = await fetch("/verify-reset-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, otp }),
+        });
+        let data = await response.json();
+        if (data.message.includes("OTP verified")) {
+          $("#step2").style.display = "none";
+          $("#step3").style.display = "block";
+        } else {
+          otpInput.classList.add("is-invalid");
+          otpError.textContent = "Invalid OTP";
+          otpError.classList.remove("d-none");
+        }
+      });
+    }
+
+   const resendOTPLink = $("#resendOTP");
+if (resendOTPLink) {
+  resendOTPLink.addEventListener("click", async function (e) {
+    e.preventDefault();
+    const resendLink = this;
+
+    // guard: if already disabled or mid-send, ignore
+    if (resendLink.classList.contains("disabled") || resendLink.dataset.sending === "1") return;
+    resendLink.dataset.sending = "1";
+
+    // disable immediately to avoid rapid clicks
+    resendLink.classList.add("disabled");
+
+    // start a default 60s countdown
+    let countdown = 60;
+    resendLink.textContent = `${countdown}s`;
+    let interval = setInterval(() => {
+      countdown--;
+      resendLink.textContent = `${countdown}s`;
+      if (countdown <= 0) {
+        clearInterval(interval);
+        resendLink.textContent = "Resend OTP";
+        resendLink.classList.remove("disabled");
+        delete resendLink.dataset.sending;
+      }
+    }, 1000);
+
+    const email = $("#reset-email").value.trim();
+    try {
+      const resp = await fetch("/send-reset-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      // If server says 429 with a different wait time, adopt it
+      if (resp.status === 429) {
+        const data = await resp.json().catch(() => ({}));
+        const m = (data.message || "").match(/wait\s+(\d+)s/i);
+        if (m) {
+          let wait = parseInt(m[1], 10);
+          clearInterval(interval);
+          interval = setInterval(() => {
+            resendLink.textContent = `${wait}s`;
+            wait--;
+            if (wait < 0) {
+              clearInterval(interval);
+              resendLink.textContent = "Resend OTP";
+              resendLink.classList.remove("disabled");
+              delete resendLink.dataset.sending;
+            }
+          }, 1000);
+        }
+      }
+    } catch (err) {
+      console.error("Resend error:", err);
+      // network error → allow retry immediately
+      clearInterval(interval);
+      resendLink.textContent = "Resend OTP";
+      resendLink.classList.remove("disabled");
+      delete resendLink.dataset.sending;
+    }
+  });
+}
+
+    const resendAdminOTP = $("#resendAdminOTP");
+    if(resendAdminOTP){
+      resendAdminOTP.addEventListener("click", async function(e){
+        e.preventDefault();
+        const email = $("#admin-email").value.trim();
+        if(!email){ alert("No email found."); return; }
+        await fetch("/send-admin-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        alert("OTP resent (if configured).");
+      });
+    }
+
+    const resetPasswordBtn = $("#resetPasswordBtn");
+    if(resetPasswordBtn){
+      resetPasswordBtn.addEventListener("click", async function () {
+        const newPasswordInput = $("#new-password");
+        const confirmPasswordInput = $("#confirm-new-password");
+        const newPasswordError = $("#new-password-error");
+        const confirmPasswordError = $("#confirm-password-error");
+        const passwordMismatchError = $("#password-mismatch-error");
+        const successMessage = $("#password-reset-success");
+        newPasswordError.classList.add("d-none");
+        confirmPasswordError.classList.add("d-none");
+        passwordMismatchError.classList.add("d-none");
+        newPasswordInput.classList.remove("is-invalid");
+        confirmPasswordInput.classList.remove("is-invalid");
+        let valid = true;
+        if (newPasswordInput.value.trim() === "") {
+          newPasswordInput.classList.add("is-invalid");
+          newPasswordError.textContent = "Please fill out this field.";
+          newPasswordError.classList.remove("d-none");
+          valid = false;
+        }
+        if (confirmPasswordInput.value.trim() === "") {
+          confirmPasswordInput.classList.add("is-invalid");
+          confirmPasswordError.classList.remove("d-none");
+          valid = false;
+        }
+        if (newPasswordInput.value !== confirmPasswordInput.value) {
+          passwordMismatchError.classList.remove("d-none");
+          confirmPasswordInput.classList.add("is-invalid");
+          valid = false;
+        }
+        const password = newPasswordInput.value;
+        const lengthCriteria2 = password.length >= 8;
+        const uppercaseCriteria2 = /[A-Z]/.test(password);
+        const lowercaseCriteria2 = /[a-z]/.test(password);
+        const numberCriteria2 = /[0-9]/.test(password);
+        const specialCharCriteria2 = /[!@#$%^&*]/.test(password);
+        if (!(lengthCriteria2 && uppercaseCriteria2 && lowercaseCriteria2 && numberCriteria2 && specialCharCriteria2)) {
+          newPasswordInput.classList.add("is-invalid");
+          newPasswordError.textContent = "Password does not meet security requirements.";
+          newPasswordError.classList.remove("d-none");
+          valid = false;
+        }
+        if (!valid) return;
+        const email = $("#reset-email").value.trim();
+        try {
+          const response = await fetch("/reset-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, newPassword: password })
+          });
+          const data = await response.json();
+          if (response.ok) {
+            successMessage.classList.remove("d-none");
+            setTimeout(() => {
+              bootstrap.Modal.getInstance($("#forgotPasswordModal")).hide();
+              new bootstrap.Modal($("#loginModal"), { backdrop: "static", keyboard: false }).show();
+            }, 800);
+          } else {
+            alert(data.message);
+          }
+        } catch (error) {
+          console.error("Error resetting password:", error);
+          alert("An error occurred while resetting your password.");
+        }
+      });
+    }
+
+    const forgotPasswordModalEl = $("#forgotPasswordModal");
+    if(forgotPasswordModalEl){
+      forgotPasswordModalEl.addEventListener("hidden.bs.modal", function () {
+        $("#step1").style.display = "block";
+        $("#step2").style.display = "none";
+        $("#step3").style.display = "none";
+        $("#reset-email").value = "";
+        $("#reset-otp").value = "";
+        $("#new-password").value = "";
+        $("#confirm-new-password").value = "";
+      });
+    }
+
+    const registerModalEl = $("#registerModal");
+    if(registerModalEl){
+      registerModalEl.addEventListener("hidden.bs.modal", function () {
+        $("#registerForm").reset();
+        document.querySelectorAll("#registerForm .is-invalid").forEach(function(el){el.classList.remove("is-invalid");});
+        $("#registerSuccess").classList.add("d-none");
+        ["criteria-length","criteria-uppercase","criteria-lowercase","criteria-number","criteria-symbol"].forEach(id=>{
+          const el=document.getElementById(id);
+          el.classList.remove("text-success");
+          el.classList.add("text-danger");
+        });
+        $("#reg-step1").style.display = "block";
+        $("#reg-step2").style.display = "none";
+      });
+    }
+
+  const newPasswordInput = $("#new-password");
+if (newPasswordInput) {
+  newPasswordInput.addEventListener("input", function () {
+    const password = this.value;
+
+    const len = password.length >= 8;
+    const up  = /[A-Z]/.test(password);
+    const low = /[a-z]/.test(password);
+    const num = /[0-9]/.test(password);
+    const spe = /[^A-Za-z0-9]/.test(password); // any symbol counts
+
+    const setState = (id, ok) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle("text-success", ok);
+      el.classList.toggle("text-danger", !ok);
+    };
+
+    setState("reset-criteria-length", len);
+    setState("reset-criteria-uppercase", up);
+    setState("reset-criteria-lowercase", low);
+    setState("reset-criteria-number", num);
+    setState("reset-criteria-symbol", spe);
+  });
+}
+
+    const confirmNewPassword = $("#confirm-new-password");
+    if(confirmNewPassword){
+      confirmNewPassword.addEventListener("input", function () {
+        const newPassword = $("#new-password").value;
+        const confirmPassword = this.value;
+        const mismatchError = $("#password-mismatch-error");
+        mismatchError.classList.toggle("d-none", confirmPassword === newPassword);
+      });
+    }
+
+    const toggleReset = $(".toggle-password-reset");
+    if(toggleReset){
+      toggleReset.addEventListener("click", function () {
+        const pwd = $("#new-password");
+        const icon = this.querySelector("i");
+        if (pwd.type === "password") { pwd.type = "text"; icon.classList.replace("bi-eye-slash","bi-eye"); }
+        else { pwd.type = "password"; icon.classList.replace("bi-eye","bi-eye-slash"); }
+      });
+    }
+    const toggleResetConfirm = $(".toggle-password-reset-confirm");
+    if(toggleResetConfirm){
+      toggleResetConfirm.addEventListener("click", function () {
+        const pwd = $("#confirm-new-password");
+        const icon = this.querySelector("i");
+        if (pwd.type === "password") { pwd.type = "text"; icon.classList.replace("bi-eye-slash","bi-eye"); }
+        else { pwd.type = "password"; icon.classList.replace("bi-eye","bi-eye-slash"); }
+      });
+    }
+
+  }); // DOMContentLoaded
+  (function () {
+  async function whoami() {
+    try {
+      // 1) Try the protected probe
+      let r = await fetch('/customer/session', { credentials: 'include' });
+
+      // 2) If access token expired, try to refresh and re-check
+      if (r.status === 401) {
+        await fetch('/refresh-token', { method: 'POST', credentials: 'include' });
+        r = await fetch('/customer/session', { credentials: 'include' });
+      }
+
+      // 3) If logged in, jump to the right dashboard
+      if (r.ok) {
+        const data = await r.json();
+        const role = (data.role || 'Customer').toLowerCase();
+        const dest =
+          role === 'doctor' ? '/doctor-dashboard' :
+          role === 'hr'     ? '/hr-dashboard'     :
+          role === 'admin'  ? '/admin-dashboard'  :
+                              '/customer-dashboard';
+
+        if (location.pathname === '/') location.replace(dest);
+      }
+    } catch(e) {
+      // network errors ignored
+    }
+  }
+
+  // Run on normal load AND when the page comes back from BFCache (back/forward)
+  document.addEventListener('DOMContentLoaded', whoami);
+  window.addEventListener('pageshow', whoami);
+})();
   </script>
+
 </body>
 </html>

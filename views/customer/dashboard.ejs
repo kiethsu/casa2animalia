@@ -1,11 +1,10 @@
-<%
-  // Helper function to format dates as "january 2 2004"
+<% 
   function formatVisitDate(date) {
     const d = new Date(date);
     const month = d.toLocaleString('en-US', { month: 'long' }).toLowerCase();
     const day = d.getDate();
     const year = d.getFullYear();
-    return month + " " + day + " " + year;
+    return `${month} ${day} ${year}`;
   }
 %>
 <!DOCTYPE html>
@@ -14,331 +13,1110 @@
   <meta charset="UTF-8">
   <title>Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Include Bootstrap CSS (adjust path as needed) -->
-  <link rel="stylesheet" href="/path/to/bootstrap.css">
+
+  <!-- Fonts & Bootstrap -->
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
   <style>
-    /* Global scrollable page */
+    :root {
+      --primary: #1E88E5;
+      --primary-dark: #0D47A1;
+      --accent: #90CAF9;
+      --white: #ffffff;
+      --text: #333;
+      --background-color: #f4f7fa;
+      --card-bg: #ffffff;
+      --border-color: rgba(0,0,0,0.08);
+    }
+    * { box-sizing: border-box; }
     html, body {
-      height: 100%;
-      margin: 0;
-      overflow: hidden;
+      margin: 0; padding: 0;
+      font-family: 'Roboto', Arial, sans-serif;
+      background-color: var(--background-color);
+      color: var(--text);
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
     }
+    body { min-height: 100vh; }
     .page-wrapper {
-      height: 100vh;
-      overflow-y: auto;
-      box-sizing: border-box;
-      padding: 15px;
-      padding-bottom: 50px;
+      min-height: 100vh;
+      padding: 0 16px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
-    
-    /* Video container remains inside the normal flow */
-    .video-container {
+
+    /* === Grid layout: 
+       Row 1 -> welcome spans both columns
+       Row 2 -> calendar (left, fixed ~350px) + visits (right, fluid)
+    === */
+   .dashboard-grid {
+  display: grid;
+  /* Narrower (and responsive) calendar column on desktop */
+  grid-template-columns: clamp(280px, 28vw, 320px) minmax(0, 1fr);
+  grid-template-areas:
+    "welcome welcome"
+    "calendar visits";
+  gap: 12px;
+  align-items: start;
+}
+
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      box-shadow:
+        0 4px 24px 0 rgba(30, 136, 229, 0.12),
+        0 1.5px 12px 0 rgba(32, 39, 55, 0.08);
       position: relative;
-      margin-top: 15px;
-      height: 300px; /* adjust height as needed */
       overflow: hidden;
-      display: none; /* hidden by default */
-      background: #000;
+      display: flex;
+      flex-direction: column;
+      margin: 0;
     }
-    .video-container iframe {
-      width: 100%;
-      height: 100%;
-      border: 0;
-      /* Ensures the whole video is visible */
+
+    /* === Welcome Card === */
+    .welcome-card {
+      grid-area: welcome;
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding: 24px;
+      min-width: 280px;
+      max-width: 100%;
+      background: linear-gradient(135deg, #1E88E5 0%, #42A5F5 50%, #64B5F6 100%);
+      color: var(--white);
+      border-radius: 16px;
+      overflow: hidden;
     }
-    /* Full Screen Button styling */
-    .fs-btn {
+    .welcome-card::before {
+      content: "";
       position: absolute;
-      top: 5px;
-      right: 5px;
-      z-index: 3;
-      background: rgba(0,0,0,0.5);
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 60%);
+      mix-blend-mode: overlay;
+      pointer-events: none;
+      animation: gradientShift 20s ease infinite;
+      z-index: 0;
+    }
+    @keyframes gradientShift {
+      0% { filter: brightness(1); }
+      50% { filter: brightness(1.06); }
+      100% { filter: brightness(1); }
+    }
+    .bubbles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+    .bubble { position: absolute; background: rgba(255,255,255,0.08); border-radius: 50%; filter: blur(4px); animation: rise 15s linear infinite; }
+    @keyframes rise {
+      0% { transform: translateY(100%) scale(0.8); opacity: 0; }
+      10% { opacity: 0.3; }
+      50% { opacity: 0.15; }
+      100% { transform: translateY(-120%) scale(1.2); opacity: 0; }
+    }
+    .pet-anim { flex: 0 0 100px; margin-right: 16px; position: relative; z-index: 1; }
+    .pet-svg { width: 100px; height: 100px; }
+    .pad { fill: #fff; opacity: 0.9; animation: pulsePad 3s ease-in-out infinite; }
+    .center-pad { fill: #fff; opacity: 1; animation: beatCenter 1.8s ease-in-out infinite; }
+    @keyframes pulsePad { 0%{transform:scale(1);} 50%{transform:scale(1.1);} 100%{transform:scale(1);} }
+    @keyframes beatCenter { 0%,100%{transform:scale(1);} 25%,75%{transform:scale(1.08);} 50%{transform:scale(1);} }
+.welcome-text{
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;     /* NEW */
+  min-width: 0;       /* NEW: required for ellipsis/clamp in flex items */
+  max-width: none;    /* NEW */
+}    .welcome-title { font-size: 1.25rem; font-weight: 500; margin: 0; }
+/* clamp long names, break very long words, and ellipsis overflow */
+.welcome-user{
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 4px 0;
+  text-transform: lowercase;
+
+  /* handle long names gracefully */
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  /* multi-line clamp (2 lines on desktop) */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.15;
+
+  /* break unspaced strings/usernames */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* allow 3 lines on small screens */
+@media (max-width: 768px){
+  .welcome-user{
+    -webkit-line-clamp: 3;
+  }
+}    .welcome-msg { font-size: 1rem; opacity: .95; margin: 8px 0 16px; line-height: 1.4; }
+    .welcome-card .btn {
+      background: var(--white);
+      color: var(--primary-dark);
+      font-weight: 600;
+      padding: 8px 24px;
+      border-radius: 24px;
+      border: none;
+      transition: background .15s;
+    }
+    .welcome-card .btn:hover { background: #e3f0fc; }
+
+    /* === Calendar Card === */
+    .calendar-card {
+      grid-area: calendar;
+      width: 100%;
+      min-width: 280px;
+      max-width: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+    .custom-header {
+      background: #f1f5fa;
+      color: #444;
+      font-weight: 600;
+      font-size: .95rem;
+      border-radius: 12px 12px 0 0;
+      padding: 12px 18px;
+      text-align: left;
+      letter-spacing: .4px;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+    .count-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: #e8f1fb;
+      color: #0D47A1;
+      font-size: .78rem;
+      font-weight: 700;
+      line-height: 1.6;
+    }
+    .calendar-inner {
+      padding:18px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .calendar-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      font-weight:700;
+      color:var(--primary-dark);
+      font-size:1.02rem;
+      margin-bottom:6px;
+    }
+    .cal-nav {
+      background: var(--primary);
       color: #fff;
       border: none;
-      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 1.1rem;
+      padding: 2px 12px;
       cursor: pointer;
     }
-    
-    /* --- Custom Table Styling for Recent Visits --- */
-    .custom-table {
-      table-layout: fixed;
-      width: 100%;
-      background-color: #ffffff; /* Table background white */
-    }
-    .custom-table thead tr {
-      background-color: #4B9CD3; /* Carolina blue header background */
-      color: #ffffff;            /* White text */
-    }
-    .custom-table thead th {
-      text-align: center;
-      padding: 12px;
+    .cal-nav:hover { background: var(--primary-dark); }
+    .calendar-table { width:100%; border-collapse:collapse; text-align:center; }
+    .calendar-table th {
+      color: var(--primary-dark);
+      font-size: .92rem;
       font-weight: 600;
-      border: none;
+      padding-bottom: 4px;
     }
-    .custom-table tbody tr {
-      border-bottom: 1px solid #dee2e6;
+    .calendar-table td {
+      padding:4px 0;
+      width:14.28%;
+      font-size:.99rem;
+      border-radius:5px;
+      cursor:pointer;
+      transition:background .11s;
     }
-    .custom-table tbody td {
-      text-align: center;
-      padding: 12px;
+    .calendar-table td.today {
+      background: var(--accent);
+      color: var(--primary-dark);
+      font-weight:700;
     }
-    /* Optional: hover effect on rows */
-    .custom-table tbody tr:hover {
-      background-color: #f9f9f9;
+    .calendar-table td:hover { background: var(--primary); color: #fff; }
+    .calendar-table td.has-event {
+      background: #d7ffd9;
+      color: #0b6a0b;
+      font-weight: 700;
+      border: 1px solid #bdeebb;
     }
-    
-    /* --- Watch Tutorial Button Styling --- */
-    #watchTutorialBtn {
-      display: inline-block;
-      text-align: center;
-      width: 220px; /* Adjust the width as needed */
-      background-color: #4B9CD3; /* Carolina blue */
-      border-color: #4B9CD3;
-      color: #fff; /* White text */
+    .calendar-table td.has-event:hover {
+      background: #c8f7c5;
+      color: #0b6a0b;
     }
-    
-    /* Remove flex stretching by not using align-items-stretch on the row */
-    .row.no-stretch {
-      align-items: flex-start;
+/* === Day events panel (clean, responsive) === */
+#dayEvents{
+  display:none;        /* toggled by JS */
+  padding:0;
+  background:transparent;
+  border:none;
+  margin-top:10px;
+}
+.day-events{
+  border:1px solid var(--border-color);
+  border-radius:12px;
+  background:#fff;
+  box-shadow:0 6px 18px rgba(13, 71, 161, 0.10);
+  overflow:hidden;
+}
+
+/* Header */
+.de-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  padding:12px 14px;
+  background:linear-gradient(180deg,#f8fbff, #eef5ff);
+  border-bottom:1px solid #e6eefb;
+}
+.de-date{
+  display:flex; align-items:center; gap:8px;
+  font-weight:700; color:#0D47A1;
+}
+.de-date i { opacity:.9; }
+.de-meta{
+  display:flex; align-items:center; gap:6px;
+  font-size:.85rem; color:#4a5b76; white-space:nowrap;
+}
+.de-meta i { opacity:.6; }
+
+/* List */
+.de-list{
+  display:flex; flex-direction:column; gap:10px;
+  padding:12px;
+}
+
+/* Appointment row (grid so it lines up cleanly) */
+.de-item{
+  display:grid;
+  grid-template-columns: 34px 1fr;
+  gap:8px 12px;
+  padding:10px 12px;
+  border:1px dashed #e8ecf1;
+  background:#fafcff;
+  border-radius:10px;
+  transition:background .12s ease, border-color .12s ease;
+}
+.de-item:hover{
+  background:#f5faff;
+  border-color:#dbe7f7;
+}
+
+/* Avatar */
+.de-bullet{
+  width:34px; height:34px; border-radius:50%;
+  background:#e8f1fb; color:#0D47A1;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:700; user-select:none;
+}
+
+/* Text */
+.de-body{ min-width:0; }
+.de-row{ display:flex; align-items:center; gap:6px; margin:2px 0; min-width:0; }
+.de-label{
+  font-size:.75rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:.45px; color:#6b7a90;
+  display:flex; align-items:center; gap:6px;
+  flex:0 0 auto;
+}
+.de-label i{ opacity:.6; }
+.de-value{
+  font-size:.96rem; color:#2f3e56; font-weight:600;
+  min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
+/* Service chip */
+.de-chip{
+  display:inline-block; padding:4px 10px; border-radius:999px;
+  background:#e8f7ee; border:1px solid #cdebd7; color:#116b2d;
+  font-weight:600; font-size:.85rem;
+  max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
+/* Mobile tweaks */
+@media (max-width: 520px){
+  .de-header{ flex-direction:column; align-items:flex-start; gap:4px; }
+  .de-item{ grid-template-columns: 28px 1fr; padding:8px 10px; }
+  .de-bullet{ width:28px; height:28px; font-size:.85rem; }
+  .de-label{ font-size:.72rem; }
+  .de-value{ font-size:.92rem; }
+  .de-chip{ font-size:.8rem; padding:3px 8px; }
+}
+
+
+    /* === Recent Visits (to the right of calendar on desktop) === */
+    .recent-visits-section {
+      grid-area: visits;
+      display:flex;
+      flex-direction:column;
+      background: var(--card-bg);
+      border:1px solid var(--border-color);
+      border-radius:16px;
+      overflow:hidden;
     }
-    
-    /* Make the Upcoming Visit card sticky so it remains in view */
-    .upcoming-visit {
-      position: sticky;
-      top: 20px; /* Adjust as needed */
-      cursor: pointer;
+    .recent-visits-section .custom-header {
+      background: var(--primary);
+      color: #fff;
+      border-bottom:none;
+      border-radius:12px 12px 0 0;
+      padding:12px 18px;
+      font-weight:600;
+      font-size:.95rem;
+      letter-spacing:.4px;
+      margin:0;
+      display:flex;
+      align-items:center;
+      gap:8px;
     }
-    
-    /* Ensure the left card remains in normal document flow */
-    .card {
-      position: relative;
-      overflow: visible;
+    .reservation-details-inner { flex:1; display:flex; flex-direction:column; gap:8px; overflow:hidden; }
+    .reservation-table-wrapper { flex:1; overflow:auto; -webkit-overflow-scrolling:touch; padding:0; min-width:0; }
+    .reservation-table-wrapper table {
+      width:100%; min-width:600px; border-collapse:collapse; background:#fff;
+      box-shadow:0 8px 30px rgba(32,39,55,0.08); font-size:.9rem; margin:0;
     }
+    .reservation-table-wrapper thead th {
+      text-align:center; padding:12px 16px; text-transform:uppercase;
+      letter-spacing:.5px; font-weight:600; color:#444; background:transparent; border:none;
+    }
+    .reservation-table-wrapper tbody tr:nth-child(odd) { background:#f9fbfc; }
+    .reservation-table-wrapper tbody tr:hover   { background:#e8f1fb; }
+    .reservation-table-wrapper td {
+      text-align:center; padding:12px 16px; border-top:1px solid #e8ecf1;
+      color:#2f3e56; white-space:nowrap; vertical-align:middle;
+    }
+
+    .footer-hint {
+      padding:10px 16px; font-size:.65rem; color:#6c757d; text-align:center;
+      background:rgba(0,0,0,0.03); border-top:1px solid rgba(0,0,0,0.05);
+      margin:0; width:100%; box-sizing:border-box; border-radius:0 0 16px 16px;
+    }
+
+    .btn-primary { background: var(--primary); border:none; font-weight:600; border-radius:5px; }
+    .btn-primary:hover { background: var(--primary-dark); }
+
+    /* Responsive: stack everything on small screens */
+    @media (max-width:1000px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "welcome"
+          "calendar"
+          "visits";
+      }
+    }
+    @media (max-width:768px) {
+      .page-wrapper { padding: 0; }
+      .welcome-card { flex-direction:column; text-align:center; padding:16px; border-radius:16px; }
+      .pet-anim { margin:0 auto 16px auto; }
+      .welcome-text { max-width:100%; }
+      .welcome-card .btn { margin-top:12px; }
+      .calendar-inner { padding: 12px; }
+      .reservation-table-wrapper { padding: 0; }
+      .reservation-table-wrapper table { font-size:.8rem; min-width:unset; }
+      #dayEvents { max-height: 260px; }
+    }
+    @media (max-width:480px) {
+      .calendar-table th, .calendar-table td { padding:2px; font-size:.8rem; }
+    }
+    /* ===== Visit Details modal (rv-modal) ===== */
+/* Put modal above topbar (z-index 3000) and sub-nav (2500) */
+.modal-backdrop { z-index: 3995 !important; }
+.modal.rv-modal { z-index: 4005 !important; }
+
+.rv-card{
+  border-radius:16px;
+  box-shadow:0 10px 30px rgba(13,71,161,.25);
+  border:1px solid rgba(13,71,161,.12);
+  overflow:hidden;
+}
+.rv-h{
+  background:linear-gradient(180deg,#f8fbff,#eef5ff);
+  border-bottom:1px solid #e6eefb;
+}
+.rv-h .modal-title{ font-weight:700; color:#0D47A1; display:flex; gap:8px; align-items:center; }
+.rv-f{ background:#fafbfd; border-top:1px solid #eef2f7; }
+
+/* Keep the body scrollable but contained */
+.rv-modal .modal-body{
+  max-height: calc(100vh - 220px);
+  overflow:auto;
+}
+
+/* Sections */
+.rv-section{ padding:16px 18px; }
+.rv-section + .rv-section{ border-top:1px solid #f0f3f8; }
+
+.rv-header{
+  display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;
+}
+.rv-date{
+  display:flex; align-items:center; gap:8px; font-weight:700; color:#0D47A1;
+}
+.rv-meta{ font-size:.9rem; color:#5b6b82; display:flex; align-items:center; gap:8px; }
+.rv-badge{
+  display:inline-block; padding:2px 10px; border-radius:999px; font-weight:700; font-size:.78rem;
+  background:#e8f1fb; color:#0D47A1; border:1px solid #d8e6fb;
+}
+
+/* Key/Value grid */
+.rv-grid{
+  display:grid; grid-template-columns: 1fr 1fr; gap:10px 16px;
+}
+.rv-kv{ min-width:0; }
+.rv-label{
+  font-size:.78rem; font-weight:700; color:#6b7a90; text-transform:uppercase; letter-spacing:.45px;
+  display:flex; align-items:center; gap:6px; margin-bottom:4px;
+}
+.rv-value{ font-weight:600; color:#2f3e56; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Tables */
+.rv-table{
+  width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border-radius:12px;
+  border:1px solid #e9eef6; background:#fff;
+}
+.rv-table thead th{
+  background:#f7faff; color:#213a63; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+  padding:10px 12px; border-bottom:1px solid #e2e9f5; font-size:.85rem;
+}
+.rv-table tbody td{
+  padding:10px 12px; border-top:1px solid #f0f4fa; vertical-align:middle; color:#2f3e56;
+}
+.rv-table tbody tr:nth-child(odd){ background:#fbfdff; }
+.rv-chip{
+  display:inline-block; padding:4px 10px; border-radius:999px; background:#e8f7ee; border:1px solid #cdebd7;
+  color:#116b2d; font-weight:600; font-size:.85rem;
+}
+
+/* Notes / Diagnosis card */
+.rv-note{
+  background:#fff; border:1px dashed #e2e8f0; border-radius:12px; padding:12px; color:#2f3e56;
+}
+
+/* Make it comfy on phones */
+@media (max-width: 576px){
+  .rv-grid{ grid-template-columns: 1fr; }
+  .rv-modal .modal-dialog{ margin: .75rem; }
+}
+
   </style>
 </head>
 <body>
-  <!-- Scrollable content wrapper -->
   <div class="page-wrapper">
-    <div class="container">
-      <!-- Row without stretching so columns maintain their own height -->
-      <div class="row no-stretch">
-        <!-- Left Column: Quick Guide Card -->
-        <div class="col-md-8">
-          <h4 class="font-weight-bold">WELCOME BACK <%= username %></h4>
-          <div class="card p-4 shadow-sm">
-            <!-- Quick Guide Text placed above the description -->
-            <h3 class="font-weight-bold">
-              <%= dashboardSetting && dashboardSetting.quickGuide ? dashboardSetting.quickGuide : "Quick Guide" %>
-            </h3>
-            <p>
-              <%= dashboardSetting && dashboardSetting.welcomeText 
-                    ? dashboardSetting.welcomeText 
-                    : "Manage your appointments and keep track of your pet’s health easily." %>
-            </p>
-  
-            <!-- Watch Tutorial Button (left aligned, Carolina blue background) -->
-            <button id="watchTutorialBtn" class="btn">Watch Tutorial</button>
-  
-            <!-- Hidden Video Container (remains in the document flow) -->
-            <div id="videoContainer" class="video-container">
-              <!-- Full Screen Button -->
-              <button id="fullscreenBtn" class="fs-btn">Full Screen</button>
-              <iframe id="tutorialVideo" src=""></iframe>
-            </div>
-          </div>
+
+    <div class="dashboard-grid">
+      <!-- Welcome (row 1 full width) -->
+      <div class="welcome-card">
+        <div class="bubbles" aria-hidden="true">
+          <div class="bubble" style="width:120px; height:120px; left:10%; bottom:5%; animation-delay:0s;"></div>
+          <div class="bubble" style="width:80px; height:80px; left:25%; bottom:10%; animation-delay:3s;"></div>
+          <div class="bubble" style="width:150px; height:150px; left:60%; bottom:0%; animation-delay:5s;"></div>
+          <div class="bubble" style="width:100px; height:100px; left:75%; bottom:8%; animation-delay:2s;"></div>
+          <div class="bubble" style="width:50px; height:50px; left:50%; bottom:3%; animation-delay:7s;"></div>
         </div>
-  
-        <!-- Right Column: Upcoming Visit Card -->
-        <div class="col-md-4">
-          <div class="card upcoming-visit p-4 shadow-sm text-center w-100" data-toggle="modal" data-target="#upcomingVisitsModal">
-            <h5 class="font-weight-bold">Upcoming Visit</h5>
-            <h1 class="font-weight-bold"><%= upcomingVisits ? upcomingVisits.length : 0 %></h1>
+        <div class="pet-anim">
+          <svg viewBox="0 0 100 100" class="pet-svg" aria-label="Pet icon">
+            <circle cx="50" cy="50" r="45" fill="rgba(255,255,255,0.15)" />
+            <circle class="pad" cx="35" cy="40" r="8" />
+            <circle class="pad" cx="65" cy="40" r="8" />
+            <circle class="pad" cx="35" cy="65" r="8" />
+            <circle class="pad" cx="65" cy="65" r="8" />
+            <circle class="center-pad" cx="50" cy="55" r="12" />
+          </svg>
+        </div>
+        <div class="welcome-text">
+          <div class="welcome-title">Welcome back,</div>
+<div class="welcome-user" id="welcomeUser"><%= username %>!</div>
+          <div class="welcome-msg">
+            Let’s check your pet's health.<br>
+            Care with us—keep them happy and healthy.
           </div>
+          <button class="btn"
+            onclick="document.querySelector('.menu-item[data-content=&quot;consult&quot;]')?.click()">
+            Consult your pet
+          </button>
         </div>
       </div>
-  
-      <!-- Recent Visits Section -->
-      <h5 class="font-weight-bold mt-4">Recent Visits</h5>
-      <!-- Only the table (no extra divs) -->
-      <table class="table custom-table">
-        <thead>
-          <tr>
-            <th>Pet Name</th>
-            <th>Date of Visit</th>
-            <th>Consultation</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% if (recentVisits && recentVisits.length > 0) { %>
-            <% recentVisits.forEach(function(visit) { %>
+
+      <!-- Calendar (row 2 left, fixed column ~350px) -->
+      <div class="calendar-card card">
+        <div class="custom-header">
+          Upcoming Visit
+          <span id="upcomingCount" class="count-badge" title="Total upcoming schedules">0</span>
+        </div>
+
+        <div class="calendar-inner">
+          <div class="calendar-header">
+            <button id="prevMonth" class="cal-nav" type="button" aria-label="Previous month">&lt;</button>
+            <span id="calendarMonth"></span>
+            <button id="nextMonth" class="cal-nav" type="button" aria-label="Next month">&gt;</button>
+          </div>
+
+          <table class="calendar-table">
+            <thead>
               <tr>
-                <td><%= visit.pets.map(p => p.petName).join(', ') %></td>
-                <td>
-                  <% if (visit.schedule && visit.schedule.scheduleDate) { %>
-                    <%= formatVisitDate(visit.schedule.scheduleDate) %>
-                  <% } else { %>
-                    <%= formatVisitDate(visit.createdAt) %>
-                  <% } %>
-                </td>
-                <td>
-                  <button class="btn btn-primary btn-sm" onclick="viewRecentVisit('<%= visit._id %>')">
-                    View Details
-                  </button>
-                </td>
+                <th>Su</th><th>Mo</th><th>Tu</th><th>We</th>
+                <th>Th</th><th>Fr</th><th>Sa</th>
               </tr>
-            <% }); %>
-          <% } else { %>
-            <tr>
-              <td colspan="3">No recent visits found.</td>
-            </tr>
-          <% } %>
-        </tbody>
-      </table>
-  
-      <!-- Modal for Upcoming Visits -->
-      <div class="modal fade" id="upcomingVisitsModal" tabindex="-1" role="dialog" aria-labelledby="upcomingVisitsModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered" role="document">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="upcomingVisitsModalLabel">Upcoming Visits</h5>
-              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-              </button>
-            </div>
-            <div class="modal-body">
-              <% if (upcomingVisits && upcomingVisits.length > 0) { %>
-                <ul class="list-group">
-                  <% upcomingVisits.forEach(function(visit) { %>
-                    <li class="list-group-item">
-                      <strong>Date:</strong>
-                      <%= formatVisitDate(visit.schedule.scheduleDate) %>
-                      <br>
-                      <strong>Service:</strong> <%= visit.service %>
-                    </li>
+            </thead>
+            <tbody id="calendarBody"></tbody>
+          </table>
+
+          <div id="dayEvents"></div>
+        </div>
+      </div>
+
+      <!-- Recent Visits (row 2 right) -->
+      <div class="recent-visits-section">
+        <div class="custom-header">Recent Visits</div>
+        <div class="reservation-details-inner">
+          <div class="reservation-table-wrapper">
+            <table class="mb-0">
+              <thead>
+                <tr>
+                  <th>Pet Name</th>
+                  <th>Date of Visit</th>
+                  <th>Consultation</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (recentVisits && recentVisits.length) { %>
+                  <% recentVisits.forEach(function(visit) { %>
+                    <tr>
+                      <td><%= visit.pets.map(p => p.petName).join(', ') %></td>
+                      <td>
+                        <%
+                          const d = visit.schedule?.scheduleDate || visit.createdAt;
+                        %>
+                        <%= formatVisitDate(d) %>
+                      </td>
+                      <td>
+                        <button class="btn btn-primary btn-sm"
+                                onclick="viewRecentVisit('<%= visit._id %>')">
+                          View Details
+                        </button>
+                      </td>
+                    </tr>
                   <% }); %>
-                </ul>
-              <% } else { %>
-                <p>No upcoming visits found.</p>
-              <% } %>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-            </div>
+                <% } else { %>
+                  <tr><td colspan="3" class="text-center">No recent visits found.</td></tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+          <div class="footer-hint">
+            Recent visit data is read-only. Click view for full details.
           </div>
         </div>
       </div>
-  
-      <!-- Modal for Viewing Recent Visit Details -->
-      <div class="modal fade" id="recentVisitModal" tabindex="-1" role="dialog" aria-labelledby="recentVisitModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered" role="document">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="recentVisitModalLabel">Visit Details</h5>
-              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-              </button>
-            </div>
-            <div class="modal-body" id="recentVisitDetails">
-              <!-- Visit details loaded via AJAX -->
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
+    </div>
+
+    <!-- Visit Details Modal -->
+<!-- Visit Details Modal (higher z-index + cleaner layout) -->
+<div class="modal rv-modal fade" id="recentVisitModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content rv-card">
+      <div class="modal-header rv-h">
+        <h5 class="modal-title">
+          <i class="fa-solid fa-file-medical"></i> Visit Details
+        </h5>
+        <button type="button" class="close text-dark" data-dismiss="modal" aria-label="Close">
+          <span>&times;</span>
+        </button>
       </div>
-  
+      <div class="modal-body p-0">
+        <div id="recentVisitDetails"></div>
+      </div>
+      <div class="modal-footer rv-f">
+        <button class="btn btn-secondary px-4" data-dismiss="modal">Close</button>
+      </div>
     </div>
   </div>
-  
-  <!-- Include jQuery, Popper.js, and Bootstrap JS (adjust paths as needed) -->
-  <script src="/path/to/jquery.js"></script>
-  <script src="/path/to/popper.js"></script>
-  <script src="/path/to/bootstrap.js"></script>
+</div>
+
+
+  </div>
+
+  <!-- Dependencies -->
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+
   <script>
-    // Toggle the video container when the Watch Tutorial button is clicked.
-    document.getElementById('watchTutorialBtn').addEventListener('click', function() {
-      var container = document.getElementById('videoContainer');
-      var iframe = document.getElementById('tutorialVideo');
-      var videoUrl = "<%= dashboardSetting && dashboardSetting.videoUrl ? dashboardSetting.videoUrl : '' %>";
-      if (!videoUrl) return; // Do nothing if no video URL provided.
-      
-      // For Google Drive links, convert to preview URL.
-      if (videoUrl.indexOf("drive.google.com/file/d/") > -1) {
-        var match = videoUrl.match(/\/file\/d\/([^\/]+)/);
-        if (match && match[1]) {
-          videoUrl = "https://drive.google.com/file/d/" + match[1] + "/preview";
+    const UPCOMING_VISITS = <%- JSON.stringify(upcomingVisits || []) %>;
+  </script>
+
+  <script>
+  (function(){
+    // ===== Helpers =====
+    function ymd(d){
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;
+    }
+
+    // strict per-pet service resolver
+    function resolveServiceForPet(res, pet){
+      const s = pet && pet.schedule ? pet.schedule : {};
+      if (s.service && s.service.name) return s.service.name;
+      if (s.scheduleDetails) return s.scheduleDetails;
+      if (Array.isArray(res.petRequests) && res.petRequests.length){
+        const pid = pet && pet.petId ? (pet.petId._id || pet.petId) : null;
+        let pr = null;
+        if (pid) pr = res.petRequests.find(x => String(x.petId) === String(pid));
+        if (!pr){
+          const pname = (pet.petId && pet.petId.petName) || pet.petName || '';
+          pr = res.petRequests.find(x => String(x.petName).toLowerCase() === String(pname).toLowerCase());
         }
+        if (pr && pr.service) return pr.service;
       }
-      
-      // Toggle behavior: if container is hidden, show it,
-      // otherwise hide it and clear the iframe's src.
-      if (container.style.display === "none" || container.style.display === "") {
-        iframe.setAttribute('src', videoUrl);
-        container.style.display = "block";
-      } else {
-        container.style.display = "none";
-        iframe.setAttribute('src', '');
-      }
-    });
-  
-    // Fullscreen toggle for video container.
-    document.getElementById('fullscreenBtn').addEventListener('click', function(e) {
-      e.stopPropagation(); // Prevent triggering container toggle
-      var container = document.getElementById('videoContainer');
-      if (!document.fullscreenElement) {
-        container.requestFullscreen().catch(err => {
-          alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
-        });
-      } else {
-        document.exitFullscreen();
-      }
-    });
-  
-    // Function to fetch and display recent visit details via AJAX.
-    window.viewRecentVisit = function(id) {
-      $.ajax({
-        url: '/customer/get-consultation',
-        method: 'GET',
-        data: { reservationId: id },
-        success: function(response) {
-          if (response.success) {
-            var detailsHtml = '';
-            if (response.reservation.pets && response.reservation.pets.length > 0) {
-              detailsHtml += '<strong>Pet(s):</strong> ' + response.reservation.pets.map(function(p) { return p.petName; }).join(', ') + '<br>';
-            }
-            if (response.reservation.concerns) {
-              detailsHtml += '<strong>Concern:</strong> ' + response.reservation.concerns + '<br>';
-            }
-            detailsHtml += '<hr>';
-            detailsHtml += '<strong>Consultation Notes:</strong><br>' + (response.reservation.consultationNotes || 'N/A') + '<br>';
-            if (response.reservation.medications && response.reservation.medications.length > 0) {
-              detailsHtml += '<hr><strong>Medication Details:</strong><br>';
-              response.reservation.medications.forEach(function(med) {
-                detailsHtml += 'Medication Name: ' + med.medicationName + '<br>';
-                detailsHtml += 'Quantity: ' + (med.quantity ? med.quantity : 'N/A') + '<br>';
-                detailsHtml += 'Dosage: ' + med.dosage + '<br>';
-                detailsHtml += 'Frequency: ' + med.frequency + '<br>';
-                detailsHtml += 'Administration Time: ' + med.adminTime + '<br>';
-                if (med.additionalInstructions)
-                  detailsHtml += 'Additional Instructions: ' + med.additionalInstructions + '<br>';
-                detailsHtml += '<hr>';
-              });
-            }
-            if (response.reservation.doctor) {
-              detailsHtml += '<hr><strong>Doctor:</strong> ' + response.reservation.doctor.username + '<br>';
-            }
-            $("#recentVisitDetails").html(detailsHtml);
-            $("#recentVisitModal").modal("show");
-          } else {
-            alert("Error: " + response.message);
+      return '';
+    }
+
+    // Build: dateKey -> events[]
+    function buildEventsIndex(list){
+      const map = {};
+      (list || []).forEach(res => {
+        const pets = res.pets || [];
+        pets.forEach(p => {
+          const s = p.schedule;
+          if (s && s.scheduleDate) {
+            const dt  = new Date(s.scheduleDate);
+            const key = ymd(dt);
+            if (!map[key]) map[key] = [];
+            map[key].push({
+              petName: (p.petId && p.petId.petName) || p.petName || '',
+              service: resolveServiceForPet(res, p),
+              details: s.scheduleDetails || '',
+              reservationId: String(res._id)
+            });
           }
-        },
-        error: function() {
-          alert("Server error while fetching visit details.");
+        });
+      });
+      return map;
+    }
+
+    const EVENTS_BY_DATE = buildEventsIndex(UPCOMING_VISITS);
+
+    function totalUpcomingCount(){
+      let n = 0;
+      Object.values(EVENTS_BY_DATE).forEach(arr => n += arr.length);
+      return n;
+    }
+    function updateHeaderTotals(){
+      const totalEl = document.getElementById('upcomingCount');
+      if (totalEl) totalEl.textContent = totalUpcomingCount();
+    }
+
+    let currentlyOpenKey = null;
+
+ // Helpers for clean text & initials (place above showEventsFor)
+function escapeHtml(str){
+  return String(str || '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
+function getInitial(name){
+  name = String(name || '').trim();
+  return name ? name[0].toUpperCase() : '•';
+}
+
+// New pretty renderer for day events
+function showEventsFor(key){
+  const list = EVENTS_BY_DATE[key] || [];
+  const $panel = $('#dayEvents');
+  if (!list.length) { $panel.hide().empty(); return; }
+
+  const [Y,M,D] = key.split('-').map(Number);
+  const when = new Date(Y, M-1, D);
+  const dateStr = when.toLocaleDateString(undefined, {
+    weekday:'long', month:'long', day:'numeric', year:'numeric'
+  });
+
+  const count = list.length;
+  const countLabel = `${count} ${count === 1 ? 'appointment' : 'appointments'}`;
+
+  let html = `
+    <div class="day-events">
+      <div class="de-header">
+        <div class="de-date">
+          <i class="fa-solid fa-calendar-day"></i>
+          ${escapeHtml(dateStr)}
+        </div>
+        <div class="de-meta">
+          <i class="fa-solid fa-clock"></i>
+          ${countLabel}
+        </div>
+      </div>
+      <div class="de-list">
+  `;
+
+  list.forEach(ev => {
+    const petName = escapeHtml(ev.petName || '—');
+    const serviceSafe = escapeHtml(ev.service || ev.details || '(no details)');
+    const initial = getInitial(petName);
+    html += `
+      <div class="de-item">
+        <div class="de-bullet">${initial}</div>
+        <div class="de-body">
+          <div class="de-row">
+            <span class="de-label"><i class="fa-solid fa-paw"></i> PET</span>
+            <span class="de-value" title="${petName}">${petName}</span>
+          </div>
+          <div class="de-row">
+            <span class="de-label"><i class="fa-solid fa-stethoscope"></i> SERVICE</span>
+            <span class="de-chip" title="${serviceSafe}">${serviceSafe}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div></div>`;
+
+  $panel.hide().html(html).fadeIn(120);
+  try { $panel[0].scrollIntoView({ behavior:'smooth', block:'nearest' }); } catch(e){}
+}
+
+
+    function buildCalendar(date = new Date()) {
+      const month = date.getMonth(), year = date.getFullYear();
+      const firstDay  = new Date(year, month, 1).getDay();
+const lastDate = new Date(year, month + 1, 0).getDate();
+      const body  = document.getElementById('calendarBody');
+      const label = document.getElementById('calendarMonth');
+      if (!body || !label) return;
+
+      label.textContent = date.toLocaleString('default', { month:'long', year:'numeric' });
+      updateHeaderTotals();
+
+      let cells = [];
+      for (let i = 0; i < firstDay; i++) cells.push('');
+for (let d = 1; d <= lastDate; d++) cells.push(d);
+      while (cells.length % 7) cells.push('');
+
+      let html = '';
+      for (let r = 0; r < cells.length / 7; r++) {
+        html += '<tr>';
+        for (let c = 0; c < 7; c++) {
+          const day = cells[r * 7 + c];
+          const isBlank = !day;
+          let classes = [];
+          let attrs = '';
+
+          if (!isBlank) {
+            const key = ymd(new Date(year, month, day));
+            if (EVENTS_BY_DATE[key] && EVENTS_BY_DATE[key].length) {
+              classes.push('has-event');
+              attrs += ` data-date="${key}"`;
+            }
+            const today = new Date();
+            const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+            if (isToday) classes.push('today');
+          }
+
+          html += `<td class="${classes.join(' ')}"${attrs}>${day || ''}</td>`;
+        }
+        html += '</tr>';
+      }
+
+      body.innerHTML = html;
+      buildCalendar.current = { month, year };
+
+      $('#calendarBody td.has-event').off('click').on('click', function(){
+        const key = this.getAttribute('data-date');
+        if (!key) return;
+        const $panel = $('#dayEvents');
+        const isSameOpen = (currentlyOpenKey === key) && $panel.is(':visible');
+        if (isSameOpen) {
+          $panel.hide().empty();
+          currentlyOpenKey = null;
+        } else {
+          showEventsFor(key);
+          currentlyOpenKey = key;
         }
       });
+
+      $('#calendarBody td').not('.has-event').off('click').on('click', function(){
+        $('#dayEvents').hide().empty();
+        currentlyOpenKey = null;
+      });
+    }
+
+    // expose for nav handlers (optional)
+    window.__buildCalendar = buildCalendar;
+
+    // Init
+    $(function(){
+      buildCalendar();
+
+      $('#prevMonth').on('click', function(){
+        const { month, year } = buildCalendar.current || { month:(new Date()).getMonth(), year:(new Date()).getFullYear() };
+        buildCalendar(new Date(year, month - 1, 1));
+        $('#dayEvents').hide().empty();
+        currentlyOpenKey = null;
+      });
+
+      $('#nextMonth').on('click', function(){
+        const { month, year } = buildCalendar.current || { month:(new Date()).getMonth(), year:(new Date()).getFullYear() };
+        buildCalendar(new Date(year, month + 1, 1));
+        $('#dayEvents').hide().empty();
+        currentlyOpenKey = null;
+      });
+
+      const keys = Object.keys(EVENTS_BY_DATE).sort();
+      if (keys.length) {
+        const [Y,M,D] = keys[0].split('-').map(Number);
+        buildCalendar(new Date(Y, M-1, D));
+        showEventsFor(keys[0]);
+        currentlyOpenKey = keys[0];
+      } else {
+        updateHeaderTotals();
+      }
+    });
+
+    // ===== Recent visit modal helpers =====
+    function formatVisitDateJS(date) {
+      const d = new Date(date);
+      return `${d.toLocaleString('en-US', { month: 'long' }).toLowerCase()} ${d.getDate()} ${d.getFullYear()}`;
+    }
+function safe(str){ return (typeof escapeHtml === 'function') ? escapeHtml(str) : (str || ''); }
+
+    window.viewRecentVisit = function(id) {
+    $('.modal').modal('hide');
+
+    $.ajax({
+      url: '/customer/get-consultation',
+      method: 'GET',
+      data: { reservationId: id },
+      success(resp) {
+        if (!resp.success) { alert(resp.message || 'Error'); return; }
+
+        const r = resp.reservation || {};
+        const perPets = Array.isArray(resp.perPets) ? resp.perPets : [];
+
+        const visitDate = r.schedule?.scheduleDate || r.createdAt;
+        const time = r.time || '';
+        const doctor = r.doctor?.username || 'N/A';
+
+        // ---------- header block ----------
+        let html = `
+          <div class="rv-section">
+            <div class="rv-header">
+              <div class="rv-date"><i class="fa-solid fa-calendar-check"></i>
+                ${safe(formatVisitDateJS(visitDate))}${time ? ` · ${safe(time)}` : ''}</div>
+              <div class="rv-meta">
+                <span class="rv-badge" title="Reservation ID">${safe(String(r._id || '').slice(-6) || '—')}</span>
+              </div>
+            </div>
+            <div class="rv-grid">
+              <div class="rv-kv">
+                <div class="rv-label"><i class="fa-solid fa-user-doctor"></i> Doctor</div>
+                <div class="rv-value">${safe(doctor)}</div>
+              </div>
+              <div class="rv-kv">
+                <div class="rv-label"><i class="fa-solid fa-paw"></i> Pet Count</div>
+                <div class="rv-value">${perPets.length || (r.pets?.length || 1)}</div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // ---------- per pet stacked sections ----------
+        if (perPets.length) {
+          perPets.forEach((pp, idx) => {
+            const petLabel = safe(pp.petName || `Pet ${idx+1}`);
+            const svc = safe(pp.service || '—');
+            const cn  = safe(pp.concerns || '—');
+
+            html += `
+              <div class="rv-section">
+                <div class="rv-header" style="margin-bottom:8px;">
+                  <div class="rv-label" style="margin:0;">
+                    <i class="fa-solid fa-paw"></i> ${petLabel}
+                  </div>
+                </div>
+
+                <div class="rv-grid" style="margin-bottom:8px;">
+                  <div class="rv-kv">
+                    <div class="rv-label"><i class="fa-solid fa-stethoscope"></i> Requested Service</div>
+                    <div class="rv-value"><span class="rv-chip">${svc}</span></div>
+                  </div>
+                  <div class="rv-kv" style="grid-column: 1 / -1;">
+                    <div class="rv-label"><i class="fa-solid fa-notes-medical"></i> Concern</div>
+                    <div class="rv-value" style="white-space:normal;">${cn}</div>
+                  </div>
+                </div>
+            `;
+
+            // Physical exam (use overview fallback if needed)
+            const pe = pp.physicalExam || {};
+            const ov = pp.overview || {};
+            const weight = pe.weight || ov.weight || '—';
+            const temp   = pe.temperature || ov.temperature || '—';
+            const obs    = pe.observations || ov.others || '—';
+
+            if (weight !== '—' || temp !== '—' || obs !== '—') {
+              html += `
+                <div style="margin-bottom:10px;">
+                  <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-heart-pulse"></i> Physical Exam</div>
+                  <div class="table-responsive">
+                    <table class="rv-table">
+                      <thead><tr><th>Weight</th><th>Temperature</th><th>Observations</th></tr></thead>
+                      <tbody><tr>
+                        <td>${safe(weight)}</td>
+                        <td>${safe(temp)}</td>
+                        <td>${safe(obs)}</td>
+                      </tr></tbody>
+                    </table>
+                  </div>
+                </div>
+              `;
+            }
+
+            // Diagnosis
+            if (pp.diagnosis) {
+              html += `
+                <div style="margin-bottom:10px;">
+                  <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-dna"></i> Diagnosis</div>
+                  <div class="rv-note">${pp.diagnosis}</div>
+                </div>
+              `;
+            }
+
+            // Services table
+            if (Array.isArray(pp.services) && pp.services.length) {
+              html += `
+                <div style="margin-bottom:10px;">
+                  <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-briefcase-medical"></i> Services Rendered</div>
+                  <div class="table-responsive">
+                    <table class="rv-table">
+                      <thead><tr><th>Service</th><th>Details</th><th>File</th></tr></thead>
+                      <tbody>
+              `;
+              pp.services.forEach(s => {
+                let fileUrl = s.file || '';
+                if (fileUrl) {
+                  fileUrl = fileUrl.replace(/^public/, '');
+                  if (!fileUrl.startsWith('/')) fileUrl = '/' + fileUrl;
+                  if (!/^https?:\/\//.test(fileUrl)) fileUrl = window.location.origin + fileUrl;
+                }
+                html += `
+                  <tr>
+                    <td><span class="rv-chip">${safe(s.serviceName || '—')}</span></td>
+                    <td>${safe(s.details || '—')}</td>
+                    <td>${fileUrl ? `<a href="${fileUrl}" download>Download</a>` : '—'}</td>
+                  </tr>
+                `;
+              });
+              html += `</tbody></table></div></div>`;
+            }
+
+            // Medications table
+            if (Array.isArray(pp.medications) && pp.medications.length) {
+              html += `
+                <div style="margin-bottom:10px;">
+                  <div class="rv-header" style="margin-bottom:6px;">
+                    <div class="rv-label" style="margin:0;"><i class="fa-solid fa-pills"></i> Medications</div>
+                  </div>
+                  <div class="table-responsive">
+                    <table class="rv-table">
+                      <thead><tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr></thead>
+                      <tbody>
+              `;
+              pp.medications.forEach(m => {
+                html += `
+                  <tr>
+                    <td>${safe(m.name || m.medicationName || '—')}</td>
+                    <td>${safe(m.quantity || '—')}</td>
+                    <td>${safe(m.dosage || '—')}</td>
+                    <td>${safe(m.remarks || '—')}</td>
+                  </tr>
+                `;
+              });
+              html += `</tbody></table></div></div>`;
+            }
+
+            // Confinement / Notes
+            if (Array.isArray(pp.confinementStatus) && pp.confinementStatus.length) {
+              html += `
+                <div style="margin-bottom:10px;">
+                  <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-hospital"></i> Confinement</div>
+                  <div class="rv-note">${safe(pp.confinementStatus.join(', '))}</div>
+                </div>
+              `;
+            }
+            if (pp.notes) {
+              html += `
+                <div>
+                  <div class="rv-label" style="margin-bottom:6px;"><i class="fa-regular fa-note-sticky"></i> Notes</div>
+                  <div class="rv-note">${pp.notes}</div>
+                </div>
+              `;
+            }
+
+            html += `</div>`; // end pet section
+          });
+        } else {
+          // fallback: old single-reservation fields (if perPets missing)
+          html += `
+            <div class="rv-section">
+              <div class="rv-note">No per-pet consultation details recorded for this visit.</div>
+            </div>
+          `;
+        }
+
+        $('#recentVisitDetails').html(html);
+        $('#recentVisitModal').modal('show');
+      },
+      error() { alert('Server error loading visit details.'); }
+    });
+  };
+    window.downloadPrescription = function(reservationId) {
+      window.open('/customer/prescription/' + reservationId, '_blank');
+    }
+  })();
+  (function () {
+  function setWelcome(name) {
+    if (!name) return;
+    $('#welcomeUser').text(name + '!');
+  }
+
+  // 1) On first load, mirror whatever’s in the sidebar (already live-updated)
+  const sidebarName = $('#sidebarUserName').text().trim();
+  if (sidebarName) setWelcome(sidebarName);
+
+  // 2) Live updates from Profile Details page
+  $(document).on('user:updated', function (_e, user) {
+    if (user && user.username) setWelcome(user.username);
+  });
+
+  // 3) If the shell exposes applyUserToShell, piggyback it
+  if (window.applyUserToShell) {
+    const prev = window.applyUserToShell;
+    window.applyUserToShell = function (u) {
+      if (typeof prev === 'function') prev(u);
+      if (u && u.username) setWelcome(u.username);
     };
+  }
+})();
   </script>
 </body>
 </html>

@@ -9,737 +9,1383 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>My Pet</title>
-  <!-- Bootstrap CSS from CDN -->
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
-  <!-- Font Awesome CSS from CDN -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-  
-  <!-- SweetAlert2 CSS (NEW) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <title>My Pets</title>
 
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
+  <!-- Google Fonts -->
+  <link
+    href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Bootstrap & Font Awesome -->
+  <link
+    rel="stylesheet"
+    href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+  />
+
+ <style>
+  :root {
+    --primary: #1E88E5;
+    --primary-dark: #0D47A1;
+    --accent: #90CAF9;
+    --white: #ffffff;
+    --text: #333;
+    --background-color: #f4f7fa;
+    --card-bg: #ffffff;
+    --border-color: #eaeaea;
+  }
+  html, body {
+    background-color: var(--background-color);
+    font-family: 'Roboto', Arial, sans-serif;
+    color: var(--text);
+    margin: 0; padding: 0;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  .page-wrapper {
+    min-height: 100vh;
+    padding-bottom: 32px;
+  }
+  .container-fluid {
+    padding-right: 16px;
+    width: 100%;
+  }
+  .content-wrapper {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;        /* stretch both cards to equal height */
+    width: 100%;
+    margin-top: 8px;
+  }
+  .left {
+    flex: 0 0 560px;
+    max-width: 560px;
+    padding-left: 12px;
+  }
+  .right {
+    flex: 1 1 0;
+    padding-right: 12px;
+  }
+  .card {
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    background: var(--card-bg);
+    box-shadow:
+      0 4px 24px rgba(30,136,229,0.12),
+      0 1.5px 12px rgba(32,39,55,0.08);
+    display: flex;               /* ensure content can flex vertically */
+    flex-direction: column;
+  }
+  .custom-header {
+    background: #f1f5fa;
+    color: #444;
+    font-weight: 600;
+    font-size: .95rem;
+    border-radius: 12px 12px 0 0;
+    padding: 12px 18px;
+    text-align: left;
+    letter-spacing: .4px;
+    margin: -1px -1px 0;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+  }
+  .form-card-body {
+    padding: 24px;
+  }
+  .footer-hint {
+    padding: 10px 16px;
+    font-size: .65rem;
+    color: #6c757d;
+    text-align: center;
+    background: rgba(0,0,0,0.03);
+    border-top: 1px solid rgba(0,0,0,0.05);
+    border-radius: 0 0 12px 12px;
+    margin-top: auto;            /* push footer to bottom of card */
+  }
+
+  /* --- TABLE DESIGN --- */
+  .reservation-table-wrapper {
+    flex: 1;                     /* fill remaining vertical space */
+    overflow-y: auto;            /* scroll vertically if table too tall */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #ffffff;
+    box-shadow: 0 8px 30px rgba(32,39,55,0.08);
+    border-radius: 0 0 16px 16px;
+    margin-top: 0;
+  }
+  .reservation-table-wrapper table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  .reservation-table-wrapper thead th {
+    color: #444;
+    font-weight: 600;
+    border: none;
+    padding: 10px 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: transparent;
+    white-space: nowrap;
+  }
+  .reservation-table-wrapper tbody tr {
+    transition: background .2s ease;
+  }
+  .reservation-table-wrapper tbody tr:nth-child(odd) {
+    background: #f9fbfc;
+  }
+  .reservation-table-wrapper tbody tr:hover {
+    background: #e8f1fb;
+    cursor: pointer;
+  }
+  .reservation-table-wrapper td {
+    padding: 12px 16px;
+    vertical-align: middle;
+    border-top: 1px solid #e8ecf1;
+    color: #2f3e56;
+    white-space: nowrap;
+  }
+
+  /* truncate long pet names with ellipsis */
+  .pet-name-cell {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  .pet-table-pic {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 12px;
+    border: 2px solid var(--primary);
+    background: #f2f5fa;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .pet-table-paw {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: #f2f5fa;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    margin-right: 12px;
+    border: 2px solid var(--primary);
+    font-size: 22px;
+    color: var(--primary);
+  }
+
+  @media (max-width: 991.98px) {
+    .content-wrapper {
+      flex-wrap: wrap;
     }
-    .page-wrapper {
-      height: 100vh;
-      overflow-y: auto;
-      box-sizing: border-box;
-      padding: 15px;
-      padding-bottom: 50px;
+    .left, .right {
+      flex: 1 1 100%;
+      max-width: 100%;
+      padding: 0;
     }
-    .pet-card {
-      width: 100px;
-      text-align: center;
-      cursor: pointer;
-      padding: 10px;
-      box-sizing: border-box;
+    .left {
+      margin-bottom: 16px;
     }
-    @media (max-width: 576px) {
-      .pet-card {
-        width: 80px;
-      }
+  }
+
+  @media (max-width: 576px) {
+    .reservation-table-wrapper {
+      overflow-x: auto;
     }
-    #myPetsContainer {
-      max-height: 500px;
-      overflow-y: auto;
+    .reservation-table-wrapper table {
+      width: 100% !important;
+      table-layout: auto;
+      min-width: 0;
     }
-    .card {
-      border-radius: 0.5rem;
+    .reservation-table-wrapper th,
+    .reservation-table-wrapper td {
+      white-space: nowrap;
+      padding: 8px 6px;
     }
-    .section-heading {
-      text-align: left;
-      font-weight: bold;
-      margin-bottom: 10px;
+  }
+
+  /* --- MODAL (unchanged) --- */
+  .modal-backdrop {
+    z-index: 2499 !important;
+  }
+  .modal {
+    z-index: 3000 !important;
+  }
+  .swal2-container {
+    z-index: 5001 !important;
+  }
+  .swal2-popup {
+    z-index: 5002 !important;
+  }
+  .modal-dialog {
+    max-width: 600px;
+    width: 100%;
+  }
+  .modal-dialog-centered {
+    display: flex;
+    align-items: center;
+    min-height: calc(100vh - 1.5rem);
+  }
+  .modal-content {
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    border: none;
+    min-height: 520px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-header {
+    border-bottom: none;
+    padding: .5rem 1rem 0;
+    display: flex;
+    padding-left: 1.25rem;
+  }
+  .modal-header .nav-tabs {
+    border-bottom: none;
+    margin-bottom: 0;
+  }
+  .modal-header .nav-link {
+    border: none;
+    border-radius: 0;
+    color: #555;
+    font-weight: 500;
+    padding: .5rem 1rem;
+  }
+  .modal-header .nav-link.active {
+    background: var(--white);
+    border-bottom: 3px solid var(--primary);
+    color: var(--primary-dark);
+  }
+  .modal-body {
+    padding: 1rem 1.5rem;
+    max-height: 360px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  #modalPetPicContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  .pet-profile-circle {
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4a90e2, #9013fe);
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .pet-profile-circle img {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #fff;
+  }
+  .modal-instruction-footer {
+    padding: 10px 16px;
+    font-size: .65rem;
+    color: #6c757d;
+    text-align: center;
+    background: rgba(0,0,0,0.03);
+    border-top: 1px solid rgba(0,0,0,0.05);
+    border-radius: 0 0 12px 12px;
+  }
+  .modal-footer .btn {
+    min-width: 90px;
+    font-weight: 500;
+  }
+  .modal-footer.justify-content-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+  }
+  @media (max-width: 576px) {
+    .modal-dialog {
+      max-width: 95% !important;
+      margin: auto !important;
     }
-    .btn-carolina {
-      background-color: #4B9CD3;
-      border-color: #4B9CD3;
-      color: #fff;
+    .modal-content {
+      width: 100%;
     }
-    .default-pet-icon {
-      border: 2px solid #4B9CD3;
-      border-radius: 50%;
-      width: 80px;
-      height: 80px;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 40px;
-      color: #4B9CD3;
-    }
-    .default-pet-icon-modal {
-      border: 2px solid #4B9CD3;
-      border-radius: 50%;
-      width: 100px;
-      height: 100px;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 50px;
-      color: #4B9CD3;
-    }
-    .pet-name {
-      width: 80px;
-      margin: 0 auto;
-      text-align: center;
-    }
-  </style>
+  }
+  /* --- History Accordion (match petlist) --- */
+.history-item { margin-bottom: 1rem; }
+.history-header{
+  cursor:pointer; display:flex; justify-content:space-between; align-items:center;
+  background:#f1f1f1; padding:.75rem 1rem; border:1px solid #ddd; border-radius:4px; font-weight:bold;
+}
+.history-header:hover{ background:#e9ecef; }
+.history-header i{ transition: transform .2s; }
+.history-header[aria-expanded="true"] i{ transform: rotate(180deg); }
+.history-content{
+  position:relative; border:1px solid #ddd; border-top:none; border-radius:0 0 4px 4px;
+  background:#fff; padding:1rem;
+}
+.history-content .close{ position:absolute; top:.5rem; right:1rem; font-size:1.25rem; line-height:1; }
+
+/* small table (physical/services/meds) */
+.table.table-sm th, .table.table-sm td { padding: .35rem .5rem; }
+/* ===== Visit Details (rv) styles – reused from dashboard ===== */
+.rv-card{
+  border-radius:16px;
+  box-shadow:0 10px 30px rgba(13,71,161,.25);
+  border:1px solid rgba(13,71,161,.12);
+  overflow:hidden; background:#fff;
+}
+.rv-section{ padding:16px 18px; }
+.rv-section + .rv-section{ border-top:1px solid #f0f3f8; }
+.rv-header{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+.rv-date{ display:flex; align-items:center; gap:8px; font-weight:700; color:#0D47A1; }
+.rv-meta{ font-size:.9rem; color:#5b6b82; display:flex; align-items:center; gap:8px; }
+.rv-badge{ display:inline-block; padding:2px 10px; border-radius:999px; font-weight:700; font-size:.78rem; background:#e8f1fb; color:#0D47A1; border:1px solid #d8e6fb; }
+.rv-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px 16px; }
+.rv-kv{ min-width:0; }
+.rv-label{ font-size:.78rem; font-weight:700; color:#6b7a90; text-transform:uppercase; letter-spacing:.45px; display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+.rv-value{ font-weight:600; color:#2f3e56; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rv-table{ width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border-radius:12px; border:1px solid #e9eef6; background:#fff; }
+.rv-table thead th{ background:#f7faff; color:#213a63; font-weight:700; text-transform:uppercase; letter-spacing:.4px; padding:10px 12px; border-bottom:1px solid #e2e9f5; font-size:.85rem; }
+.rv-table tbody td{ padding:10px 12px; border-top:1px solid #f0f4fa; vertical-align:middle; color:#2f3e56; }
+.rv-table tbody tr:nth-child(odd){ background:#fbfdff; }
+.rv-chip{ display:inline-block; padding:4px 10px; border-radius:999px; background:#e8f7ee; border:1px solid #cdebd7; color:#116b2d; font-weight:600; font-size:.85rem; }
+.rv-note{ background:#fff; border:1px dashed #e2e8f0; border-radius:12px; padding:12px; color:#2f3e56; }
+
+/* smaller screens */
+@media (max-width: 576px){ .rv-grid{ grid-template-columns: 1fr; } }
+
+</style>
+
 </head>
 <body>
-  <!-- Use the same content wrapper as dashboard -->
   <div class="page-wrapper">
-    <div class="container mt-4">
-      <div class="row">
-        <!-- Pet Details Form (for adding/updating pet) -->
-        <div class="col-md-6 mb-4">
-          <h4 class="section-heading">PET DETAILS</h4>
-          <div class="card p-4 shadow-sm">
-            <form id="petForm" onsubmit="return false;">
-              <!-- Pet Name -->
-              <div class="form-group">
-                <label for="petName">Pet Name</label>
-                <input type="text" class="form-control" id="petName" placeholder="Enter pet name" />
-              </div>
-              <!-- Species Dropdown -->
-              <div class="form-group">
-                <label for="species">Species</label>
-                <select class="form-control" id="species">
-                  <option value="">Select species</option>
-                  <% if (petDetails.species && petDetails.species.length > 0) { %>
-                    <% petDetails.species.forEach(function(sp) { %>
+    <div class="container-fluid p-0">
+      <div class="content-wrapper">
+
+        <!-- Left: Pet Add Form -->
+        <div class="left">
+          <div class="card">
+            <div class="custom-header">Pet Details</div>
+            <div class="form-card-body">
+              <form id="petForm" onsubmit="return false;">
+                <div class="form-group">
+                  <label for="petName">Pet Name</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="petName"
+                    placeholder="Enter pet name"
+                  >
+                </div>
+                <div class="form-group">
+                  <label for="species">Species</label>
+                  <select class="form-control" id="species">
+                    <option value="">Select species</option>
+                    <% petDetails.species.forEach(sp => { %>
                       <option value="<%= sp %>"><%= sp %></option>
                     <% }); %>
-                  <% } %>
-                </select>
-              </div>
-              <!-- Pet Breed Dropdown -->
-              <div class="form-group">
-                <label for="petBreed">Pet Breed</label>
-                <select class="form-control" id="petBreed">
-                  <option value="">Select breed</option>
-                </select>
-              </div>
-              <!-- Birthday -->
-              <div class="form-group">
-                <label for="petBirthday">Birthday</label>
-                <input type="date" class="form-control" id="petBirthday" />
-              </div>
-              <!-- Existing Disease -->
-              <div class="form-group">
-                <label for="existingDisease">Existing Disease</label>
-                <select class="form-control" id="existingDisease">
-                  <option value="">Select disease</option>
-                  <option value="None">None</option>
-                  <option value="Other">Other</option>
-                  <% if (petDetails.diseases && petDetails.diseases.length > 0) { %>
-                    <% petDetails.diseases.forEach(function(item) { %>
-                      <option value="<%= item %>"><%= item %></option>
-                    <% }); %>
-                  <% } %>
-                </select>
-                <!-- Hidden text input appears when "Other" is selected -->
-                <input type="text" class="form-control mt-2 d-none" id="otherDisease" placeholder="Specify disease" />
-              </div>
-              <!-- Sex Dropdown -->
-              <div class="form-group">
-                <label for="sex">Sex</label>
-                <select class="form-control" id="sex">
-                  <option value="">Select sex</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
-              </div>
-              <!-- Pet Picture Upload -->
-              <div class="form-group">
-                <label for="petPic">Pet Picture</label>
-                <input type="file" class="form-control-file" id="petPic" accept="image/*" />
-                <div id="petPicPreview" class="mt-2"></div>
-              </div>
-              <!-- Add Pet Button using Carolina blue styling -->
-              <button type="button" class="btn btn-carolina btn-block" id="addPetButton">Add Pet</button>
-            </form>
-          </div>
-        </div>
-        
-        <!-- My Pets Section -->
-        <div class="col-md-6 mb-4">
-          <h4 class="section-heading">MY PETS</h4>
-          <div class="card p-4 shadow-sm">
-            <div class="d-flex flex-wrap justify-content-start" id="myPetsContainer">
-              <% if (pets && pets.length) { %>
-                <% pets.forEach(function(pet) { %>
-                  <div class="pet-card m-2"
-                    data-id="<%= pet._id %>"
-                    data-petname="<%= pet.petName %>"
-                    data-species="<%= pet.species %>"
-                    data-breed="<%= pet.breed %>"
-                    data-birthday="<%= pet.birthday %>"
-                    data-existingdisease="<%= pet.existingDisease %>"
-                    data-sex="<%= pet.sex %>"
-                    data-petpic="<%= pet.petPic ? pet.petPic : '' %>">
-                    <div class="pet-image mb-2">
-                      <% if (pet.petPic) { %>
-                        <img src="<%= pet.petPic %>" alt="Pet" class="img-fluid rounded-circle"
-                             style="width:80px; height:80px; object-fit:cover; border: 2px solid #4B9CD3;">
-                      <% } else { %>
-                        <div class="default-pet-icon">
-                          <i class="fa-solid fa-paw"></i>
-                        </div>
-                      <% } %>
-                    </div>
-                    <p class="mb-0 pet-name"><%= pet.petName %></p>
-                  </div>
-                <% }); %>
-              <% } else { %>
-                <div class="w-100 text-center">
-                  <p class="mb-0">You have no pets.</p>
+                  </select>
                 </div>
-              <% } %>
+                <div class="form-group">
+                  <label for="petBreed">Pet Breed</label>
+                  <select class="form-control" id="petBreed">
+                    <option value="">Select breed</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="petBirthday">Birthday</label>
+                  <input type="date" class="form-control" id="petBirthday">
+                </div>
+                <div class="form-group">
+                  <label for="existingDisease">Existing Disease</label>
+                  <select class="form-control" id="existingDisease">
+                    <option value="">Select disease</option>
+                    <option value="None">None</option>
+                    <option value="Other">Other</option>
+                    <% petDetails.diseases.forEach(d => { %>
+                      <option value="<%= d %>"><%= d %></option>
+                    <% }); %>
+                  </select>
+                  <input
+                    type="text"
+                    class="form-control mt-2 d-none"
+                    id="otherDisease"
+                    placeholder="Specify disease"
+                  >
+                </div>
+                <div class="form-group">
+                  <label for="sex">Sex</label>
+                  <select class="form-control" id="sex">
+                    <option value="">Select sex</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="petPic">Pet Picture</label>
+                  <input
+                    type="file"
+                    class="form-control-file"
+                    id="petPic"
+                  >
+                  <div id="petPicPreview" class="mt-2"></div>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-primary btn-block"
+                  id="addPetButton"
+                >
+                  Add Pet
+                </button>
+              </form>
+            </div>
+            <div class="footer-hint">
+              Fill in the pet information and click “Add Pet.” Pet picture is optional.
             </div>
           </div>
         </div>
-      </div><!-- end row -->
-    </div><!-- end container -->
-  </div><!-- end page-wrapper -->
 
-  <!-- Pet Details Modal (for update, history & vetcard) -->
-  <div class="modal fade" id="petDetailsModal" tabindex="-1" role="dialog" aria-labelledby="petDetailsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="petDetailsModalLabel">Pet Details</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        
-        <div class="modal-body">
-          <!-- Pet image -->
-          <div class="text-center mb-3" id="modalPetPicContainer">
-            <!-- Initially an image element; will be replaced if no petPic -->
-            <img id="modalPetPic" src="" alt="Pet Picture" class="img-thumbnail rounded-circle"
-                 style="width:100px; height:100px; object-fit:cover; border: 2px solid #4B9CD3;">
-          </div>
-          <!-- Tab Buttons -->
-          <div class="d-flex justify-content-center mb-3">
-            <button type="button" class="btn btn-outline-primary mx-1" id="tabEdit">Edit</button>
-            <button type="button" class="btn btn-outline-primary mx-1" id="tabHistory">History</button>
-            <button type="button" class="btn btn-outline-primary mx-1" id="tabVetcard">Vetcard</button>
-          </div>
-          <!-- Tab Content -->
-          <div id="modalTabContent">
-            <!-- Edit Content -->
-            <div id="modalEditContent">
-              <div class="form-group">
-                <label for="modalPetNameInput">Pet Name:</label>
-                <input type="text" id="modalPetNameInput" class="form-control" readonly />
-              </div>
-              <div class="form-group">
-                <label for="modalSpeciesInput">Species:</label>
-                <input type="text" id="modalSpeciesInput" class="form-control" readonly />
-              </div>
-              <div class="form-group">
-                <label for="modalBreedInput">Breed:</label>
-                <input type="text" id="modalBreedInput" class="form-control" readonly />
-              </div>
-              <div class="form-group">
-                <label for="modalBirthdayInput">Birthday:</label>
-                <input type="date" id="modalBirthdayInput" class="form-control" readonly />
-              </div>
-              <div class="form-group">
-                <label for="modalExistingDiseaseInput">Existing Disease:</label>
-                <input type="text" id="modalExistingDiseaseInput" class="form-control" readonly />
-              </div>
-              <div class="form-group">
-                <label for="modalSexInput">Sex:</label>
-                <select id="modalSexInput" class="form-control" disabled>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
-              </div>
+        <!-- Right: My Pets Table -->
+        <div class="right">
+          <div class="card">
+            <div class="custom-header">My Pets</div>
+            <div class="reservation-table-wrapper">
+              <table class="table mb-0">
+                <thead>
+                  <tr>
+                    <th>Pet Name</th>
+                    <th>Breed</th>
+                    <th>Species</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <%
+                    const existingNames = new Set((pets||[]).map(p=>p.petName));
+                    const walkinPets = (petListEntries||[])
+                      .filter(e => !existingNames.has(e.petName))
+                      .map(e => ({
+                        _id: `list-${e._id}`,
+                        petName: e.petName,
+                        species: e.species,
+                        breed: e.breed,
+                        birthday: '',
+                        existingDisease: '',
+                        sex: '',
+                        petPic: '',
+                        addedFromReservation: true
+                      }));
+                    const allPets = [...(pets||[]), ...walkinPets];
+                  %>
+                  <% if (allPets.length > 0) { %>
+                    <% allPets.forEach(pet => { %>
+                      <tr
+                        class="pet-row"
+                        data-id="<%= pet._id %>"
+                        data-petname="<%= pet.petName %>"
+                        data-species="<%= pet.species %>"
+                        data-breed="<%= pet.breed %>"
+                        data-birthday="<%= pet.birthday %>"
+                        data-existingdisease="<%= pet.existingDisease %>"
+                        data-sex="<%= pet.sex %>"
+                        data-petpic="<%= pet.petPic||'' %>"
+                        data-addedfromreservation="<%= pet.addedFromReservation?'true':'false' %>"
+                      >
+                        <td>
+                          <div class="pet-name-cell">
+                            <% if (pet.petPic) { %>
+                              <img
+                                src="<%= pet.petPic %>"
+                                alt="<%= pet.petName %>"
+                                class="pet-table-pic"
+                              >
+                            <% } else { %>
+                              <span class="pet-table-paw">
+                                <i class="fa-solid fa-paw"></i>
+                              </span>
+                            <% } %>
+                            <%= pet.petName || 'Unnamed' %>
+                          </div>
+                        </td>
+                        <td><%= pet.breed || 'N/A' %></td>
+                        <td><%= pet.species || 'N/A' %></td>
+                      </tr>
+                    <% }) %>
+                <% } else { %>
+  <tr class="no-pets-row">
+    <td colspan="3" class="text-center">You have no pets.</td>
+  </tr>
+<% } %>
+
+                </tbody>
+              </table>
             </div>
-            <!-- History Content -->
-            <div id="modalHistoryContent" class="d-none">
-              <div id="petHistoryContainer">
-                <!-- Pet consultation history will be loaded here via AJAX -->
-              </div>
+            <div class="footer-hint">
+              Click a pet row to view or edit details.
             </div>
-            <!-- Vetcard Content -->
-            <div id="modalVetcardContent" class="d-none"></div>
           </div>
         </div>
-        
-        <div class="modal-footer">
-          <!-- For edit view -->
-          <div id="modalEditFooter">
-            <button type="button" id="updatePetBtn" class="btn btn-primary">Edit</button>
-            <button type="button" id="savePetBtn" class="btn btn-success d-none">Save</button>
-            <button type="button" id="deletePetBtn" class="btn btn-danger">Delete</button>
-          </div>
-          <!-- For other tabs, just a close button -->
-          <button type="button" class="btn btn-secondary d-none" id="modalOtherCloseBtn" data-dismiss="modal">Close</button>
-        </div>
+
       </div>
     </div>
   </div>
 
-  <!-- jQuery and Bootstrap JS from CDN -->
+  <!-- Pet Details Modal -->
+  <div
+  class="modal fade"
+  id="petDetailsModal"
+  tabindex="-1"
+  role="dialog"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <!-- Header (tabs only) -->
+      <div class="modal-header">
+        <ul class="nav nav-tabs">
+          <li class="nav-item">
+            <a class="nav-link active" id="tabEdit" href="#">Profile Details</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="tabHistory" href="#">History</a>
+          </li>
+        </ul>
+      </div>
+
+      <div class="modal-body">
+        <!-- Profile Details -->
+    <div id="modalPetPicContainer">
+  <div class="pet-profile-circle">
+    <img id="modalPetPic" src="" alt="Pet Picture">
+  </div>
+
+  <button type="button" class="btn btn-sm btn-outline-primary" id="uploadPetPicBtn">
+    <i class="fa fa-upload"></i> Upload Image
+  </button>
+
+  <!-- hidden input used by the button above -->
+  <input type="file" id="modalPetPicInput" accept="image/*" class="d-none">
+</div>
+
+        <div id="modalEditContent">
+          <div class="form-group">
+            <label for="modalPetNameInput">Pet Name</label>
+            <input
+              type="text"
+              id="modalPetNameInput"
+              class="form-control"
+              readonly
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="modalBirthdayInput">Birthday</label>
+            <input
+              type="date"
+              id="modalBirthdayInput"
+              class="form-control"
+              readonly
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="modalExistingDiseaseInput">Existing Disease</label>
+            <input
+              type="text"
+              id="modalExistingDiseaseInput"
+              class="form-control"
+              readonly
+            >
+          </div>
+        </div>
+
+        <div id="modalHistoryContent" class="d-none">
+          <div id="petHistoryContainer"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer justify-content-between">
+        <div id="modalEditFooter">
+          <button
+            type="button"
+            id="updatePetBtn"
+            class="btn btn-primary"
+          >Edit</button>
+          <button
+            type="button"
+            id="savePetBtn"
+            class="btn btn-success d-none"
+          >Save</button>
+          <button
+            type="button"
+            id="deletePetBtn"
+            class="btn btn-danger"
+          >Delete</button>
+        </div>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-dismiss="modal"
+        >Close</button>
+      </div>
+
+      <div class="modal-instruction-footer">
+        Use the buttons below to edit or delete this pet.
+        Switch to “History” to view past visits.
+      </div>
+    </div>
+  </div>
+</div>
+
+
+  <!-- JS Dependencies -->
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-  
-  <!-- SweetAlert2 JS (NEW) -->
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script
+    src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"
+  ></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"
+  ></script>
 
   <script>
-    $(document).ready(function () {
-      // ----------------- PET FORM FUNCTIONALITY -----------------
-      
-      // Dynamic Breed Dropdown
-      $('#species').on('change', function() {
-        const selectedSpecies = $(this).val();
-        const breedDropdown = $('#petBreed');
-        breedDropdown.empty();
-        breedDropdown.append('<option value="">Select breed</option>');
-        if (selectedSpecies) {
-          $.ajax({
-            url: '/customer/get-pet-details',
-            method: 'GET',
-            success: function(updatedData) {
-              const updatedBreeds = updatedData.speciesBreeds[selectedSpecies] || [];
-              updatedBreeds.forEach(function(breed) {
-                breedDropdown.append('<option value="' + breed + '">' + breed + '</option>');
-              });
-            },
-            error: function(err) {
-              console.error("Error fetching updated pet details", err);
-            }
-          });
-        }
-      });
-      
-      // Show/hide additional input for "Other" in Existing Disease dropdown
-      $('#existingDisease').on('change', function(){
-        if ($(this).val() === 'Other') {
-          $('#otherDisease').removeClass('d-none');
-        } else {
-          $('#otherDisease').addClass('d-none').val('');
-        }
-      });
-      
-      // Image preview for pet picture in add-pet form
-      $('#petPic').on('change', function () {
-        const file = this.files[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = function (e) {
-            $('#petPicPreview').html(
-              '<img src="' + e.target.result + '" alt="Pet Picture" class="img-thumbnail" style="width:100px; height:100px; object-fit:cover;">'
-            );
-          };
-          reader.readAsDataURL(file);
-        }
-      });
-      
-      // Add Pet button handler
-      $('#addPetButton').click(function (e) {
-        e.preventDefault();
-        var requiredFields = ['#petName', '#species', '#petBreed', '#petBirthday', '#existingDisease', '#sex'];
-        var isValid = true;
-        $.each(requiredFields, function (i, field) {
-          if ($(field).val().trim() === '') {
-            $(field).addClass('is-invalid');
-            isValid = false;
-          } else {
-            $(field).removeClass('is-invalid');
-          }
-        });
-        if ($('#existingDisease').val() === 'Other' && $('#otherDisease').val().trim() === '') {
-          $('#otherDisease').addClass('is-invalid');
-          isValid = false;
-        } else {
-          $('#otherDisease').removeClass('is-invalid');
-        }
+// =======================
+// Helpers (spinner + slow)
+// =======================
+function lockBtn($btn, label) {
+  if (!$btn.length) return;
+  if (!$btn.data('orig-html')) $btn.data('orig-html', $btn.html());
+  $btn.prop('disabled', true).html(
+    '<span class="spinner-border spinner-border-sm mr-1" role="status" aria-hidden="true"></span>' +
+    (label || 'Working…')
+  );
+}
+function unlockBtn($btn) {
+  if (!$btn.length) return;
+  const html = $btn.data('orig-html');
+  if (html != null) $btn.html(html);
+  $btn.prop('disabled', false);
+  $btn.removeData('orig-html');
+}
+function trackSlow(jqXHR, ms = 7000, text = 'Your connection seems slow… still working') {
+  const t = setTimeout(() => {
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'info',
+      title: 'Still working…',
+      text,
+      showConfirmButton: false,
+      timer: 4500
+    });
+  }, ms);
+  jqXHR.always(() => clearTimeout(t));
+  return jqXHR;
+}
 
-        // If fields are invalid, show SweetAlert error
-        if (!isValid) {
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'Please fill all the fields correctly.'
-          });
+$(document).ready(function () {
+  // Populate breeds when species changes
+  $('#species').on('change', function() {
+    const selected = $(this).val(),
+          dropdown = $('#petBreed');
+    dropdown.empty().append('<option value="">Select breed</option>');
+    if (selected) {
+      $.get('/customer/get-pet-details', data => {
+        (data.speciesBreeds[selected] || []).forEach(b => {
+          dropdown.append(`<option value="${b}">${b}</option>`);
+        });
+      }).fail(console.error);
+    }
+  });
+
+  // Other disease toggle
+  $('#existingDisease').on('change', () => {
+    const isOther = $('#existingDisease').val() === 'Other';
+    $('#otherDisease').toggleClass('d-none', !isOther).val('');
+  });
+
+  // Preview pet picture
+  $('#petPic').on('change', function() {
+    const file = this.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        $('#petPicPreview').html(
+          `<img src="${e.target.result}" class="img-thumbnail" style="width:100px;height:100px;object-fit:cover;">`
+        );
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // ==========================
+  // Add Pet (with spinner/slow)
+  // ==========================
+  $('#addPetButton').off('click').on('click', function (e) {
+    e.preventDefault();
+
+    const fields = ['#petName','#species','#petBreed','#petBirthday','#existingDisease','#sex'];
+    let valid = true;
+    fields.forEach(f => {
+      if (!$(f).val().trim()) { $(f).addClass('is-invalid'); valid = false; }
+      else { $(f).removeClass('is-invalid'); }
+    });
+    if ($('#existingDisease').val() === 'Other' && !$('#otherDisease').val().trim()) {
+      $('#otherDisease').addClass('is-invalid'); valid = false;
+    }
+    if (!valid) {
+      return Swal.fire({ icon: 'error', title: 'Error', text: 'Please fill all fields.' });
+    }
+
+    const disease = $('#existingDisease').val() === 'Other'
+                  ? $('#otherDisease').val().trim()
+                  : $('#existingDisease').val();
+    const picSrc = $('#petPicPreview img').attr('src') || '';
+    const payload = {
+      petName: $('#petName').val(),
+      species: $('#species').val(),
+      breed: $('#petBreed').val(),
+      birthday: $('#petBirthday').val(),
+      existingDisease: disease,
+      sex: $('#sex').val(),
+      petPic: picSrc
+    };
+
+    const $btn = $('#addPetButton');
+    lockBtn($btn, 'Adding…');
+
+    const req = $.post('/customer/add-pet', payload);
+    trackSlow(req);
+
+    req.done(res => {
+      if (res.success) {
+        // reset form & preview
+        $('#petForm')[0].reset();
+        $('#petPicPreview').empty();
+
+        // build new row
+        const p = res.pet;
+        const picHtml = p.petPic
+          ? `<img src="${p.petPic}" class="pet-table-pic" alt="${p.petName}">`
+          : `<span class="pet-table-paw"><i class="fa-solid fa-paw"></i></span>`;
+        const newRow = $(`
+          <tr class="pet-row"
+              data-id="${p._id}"
+              data-petname="${p.petName}"
+              data-species="${p.species}"
+              data-breed="${p.breed}"
+              data-birthday="${p.birthday || ''}"
+              data-existingdisease="${p.existingDisease}"
+              data-sex="${p.sex}"
+              data-petpic="${p.petPic || ''}"
+              data-addedfromreservation="false">
+            <td><div class="pet-name-cell">${picHtml}${p.petName}</div></td>
+            <td>${p.breed || 'N/A'}</td>
+            <td>${p.species || 'N/A'}</td>
+          </tr>
+        `);
+
+        // insert into table (replace empty-state row if present)
+        const $tbody = $('.reservation-table-wrapper tbody');
+        const $empty = $tbody.find('tr.no-pets-row');
+        if ($empty.length) $empty.replaceWith(newRow);
+        else $tbody.append(newRow);
+
+        Swal.fire({ icon:'success', title:'Success', text:'Pet added!' });
+      } else {
+        Swal.fire({ icon:'error', title:'Error', text: res.message || 'Add failed.' });
+      }
+    }).fail(() => {
+      Swal.fire({ icon:'error', title:'Error', text:'Server error.' });
+    }).always(() => {
+      unlockBtn($btn);
+    });
+  });
+
+  // ==========================
+  // OPEN MODAL: Table row click
+  // ==========================
+  $(document).on('click', '.pet-row', function () {
+    const $c = $(this);
+    const meta = {
+      id:       $c.data('id'),
+      name:     $c.data('petname'),
+      birthday: $c.data('birthday'),
+      disease:  $c.data('existingdisease'),
+      pic:      $c.data('petpic'),
+      added:    $c.data('addedfromreservation') // true when row came from PetList
+    };
+
+    const transparentPixel = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+    $('#modalPetPic').attr('src', meta.pic || transparentPixel);
+
+    // Fill fields (read-only by default)
+    $('#modalPetNameInput').val(meta.name);
+    $('#modalBirthdayInput').val(meta.birthday || '');
+    $('#modalExistingDiseaseInput').val(meta.disease || '');
+    $('#modalEditContent input, #modalEditContent select').prop('readonly', true);
+
+    // Record ids on buttons
+    $('#updatePetBtn').data({ id: meta.id, added: meta.added });
+    $('#savePetBtn').data('id', meta.id);
+
+    // Determine if this is a clinic (PetList) record
+ // Determine if this is a clinic (PetList) record
+// Determine if this is a clinic (PetList) record
+const isClinic = !!meta.added || String(meta.id || '').startsWith('list-');
+
+// Always allow Delete; branch behavior on click (real delete vs hide)
+$('#deletePetBtn')
+  .data({ id: meta.id, clinic: isClinic, name: meta.name })
+  .prop('disabled', false)
+  .removeClass('disabled')
+  .attr('title', '')
+  .text('Delete');
+
+
+    // Upload button: block clinic records
+    $('#uploadPetPicBtn')
+      .prop('disabled', isClinic)
+      .toggleClass('disabled', isClinic)
+      .attr('title', isClinic ? 'Clinic record — image managed by clinic' : '');
+
+    // Show modal on Edit tab
+    $('#tabEdit').trigger('click');
+    resetModalButtons();
+    $('#petDetailsModal').modal('show');
+  });
+
+  // ── Modal: Upload pet picture (kept with its own mini-spinner) ──
+  $('#uploadPetPicBtn').off('click').on('click', function () {
+    if ($(this).prop('disabled')) return;
+    const id = String($('#updatePetBtn').data('id') || '');
+    if (!id || id.startsWith('list-')) {
+      return Swal.fire({ icon: 'info', title: 'Not allowed', text: 'Clinic records cannot be updated here.' });
+    }
+    $('#modalPetPicInput').trigger('click');
+  });
+
+  $('#modalPetPicInput').off('change').on('change', function () {
+    const file = this.files && this.files[0];
+    if (!file) return;
+
+    const id = String($('#updatePetBtn').data('id') || '');
+    if (!id || id.startsWith('list-')) {
+      this.value = '';
+      return Swal.fire({ icon: 'info', title: 'Not allowed', text: 'Clinic records cannot be updated here.' });
+    }
+
+    if (!/^image\//.test(file.type)) {
+      this.value = '';
+      return Swal.fire({ icon: 'error', title: 'Invalid file', text: 'Please choose an image file.' });
+    }
+    const MAX = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX) {
+      this.value = '';
+      return Swal.fire({ icon: 'error', title: 'Too large', text: 'Max size is 5MB.' });
+    }
+
+    const $btn = $('#uploadPetPicBtn');
+    const orig = $btn.html();
+    $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm mr-1"></span>Uploading…');
+
+    const fd = new FormData();
+    fd.append('petPic', file);
+
+    $.ajax({
+      url: '/customer/update-pet-image/' + encodeURIComponent(id),
+      method: 'POST',
+      data: fd,
+      processData: false,
+      contentType: false,
+      success: function (res) {
+        if (res && res.success && res.petPic) {
+          // update modal image
+          $('#modalPetPic').attr('src', res.petPic);
+
+          // update table row data + thumb
+          const $row = $('.pet-row[data-id="' + id + '"]');
+          $row.attr('data-petpic', res.petPic);
+
+          const name = $('#modalPetNameInput').val() || 'Unnamed';
+          const picHtml = `<img src="${res.petPic}" alt="${name}" class="pet-table-pic">`;
+          const $cell = $row.find('td').eq(0).find('.pet-name-cell');
+          if ($cell.find('img.pet-table-pic').length) {
+            $cell.find('img.pet-table-pic').attr('src', res.petPic);
+          } else {
+            $cell.find('.pet-table-paw').replaceWith(picHtml);
+          }
+          Swal.fire({ icon: 'success', title: 'Updated', text: 'Pet picture updated.' });
+        } else {
+          Swal.fire({ icon: 'error', title: 'Upload failed', text: (res && res.message) || 'Please try again.' });
+        }
+      },
+      error: function (xhr) {
+        Swal.fire({ icon: 'error', title: 'Server error', text: (xhr.responseJSON && xhr.responseJSON.message) || 'Upload failed.' });
+      },
+      complete: function () {
+        $btn.prop('disabled', false).html(orig);
+        $('#modalPetPicInput').val('');
+      }
+    });
+  });
+
+  // Tabs
+  $('#tabEdit').click(function() {
+    $(this).addClass('active');
+    $('#tabHistory').removeClass('active');
+    $('#modalEditContent').removeClass('d-none');
+    $('#modalHistoryContent').addClass('d-none');
+    $('#modalPetPicContainer').show();
+    $('#modalEditFooter').removeClass('d-none');
+  });
+
+  function formatDateLong(dStr) {
+    const d = new Date(dStr);
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  }
+
+  // Normalize record shape so both HR & Customer payloads work
+  function normalizeHistoryRecord(r) {
+    const date =
+      r.date ||
+      r.createdAt ||
+      (r.schedule && r.schedule.scheduleDate) ||
+      (r.reservation && r.reservation.schedule && r.reservation.schedule.scheduleDate) ||
+      null;
+
+    const doctorUsername =
+      (r.doctor && r.doctor.username) ||
+      (r.reservation && r.reservation.doctor && r.reservation.doctor.username) ||
+      (typeof r.doctor === 'string' ? r.doctor : null) ||
+      null;
+
+    const physical = r.physical || r.physicalExam || {};
+    const diagnosis = r.diagnosis || r.diagnose || '';
+    const notes = r.notes || r.consultationNotes || r.concerns || '';
+
+    const services = Array.isArray(r.services) ? r.services.map(s => ({
+      category: (s.category || 'Uncategorized'),
+      serviceName: (s.serviceName || s.name || (s.service && s.service.name) || ''),
+      details: (s.details || s.detail || s.description || ''),
+      file: (s.file || null)
+    })) : [];
+
+    const medications = Array.isArray(r.medications) ? r.medications.map(m => ({
+      name: (m.name || m.medicationName || ''),
+      quantity: (m.quantity != null ? m.quantity : '—'),
+      dosage: (m.dosage || '—'),
+      remarks: (m.remarks || '—')
+    })) : [];
+
+    const confinement = r.confinement || r.confinementStatus || [];
+    const nextSchedule = r.nextSchedule
+      || (r.schedule ? { date: r.schedule.scheduleDate, details: r.schedule.scheduleDetails } : null);
+    const reservationId = (r.reservation && r.reservation._id) || r.reservationId || null;
+
+    return { date, doctorUsername, notes, physical, diagnosis, services, medications, confinement, nextSchedule, reservationId };
+  }
+  function escapeHtml(str){
+    return String(str ?? '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+      .replace(/'/g,'&#039;');
+  }
+  function safe(str){ return escapeHtml(str ?? ''); }
+
+  $('#tabHistory').click(function () {
+    $(this).addClass('active');
+    $('#tabEdit').removeClass('active');
+    $('#modalHistoryContent').removeClass('d-none');
+    $('#modalEditContent').addClass('d-none');
+    $('#modalPetPicContainer').hide();
+    $('#modalEditFooter').addClass('d-none');
+
+    const rawId = String($('#updatePetBtn').data('id') || '');
+    const isPetListRow = rawId.startsWith('list-');
+
+    // Only send an id when it belongs to PetList (strip "list-").
+    const petId = isPetListRow ? rawId.slice(5) : null;
+    const petName = $('#modalPetNameInput').val();
+    const addedFromReservation = $('#updatePetBtn').data('added');
+
+    $('#petHistoryContainer').html('<p>Loading…</p>');
+
+    $.get('/customer/get-pet-history', { petId, petName, addedFromReservation })
+      .done(({ success, history }) => {
+        if (!success) {
+          $('#petHistoryContainer').html('<p>No history available.</p>');
+          return;
+        }
+        if (!Array.isArray(history) || history.length === 0) {
+          $('#petHistoryContainer').html('<p>No consultations found.</p>');
           return;
         }
 
-        let existingDiseaseVal = $('#existingDisease').val();
-        if (existingDiseaseVal === 'Other') {
-          existingDiseaseVal = $('#otherDisease').val().trim();
+        // newest first (just in case)
+        history.sort((a, b) => {
+          const ad = new Date(a.date || a.createdAt || a.schedule?.scheduleDate || 0);
+          const bd = new Date(b.date || b.createdAt || b.schedule?.scheduleDate || 0);
+          return bd - ad;
+        });
+
+        let html = '';
+        history.forEach((raw, idx) => {
+          const rec = normalizeHistoryRecord(raw);
+          const dateStr = rec.date ? formatDateLong(rec.date) : '—';
+          const doctor  = rec.doctorUsername || 'Not Assigned';
+          const weight = rec.physical.weight || '—';
+          const temp   = rec.physical.temperature || '—';
+          const obs    = rec.physical.observations || '—';
+
+          html += `
+            <div class="history-item">
+              <div class="history-header" role="button" tabindex="0"
+                   data-target="#historyRecord${idx}" aria-expanded="false"
+                   aria-controls="historyRecord${idx}">
+                <span><i class="fa-solid fa-calendar-check"></i> ${safe(dateStr)} — Dr. ${safe(doctor)}</span>
+                <i class="fas fa-chevron-down"></i>
+              </div>
+              <div id="historyRecord${idx}" class="collapse">
+                <div class="history-content">
+                  <div class="rv-card">
+                    ${rec.notes ? `
+                      <div class="rv-section">
+                        <div class="rv-label" style="margin-bottom:6px;">
+                          <i class="fa-regular fa-note-sticky"></i> Notes
+                        </div>
+                        <div class="rv-note">${safe(rec.notes)}</div>
+                      </div>` : ''}
+
+                    ${(weight !== '—' || temp !== '—' || obs !== '—') ? `
+                      <div class="rv-section">
+                        <div class="rv-label" style="margin-bottom:6px;">
+                          <i class="fa-solid fa-heart-pulse"></i> Physical Exam
+                        </div>
+                        <div class="table-responsive">
+                          <table class="rv-table">
+                            <thead><tr><th>Weight</th><th>Temperature</th><th>Observations</th></tr></thead>
+                            <tbody><tr>
+                              <td>${safe(weight)}</td>
+                              <td>${safe(temp)}</td>
+                              <td>${safe(obs)}</td>
+                            </tr></tbody>
+                          </table>
+                        </div>
+                      </div>` : ''}
+
+                    ${rec.diagnosis ? `
+                      <div class="rv-section">
+                        <div class="rv-label" style="margin-bottom:6px;">
+                          <i class="fa-solid fa-dna"></i> Diagnosis
+                        </div>
+                        <div class="rv-note">${safe(rec.diagnosis)}</div>
+                      </div>` : ''}
+
+                    ${(Array.isArray(rec.services) && rec.services.length) ? `
+                      <div class="rv-section">
+                        <div class="rv-label" style="margin-bottom:6px;">
+                          <i class="fa-solid fa-stethoscope"></i> Services
+                        </div>
+                        <div class="table-responsive">
+                          <table class="rv-table">
+                            <thead><tr><th>Category</th><th>Service</th><th>Details</th><th>File</th></tr></thead>
+                            <tbody>
+                              ${rec.services.map(s => {
+                                let fileUrl = s.file || '';
+                                if (fileUrl) {
+                                  fileUrl = String(fileUrl).replace(/^public/, '');
+                                  if (!fileUrl.startsWith('/')) fileUrl = '/' + fileUrl;
+                                }
+                                return `
+                                  <tr>
+                                    <td>${safe(s.category || '—')}</td>
+                                    <td><span class="rv-chip">${safe(s.serviceName || '—')}</span></td>
+                                    <td>${safe(s.details || '—')}</td>
+                                    <td>${fileUrl ? `<a href="${safe(fileUrl)}" download>Download</a>` : '—'}</td>
+                                  </tr>`;
+                              }).join('')}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>` : ''}
+
+                    ${(Array.isArray(rec.medications) && rec.medications.length) ? `
+                      <div class="rv-section">
+                        <div class="rv-header" style="margin-bottom:6px;">
+                          <div class="rv-label" style="margin:0;">
+                            <i class="fa-solid fa-pills"></i> Medications
+                          </div>
+                          ${rec.reservationId ? `
+                            <button class="btn btn-outline-secondary btn-sm"
+                                    onclick="window.open('/customer/prescription/${safe(rec.reservationId)}','_blank')">
+                              <i class="fas fa-file-download"></i> Prescription
+                            </button>` : ''}
+                        </div>
+                        <div class="table-responsive">
+                          <table class="rv-table">
+                            <thead><tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr></thead>
+                            <tbody>
+                              ${rec.medications.map(m => `
+                                <tr>
+                                  <td>${safe(m.name || '—')}</td>
+                                  <td>${safe(m.quantity ?? '—')}</td>
+                                  <td>${safe(m.dosage || '—')}</td>
+                                  <td>${safe(m.remarks || '—')}</td>
+                                </tr>`).join('')}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>` : ''}
+
+                    <div class="rv-section">
+                      <div class="rv-grid">
+                        <div class="rv-kv">
+                          <div class="rv-label"><i class="fa-solid fa-hospital"></i> Confinement</div>
+                          <div class="rv-value" style="white-space:normal;">
+                            ${safe((Array.isArray(rec.confinement) && rec.confinement.length) ? rec.confinement.join(', ') : 'N/A')}
+                          </div>
+                        </div>
+                        <div class="rv-kv">
+                          <div class="rv-label"><i class="fa-solid fa-calendar-plus"></i> Next Follow-Up</div>
+                          <div class="rv-value" style="white-space:normal;">
+                            ${rec.nextSchedule
+                              ? `${safe(formatDateLong(rec.nextSchedule.date))}${rec.nextSchedule.details ? ' — ' + safe(rec.nextSchedule.details) : ''}`
+                              : 'N/A'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div><!-- /.rv-card -->
+                </div><!-- /.history-content -->
+              </div><!-- /.collapse -->
+            </div><!-- /.history-item -->
+          `;
+        });
+
+        $('#petHistoryContainer').html(html);
+
+        // Toggle + chevron sync
+        $('#petHistoryContainer').off('click.history')
+          .on('click.history', '.history-header', function () {
+            const target = $(this).data('target');
+            $(target).collapse('toggle');
+          });
+
+        $('#petHistoryContainer .collapse').each(function () {
+          $(this).removeClass('show').collapse({ toggle: false });
+        });
+        $('#petHistoryContainer').off('show.bs.collapse hide.bs.collapse')
+          .on('show.bs.collapse', '.collapse', function () {
+            $(`.history-header[data-target="#${this.id}"]`).attr('aria-expanded', 'true');
+          })
+          .on('hide.bs.collapse', '.collapse', function () {
+            $(`.history-header[data-target="#${this.id}"]`).attr('aria-expanded', 'false');
+          });
+      })
+      .fail((xhr) => {
+        console.error('History load failed:', xhr?.status, xhr?.responseText);
+        $('#petHistoryContainer').html('<p>Error loading history.</p>');
+      });
+  });
+
+  // Edit → Save toggle
+  $('#updatePetBtn').click(function() {
+    $('#modalEditContent input').prop('readonly', false);
+    $('#updatePetBtn').addClass('d-none');
+    $('#savePetBtn').removeClass('d-none');
+  });
+
+  $('#petDetailsModal').on('hidden.bs.modal', function() {
+    resetModalButtons();
+    $('#tabEdit').addClass('active');
+    $('#tabHistory').removeClass('active');
+    $('#modalEditContent').removeClass('d-none');
+    $('#modalHistoryContent').addClass('d-none');
+    $('#modalPetPicContainer').show();
+  });
+
+  function resetModalButtons() {
+    $('#savePetBtn').addClass('d-none');
+    $('#updatePetBtn').removeClass('d-none');
+  }
+
+  // ======================================
+  // Save edits (spinner + slow toast)
+  // ======================================
+  $('#savePetBtn').off('click').on('click', function (e) {
+    e.preventDefault(); e.stopPropagation();
+
+    const id = String($(this).data('id') || '');
+    if (!id) return;
+
+    const payload = {
+      petName: $('#modalPetNameInput').val().trim(),
+      birthday: $('#modalBirthdayInput').val(),
+      existingDisease: $('#modalExistingDiseaseInput').val().trim()
+    };
+
+    if (!payload.petName) {
+      return Swal.fire({ icon: 'error', title: 'Missing name', text: 'Pet name is required.' });
+    }
+
+    const $save = $('#savePetBtn');
+    lockBtn($save, 'Saving…');
+
+    const req = $.ajax({
+      url: '/customer/update-pet/' + encodeURIComponent(id),
+      method: 'PUT',
+      data: payload
+    });
+    trackSlow(req);
+
+    req.done(res => {
+      if (!res || !res.success || !res.pet) {
+        return Swal.fire({ icon: 'error', title: 'Error', text: (res && res.message) || 'Update failed.' });
+      }
+      const p = res.pet;
+
+      // lock fields again
+      $('#modalEditContent input').prop('readonly', true);
+      $('#savePetBtn').addClass('d-none');
+      $('#updatePetBtn').removeClass('d-none');
+
+      // update row dataset
+      const $row = $(`.pet-row[data-id="${id}"]`);
+      $row
+        .attr('data-petname', p.petName || '')
+        .attr('data-birthday', p.birthday || '')
+        .attr('data-existingdisease', p.existingDisease || '');
+
+      // update visible name (keep thumbnail)
+      const $cell = $row.find('td').eq(0).find('.pet-name-cell');
+      const thumb = $cell.find('img.pet-table-pic')[0]?.outerHTML
+                 || $cell.find('.pet-table-paw')[0]?.outerHTML
+                 || '';
+      $cell.html((thumb || '') + (p.petName || 'Unnamed'));
+
+      Swal.fire({ icon: 'success', title: 'Saved', text: 'Pet details updated.' });
+    }).fail(xhr => {
+      Swal.fire({ icon: 'error', title: 'Server error', text: (xhr.responseJSON && xhr.responseJSON.message) || 'Update failed.' });
+    }).always(() => {
+      unlockBtn($save);
+    });
+  });
+
+  /// ==============================
+// Delete (spinner + slow toast)
+// ==============================
+$('#deletePetBtn').off('click').on('click', function () {
+  const id       = String($(this).data('id') || '');
+  const isClinic = !!$(this).data('clinic');
+  const name     = String($(this).data('name') || '').trim();
+  if (!id) return;
+
+  // Clinic rows: perform HIDE under the hood, but UX says Delete
+  if (isClinic || id.startsWith('list-')) {
+    Swal.fire({
+      title: 'Delete Pet?',
+      text: 'This will delete the pet from your list.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, delete',
+      cancelButtonText: 'Cancel'
+    }).then(result => {
+      if (!result.isConfirmed) return;
+
+      const $del = $('#deletePetBtn');
+      lockBtn($del, 'Deleting…'); // same UX label as real delete
+
+      const req = $.post('/customer/hide-petlist', { petName: name });
+      trackSlow(req);
+
+      req.done(res => {
+        if (res && res.success) {
+          // remove the row from the table
+          const selector = id.startsWith('list-')
+            ? `.pet-row[data-id="${id}"]`
+            : `.pet-row[data-petname="${CSS.escape(name)}"][data-addedfromreservation="true"]`;
+          $(selector).remove();
+
+          // empty-state row if none left
+          const $tbody = $('.reservation-table-wrapper tbody');
+          if ($tbody.find('tr.pet-row').length === 0) {
+            $tbody.html('<tr class="no-pets-row"><td colspan="3" class="text-center">You have no pets.</td></tr>');
+          }
+
+          $('#petDetailsModal').modal('hide');
+          Swal.fire({ icon:'success', title:'Deleted!', text:'Pet removed from your list.' }); // same success UX
+        } else {
+          Swal.fire({ icon:'error', title:'Error', text:(res && res.message) || 'Delete failed.' });
+        }
+      }).fail(xhr => {
+        Swal.fire({ icon:'error', title:'Error', text:(xhr.responseJSON && xhr.responseJSON.message) || 'Server error.' });
+      }).always(() => {
+        unlockBtn($del);
+      });
+    });
+    return;
+  }
+
+  // Real user-owned pets: actual delete
+  Swal.fire({
+    title: 'Delete Pet?',
+    text: 'This will delete the pet from your account.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, delete',
+    cancelButtonText: 'Cancel'
+  }).then(result => {
+    if (!result.isConfirmed) return;
+
+    const $del = $('#deletePetBtn');
+    lockBtn($del, 'Deleting…');
+
+    const req = $.post('/customer/delete-pet', { id });
+    trackSlow(req);
+
+    req.done(res => {
+      if (res && res.success) {
+        $(`.pet-row[data-id="${id}"]`).remove();
+
+        const $tbody = $('.reservation-table-wrapper tbody');
+        if ($tbody.find('tr.pet-row').length === 0) {
+          $tbody.html('<tr class="no-pets-row"><td colspan="3" class="text-center">You have no pets.</td></tr>');
         }
 
-        // Use an empty string if no pet picture is provided so our card template shows the default icon.
-        const petPicSrc = $('#petPicPreview img').attr('src') || '';
-        const petData = {
-          petName: $('#petName').val(),
-          species: $('#species').val(),
-          breed: $('#petBreed').val(),
-          birthday: $('#petBirthday').val(),
-          existingDisease: existingDiseaseVal,
-          sex: $('#sex').val(),
-          petPic: petPicSrc
-        };
-        
-        $.ajax({
-          url: '/customer/add-pet',
-          method: 'POST',
-          data: petData,
-          success: function (response) {
-            if (response.success) {
-              // Build pet card HTML with conditional default icon if petPic is empty.
-              const petPicHtml = petData.petPic
-                ? `<img src="${petData.petPic}" alt="Pet" class="img-fluid rounded-circle" style="width:80px; height:80px; object-fit:cover; border: 2px solid #4B9CD3;">`
-                : `<div class="default-pet-icon"><i class="fa-solid fa-paw"></i></div>`;
-              const newPetCard = `
-                <div class="pet-card m-2"
-                  data-id="${response.pet._id || ''}"
-                  data-petname="${petData.petName}"
-                  data-species="${petData.species}"
-                  data-breed="${petData.breed}"
-                  data-birthday="${petData.birthday}"
-                  data-existingdisease="${petData.existingDisease}"
-                  data-sex="${petData.sex}"
-                  data-petpic="${petData.petPic}"
-                >
-                  <div class="pet-image mb-2">
-                    ${petPicHtml}
-                  </div>
-                  <p class="mb-0 pet-name">${petData.petName}</p>
-                </div>
-              `;
-              $('#myPetsContainer').append(newPetCard);
-              $('#petForm')[0].reset();
-              $('#petForm input, #petForm select').removeClass('is-invalid');
-              $('#petPicPreview').empty();
-              
-              // Show SweetAlert2 success pop-up
-              Swal.fire({
-                icon: 'success',
-                title: 'Success',
-                text: 'Pet successfully added!'
-              });
-            } else {
-              // If the server responded with success: false
-              Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: response.message || 'There was an error adding the pet.'
-              });
-            }
-          },
-          error: function () {
-            Swal.fire({
-              icon: 'error',
-              title: 'Error',
-              text: 'There was a server error adding the pet.'
-            });
-          }
-        });
-      });
-      
-      // ----------------- PET MODAL FUNCTIONALITY -----------------
-      
-      // Delegated click handler for pet cards so that even newly added cards are clickable
-      $(document).on('click', '.pet-card', function () {
-        var petId = $(this).data('id');
-        var petName = $(this).data('petname');
-        var species = $(this).data('species');
-        var breed = $(this).data('breed');
-        var birthday = $(this).data('birthday');
-        var existingDisease = $(this).data('existingdisease');
-        var sex = $(this).data('sex');
-        var petPic = $(this).data('petpic');
-  
-        // Update modal pet picture: if petPic is empty, replace image with default icon div
-        if (!petPic) {
-          $('#modalPetPicContainer').html(
-            '<div id="modalPetPic" class="default-pet-icon-modal"><i class="fa-solid fa-paw"></i></div>'
-          );
-        } else {
-          $('#modalPetPicContainer').html(
-            '<img id="modalPetPic" src="'+petPic+'" alt="Pet Picture" class="img-thumbnail rounded-circle" style="width:100px; height:100px; object-fit:cover; border: 2px solid #4B9CD3;">'
-          );
-        }
-  
-        $('#modalPetNameInput').val(petName);
-        $('#modalSpeciesInput').val(species);
-        $('#modalBreedInput').val(breed);
-        $('#modalBirthdayInput').val(birthday);
-        $('#modalExistingDiseaseInput').val(existingDisease);
-        $('#modalSexInput').val(sex);
-  
-        // Set fields as readonly/disabled for edit view
-        $('#modalPetNameInput, #modalSpeciesInput, #modalBreedInput, #modalBirthdayInput, #modalExistingDiseaseInput')
-          .prop('readonly', true);
-        $('#modalSexInput').prop('disabled', true);
-  
-        // Store the pet id on the update, save, and delete buttons for later use
-        $('#updatePetBtn').data('id', petId).data('petname', petName);
-        $('#savePetBtn').data('id', petId);
-        $('#deletePetBtn').data('id', petId);
-  
-        // Default: show Edit tab
-        $('#tabEdit').trigger('click');
-        $('#petDetailsModal').modal('show');
-      });
-      
-      // Toggle history details on clicking a history date
-      $(document).on('click', '.history-date', function() {
-        $(this).next('.collapse').collapse('toggle');
-      });
-      
-      // Edit tab click: show edit content and footer
-      $('#tabEdit').on('click', function() {
-        $('#modalEditContent').removeClass('d-none');
-        $('#modalHistoryContent, #modalVetcardContent').addClass('d-none');
-        $('#modalEditFooter').removeClass('d-none');
-        $('#modalOtherCloseBtn').addClass('d-none');
-      });
-      
-      // History tab click: show history content and load history via AJAX
-      $(document).on('click', '#tabHistory', function() {
-  $('#modalHistoryContent').removeClass('d-none');
-  $('#modalEditContent, #modalVetcardContent').addClass('d-none');
-  $('#modalEditFooter').addClass('d-none');
-  $('#modalOtherCloseBtn').removeClass('d-none');
-  
-  var petId = $('#updatePetBtn').data('id');
-  var petName = $('#updatePetBtn').data('petname');
-  
-  if (petId || petName) {
-    $.ajax({
-      url: '/customer/get-pet-history',
-      method: 'GET',
-      data: { petId: petId, petName: petName },
-      success: function(response) {
-        if(response.success) {
-          var historyHtml = '';
-          var containerClass = response.history.length >= 5 ? 'history-container' : '';
-          historyHtml += `<div class="${containerClass}">`;
-          
-            response.history.forEach(function(record, index) {
-  historyHtml += 
-    `<div class="history-record mb-2">
-      <div class="history-date bg-light p-2" data-toggle="collapse" data-target="#historyRecord${index}" aria-expanded="false" aria-controls="historyRecord${index}" style="cursor:pointer;">
-        ${formatVisitDate(record.date)}
-      </div>
-      <div class="collapse" id="historyRecord${index}">
-        <div class="card card-body position-relative">
-          <button type="button" class="close position-absolute" style="top:10px; right:10px;" onclick="$('#historyRecord${index}').collapse('hide')">
-            <span aria-hidden="true">&times;</span>
-          </button>
-          <p><strong>Doctor:</strong> ${record.doctor && record.doctor.username ? record.doctor.username : 'Not Assigned'}</p>
-          <p><strong>Consultation Notes:</strong> ${record.consultationNotes || 'N/A'}</p>
-          <ul class="list-unstyled mb-0">
-            ${record.medications.map(med => 
-              `<li>
-                <p><strong>Medication:</strong> ${med.medicationName}</p>
-                <p><strong>Dosage:</strong> ${med.dosage}</p>
-                <p><strong>Frequency:</strong> ${med.frequency}</p>
-                ${ med.adminTime ? `<p><strong>Administration Time:</strong> ${med.adminTime}</p>` : '' }
-                ${ med.additionalInstructions ? `<p><strong>Instructions:</strong> ${med.additionalInstructions}</p>` : '' }
-                <p><strong>Quantity:</strong> ${med.quantity ? med.quantity : 'N/A'}</p>
-              </li>`
-            ).join('')}
-          </ul>
-        </div>
-      </div>
-    </div>`;
+        $('#petDetailsModal').modal('hide');
+        Swal.fire({ icon:'success', title:'Deleted!', text:'Pet removed from your account.' });
+      } else {
+        Swal.fire({ icon:'error', title:'Error', text:(res && res.message) || 'Delete failed.' });
+      }
+    }).fail(xhr => {
+      Swal.fire({ icon:'error', title:'Error', text:(xhr.responseJSON && xhr.responseJSON.message) || 'Server error.' });
+    }).always(() => {
+      unlockBtn($del);
+    });
+  });
 });
 
-          historyHtml += `</div>`;
-          $('#petHistoryContainer').html(historyHtml);
-        } else {
-          $('#petHistoryContainer').html('<p>No history available.</p>');
-        }
-      },
-      error: function() {
-        $('#petHistoryContainer').html('<p>Error loading history.</p>');
-      }
-    });
+  function formatVisitDate(date) {
+    const d = new Date(date);
+    const month = d.toLocaleString('en-US',{month:'long'}).toLowerCase();
+    return `${month} ${d.getDate()} ${d.getFullYear()}`;
   }
 });
+</script>
 
-      // Vetcard tab click: show vetcard content with a "Coming soon" message
-      $('#tabVetcard').on('click', function() {
-        $('#modalVetcardContent').removeClass('d-none');
-        $('#modalEditContent, #modalHistoryContent').addClass('d-none');
-        $('#modalEditFooter').addClass('d-none');
-        $('#modalOtherCloseBtn').removeClass('d-none');
-        $('#modalVetcardContent').html('<p class="text-center">Coming soon.</p>');
-      });
-      
-      // Edit button inside modal: enable editing
-      $('#updatePetBtn').on('click', function () {
-        $('#modalPetNameInput, #modalSpeciesInput, #modalBreedInput, #modalBirthdayInput, #modalExistingDiseaseInput')
-          .prop('readonly', false);
-        $('#modalSexInput').prop('disabled', false);
-        $('#updatePetBtn').addClass('d-none');
-        $('#savePetBtn').removeClass('d-none');
-      });
-      
-      // Save Pet Updates
-      $('#savePetBtn').on('click', function() {
-        var petId = $(this).data('id');
-        var updatedData = {
-          petName: $('#modalPetNameInput').val(),
-          species: $('#modalSpeciesInput').val(),
-          breed: $('#modalBreedInput').val(),
-          birthday: $('#modalBirthdayInput').val(),
-          existingDisease: $('#modalExistingDiseaseInput').val(),
-          sex: $('#modalSexInput').val()
-        };
-        $.ajax({
-          url: '/customer/update-pet/' + petId,
-          method: 'PUT',
-          data: updatedData,
-          success: function(response) {
-            if(response.success) {
-              Swal.fire({
-                icon: 'success',
-                title: 'Success',
-                text: 'Pet details updated successfully!'
-              }).then(() => {
-                // Refresh to see the updated info in the pet card
-                location.reload();
-              });
-            } else {
-              Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: response.message || 'Error updating pet.'
-              });
-            }
-          },
-          error: function() {
-            Swal.fire({
-              icon: 'error',
-              title: 'Error',
-              text: 'Server error while updating pet.'
-            });
-          }
-        });
-      });
-      
-      // Delete Pet
-      $('#deletePetBtn').on('click', function() {
-        var petId = $(this).data('id');
-        Swal.fire({
-          title: 'Delete Pet?',
-          text: 'Are you sure you want to delete this pet?',
-          icon: 'warning',
-          showCancelButton: true,
-          confirmButtonText: 'Yes, delete it',
-          cancelButtonText: 'Cancel'
-        }).then((result) => {
-          if (result.isConfirmed) {
-            $.ajax({
-              url: '/customer/delete-pet',
-              method: 'POST',
-              data: { id: petId },
-              success: function(response) {
-                if(response.success){
-                  Swal.fire({
-                    icon: 'success',
-                    title: 'Deleted!',
-                    text: 'Pet deleted successfully.'
-                  }).then(() => {
-                    location.reload();
-                  });
-                } else {
-                  Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: response.message || 'Error deleting pet.'
-                  });
-                }
-              },
-              error: function() {
-                Swal.fire({
-                  icon: 'error',
-                  title: 'Error',
-                  text: 'Server error deleting pet.'
-                });
-              }
-            });
-          }
-        });
-      });
-    });
-    
-    // Example function if your code references it
-    window.viewReservation = function(id) {
-      $.ajax({
-        url: '/doctor/get-consultation',
-        method: 'GET',
-        data: { reservationId: id },
-        success: function(response) {
-          if (response.success) {
-            let detailsHtml = '';
-            if (response.reservation.pets && response.reservation.pets.length > 0) {
-              detailsHtml += '<strong>Pet(s):</strong> ' + response.reservation.pets.map(p => p.petName).join(', ') + '<br>';
-            }
-            if (response.reservation.concerns) {
-              detailsHtml += '<strong>Customer Concerns:</strong> ' + response.reservation.concerns + '<br>';
-            }
-            detailsHtml += '<hr>';
-            detailsHtml += '<strong>Consultation Notes:</strong><br>' + (response.reservation.consultationNotes || 'N/A') + '<br>';
-            if (response.reservation.medications && response.reservation.medications.length > 0) {
-              detailsHtml += '<hr><strong>Medication Details:</strong><br>';
-              response.reservation.medications.forEach(function(med) {
-                detailsHtml += 'Medication: ' + med.medicationName + '<br>';
-                detailsHtml += 'Quantity: ' + med.quantity + '<br>';
-                detailsHtml += 'Dosage: ' + med.dosage + '<br>';
-                detailsHtml += 'Frequency: ' + med.frequency + '<br>';
-                detailsHtml += 'Administration Time: ' + med.adminTime + '<br>';
-                detailsHtml += med.additionalInstructions ? 'Additional Instructions: ' + med.additionalInstructions + '<br>' : '';
-                detailsHtml += '<hr>';
-              });
-            }
-            if (response.reservation.schedule && response.reservation.schedule.scheduleDate) {
-              detailsHtml += '<hr><strong>Follow-Up Schedule:</strong><br>';
-              detailsHtml += 'Date: ' + new Date(response.reservation.schedule.scheduleDate).toISOString().slice(0,10) + '<br>';
-              detailsHtml += 'Details: ' + response.reservation.schedule.scheduleDetails + '<br>';
-            }
-            $("#consultationDetails").html(detailsHtml);
-            $("#viewConsultationModal").modal("show");
-          } else {
-            Swal.fire({
-              icon: 'error',
-              title: 'Error',
-              text: response.message || 'Error fetching consultation details.'
-            });
-          }
-        },
-        error: function() {
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'Server error while fetching consultation details.'
-          });
-        }
-      });
-    };
-    function formatVisitDate(date) {
-  const d = new Date(date);
-  const month = d.toLocaleString('en-US', { month: 'long' }).toLowerCase();
-  const day = d.getDate();
-  const year = d.getFullYear();
-  return `${month} ${day} ${year}`;
-}
-
-  </script>
 </body>
 </html>

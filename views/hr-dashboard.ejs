@@ -1,287 +1,353 @@
+<%
+// fallback for profilePic
+const pic = typeof profilePic !== 'undefined'
+  ? profilePic
+  : '/images/default_profile_icon.png';
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
   <title>HR Dashboard</title>
-  <!-- Google Fonts for a professional look -->
-  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
-  <!-- Bootstrap CSS and Font Awesome -->
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
-  <!-- jQuery UI CSS for calendar functionality -->
-  <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
-  
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Google Fonts -->
+  <link
+    href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"
+    rel="stylesheet"
+  />
+  <!-- Bootstrap CSS -->
+  <link
+    rel="stylesheet"
+    href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+  />
+  <!-- Font Awesome -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+  />
+  <!-- SweetAlert2 CSS -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css"
+  />
+  <!-- jQuery UI CSS -->
+  <link
+    rel="stylesheet"
+    href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"
+  />
+
   <style>
-    /* Base Styles for HR Dashboard */
-    body {
-      font-family: 'Roboto', sans-serif;
-      background-color: #f7f7f7;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      font-size: 14px;
-      color: #333;
-    }
-    .wrapper {
-      display: flex;
-      height: 100vh;
-      overflow: hidden;
-    }
-    
-    /* Sidebar Styling - Updated to Match Doctor Dashboard Design */
-    #sidebar {
-      width: 250px;
-      background: #264653;
-      color: #fff;
-      transition: width 0.3s;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-    }
-    #sidebar.collapsed {
-      width: 80px;
-    }
-    .sidebar-header {
-      padding: 10px;
-      background: #3c4147;
-    }
-    .header-content {
-      display: flex;
-      align-items: center;
-    }
-    .default-profile-icon {
-      width: 50px;
-      height: 50px;
-      background: #fff;
-      border-radius: 50%;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.5em;
-      color: #264653;
-      cursor: pointer;
-      transition: width 0.3s, height 0.3s;
-      flex-shrink: 0;
-    }
-    .doctor-name {
-      margin-left: 10px;
-      font-size: 14px;
-      line-height: 1;
-    }
-    #sidebar.collapsed .doctor-name {
-      display: none;
-    }
-    #sidebar.collapsed .header-content {
-      justify-content: center;
-    }
-    /* Menu Items Styling */
-    #sidebar ul.components {
-      padding: 0;
-      margin: 0;
-      flex: 1;
-      list-style: none;
-    }
-    #sidebar ul.components li {
-      padding: 10px;
-      transition: background 0.3s;
-    }
-    #sidebar ul.components li a {
-      color: #fff;
-      display: flex;
-      align-items: center;
-      text-decoration: none;
-      padding: 10px;
-      font-size: 14px;
-    }
-    #sidebar ul.components li a:hover,
-    #sidebar ul.components li.active a {
-      background: #00796B;
-      color: #fff;
-      border-radius: 4px;
-    }
-    #sidebar ul.components li a i {
-      width: 25px;
-      text-align: center;
-      font-size: 1.2em;
-      color: inherit;
-    }
-    #sidebar ul.components li a .menu-text {
-      margin-left: 10px;
-      transition: opacity 0.3s;
-    }
-    #sidebar.collapsed ul.components li a .menu-text {
-      display: none;
-    }
-    .sidebar-footer {
-      padding: 10px;
-      text-align: center;
-      border-top: 1px solid rgba(255,255,255,0.1);
-    }
-    .sidebar-footer button {
-      background: none;
-      border: none;
-      color: #fff;
-      font-size: 1.1em;
-      cursor: pointer;
-    }
-    .sidebar-footer button:hover {
-      color: #fff;
-    }
-    .sidebar-footer .toggle-text {
-      margin-left: 5px;
-      transition: opacity 0.3s;
-    }
-    #sidebar.collapsed .sidebar-footer .toggle-text {
-      display: none;
-    }
-    
-    /* Content Area (UNCHANGED) */
-    #content {
-      flex: 1;
-      padding: 20px 40px;
-      background: #f7f7f7;
-      overflow-y: auto;
-      height: 100vh;
-      transition: margin-left 0.3s;
-    }
-    
-    /* Additional HR Styles */
-    .card {
-      background: #fff;
-      border-radius: 8px;
-      border: none;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .btn-primary {
-      background-color: #2a9d8f;
-      border: none;
-      border-radius: 4px;
-    }
-    @media (max-width: 768px) {
-      #content {
-        padding: 10px 20px;
-      }
-    }
-  </style>
+  :root {
+    --primary:       #1E88E5;
+    --primary-dark:  #0D47A1;
+    --accent:        #90CAF9;
+    --white:         #ffffff;
+    --text:          #333;
+    --bg-dark:       #0D1B2A;
+    --card-bg:       #ffffff;
+    --border-color:  rgba(0,0,0,0.08);
+  }
+
+  /* —— Top bar —— */
+  #topbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 56px; background: var(--bg-dark);
+    display: flex; align-items: center;
+    padding: 0 16px; z-index: 3000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+    gap: 12px;
+  }
+  #topbar .menu-toggle { display: none; } /* same as customer */
+  #topbar .topbar-paw,
+  #topbar .menu-toggle {
+    color: var(--white); font-size: 1.5em;
+  }
+  #topbar .topbar-title {
+    color: var(--white); font-size: 1.1em; font-weight: 500;
+    flex-grow: 1;
+  }
+  @media (max-width: 991.98px) {
+    #topbar .topbar-title { display: none; }
+    #topbar .menu-toggle { display: inline-block; }
+  }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f7f7f7;
+    margin: 0; padding: 0;
+    overflow-x: hidden;
+  }
+
+  .wrapper {
+    display: flex; position: relative;
+    min-height: 100vh;
+    padding-top: calc(56px + 44px);
+    width: 100%;
+  }
+
+  /* —— Sidebar —— */
+  #sidebar {
+    position: fixed; top: 56px; left: 0;
+    width: 250px; height: calc(100vh - 56px);
+    background: linear-gradient(180deg, var(--primary-dark), var(--bg-dark));
+    color: var(--white);
+    display: flex; flex-direction: column;
+    transition: left 0.3s ease;
+    box-shadow: 2px 0 6px rgba(0,0,0,0.15);
+    z-index: 2000;
+  }
+  .sidebar-header {
+    padding: 24px; display: flex;
+    align-items: center; gap: 12px;
+  }
+  .sidebar-logo {
+    font-size: 1.8rem;
+    color: var(--accent);   /* light-blue paw */
+  }
+  .sidebar-title {
+    font-size: 1.2rem; font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .sidebar-menu {
+    flex-grow: 1; padding: 0; margin: 0;
+    list-style: none;
+  }
+  .sidebar-menu li { margin: 4px 0; }
+  .sidebar-menu a {
+    display: flex; align-items: center;
+    padding: 12px 20px;
+    color: var(--white); text-decoration: none;
+    font-weight: 500; position: relative;
+    border-radius: 0 20px 20px 0;
+    transition: background 0.2s, color 0.2s;
+  }
+  .sidebar-menu a i {
+    width: 24px; text-align: center; margin-right: 12px;
+  }
+
+  /* —— Hover & Active (same light-blue) —— */
+  .sidebar-menu a:hover,
+  .sidebar-menu a:focus,
+  .sidebar-menu a.active {
+    background: var(--accent);
+    color: var(--primary-dark);
+  }
+
+  /* remove the little ::before bar */
+  .sidebar-menu a.active::before {
+    display: none;
+  }
+
+  /* —— Bottom profile —— */
+  .sidebar-bottom-profile {
+    padding: 16px;
+    background: rgba(255,255,255,0.05);
+    margin: 16px; border-radius: 12px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .sidebar-bottom-profile img {
+    width: 40px; height: 40px; aspect-ratio: 1/1;
+    border-radius: 50%; object-fit: cover; object-position: center;
+    border: 2px solid var(--accent);
+  }
+  .sidebar-bottom-profile .fw-bold {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* —— Sub-nav —— */
+  #sub-nav {
+    position: fixed; top: 56px; left: 250px; right: 0;
+    background: #f1f5fa; height: 44px;
+    padding: 6px 16px; z-index: 2500;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    display: flex; align-items: center;
+    font-size: 0.9rem;
+    transition: left 0.3s ease;
+  }
+  #sub-nav .sub-nav-inner {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%;
+  }
+  #subnav-title {
+    font-weight: 600; font-size: 1rem;
+    color: var(--text); margin: 0;
+  }
+
+  /* —— Main content —— */
+  #content {
+    margin-left: 250px;
+    padding: 16px; background: #f7f7f7;
+    overflow-y: auto; height: calc(100vh - 100px);
+    width: calc(100% - 250px);
+    transition: margin-left 0.3s ease;
+  }
+
+  /* —— Overlay & Responsive —— */
+  #sidebarOverlay {
+    display: none; position: fixed;
+    top: 56px; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4); z-index: 1900;
+  }
+  @media (max-width: 991.98px) {
+    #sub-nav { left: 0; }
+    #sidebar { left: -250px; }
+    #sidebar.active { left: 0; }
+    #sidebarOverlay.show { display: block; }
+    body.sidebar-open #sub-nav { display: none; }
+    #content { margin-left: 0; width: 100%; padding: 12px; }
+  }
+  @media (max-width: 450px) {
+    #sidebar { width: 70vw; left: -70vw; }
+    #sidebar.active { left: 0; }
+  }
+</style>
+
 </head>
+
 <body>
-  <div class="wrapper">
-    <!-- Sidebar with Updated Design -->
-    <nav id="sidebar">
-      <div class="sidebar-header">
-        <div class="header-content">
-          <div class="default-profile-icon" id="profileIcon">
-            <i class="fas fa-user"></i>
-          </div>
-          <h4 class="doctor-name"><%= username %></h4>
-        </div>
+  <!-- Top bar -->
+  <header id="topbar">
+    <i id="menu-toggle" class="fas fa-bars menu-toggle" aria-label="Toggle sidebar"></i>
+    <i class="fas fa-paw topbar-paw"></i>
+    <span class="topbar-title">SmartVet</span>
+    <div class="topbar-actions">
+      <div class="message-icon" id="messageButton" title="Messages">
+        <i class="fas fa-envelope"></i>
+        <div class="badge" id="messageBadge">2</div>
       </div>
-      <ul class="components">
-        <li class="active">
-          <a href="#" class="menu-item" data-content="reservation">
-            <i class="fas fa-book"></i>
-            <span class="menu-text">Reservation</span>
+    </div>
+  </header>
+
+  <!-- Sub-nav -->
+  <div id="sub-nav">
+    <div class="sub-nav-inner">
+      <div id="subnav-title">Reservation</div>
+    </div>
+  </div>
+
+  <div class="wrapper">
+    <div id="sidebarOverlay"></div>
+
+    <!-- Sidebar -->
+    <nav id="sidebar" class="active" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <span class="sidebar-logo"><i class="fas fa-paw"></i></span>
+        <span class="sidebar-title">Casa Animalia</span>
+      </div>
+
+      <ul class="sidebar-menu nav flex-column">
+        <li>
+          <a href="#" class="menu-item active" data-content="reservation">
+            <i class="fas fa-book"></i> Reservation
           </a>
         </li>
         <li>
           <a href="#" class="menu-item" data-content="petlist">
-            <i class="fas fa-paw"></i>
-            <span class="menu-text">Pet List</span>
+            <i class="fas fa-paw"></i> Pet List
           </a>
         </li>
         <li>
           <a href="#" class="menu-item" data-content="limit-per-hour">
-            <i class="fas fa-clock"></i>
-            <span class="menu-text">Limit Per Hour</span>
+            <i class="fas fa-clock"></i> Limit Per Hour
           </a>
         </li>
-        <li>
-          <a href="/logout" class="menu-item">
-            <i class="fas fa-sign-out-alt"></i>
-            <span class="menu-text">Logout</span>
-          </a>
+        <li class="logout mt-3">
+          <a href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </li>
       </ul>
-      <div class="sidebar-footer">
-        <button id="toggleSidebar">
-          <i class="fas fa-angle-double-left"></i>
-          <span class="toggle-text">Collapse Sidebar</span>
-        </button>
+
+      <div class="sidebar-bottom-profile">
+        <img src="<%= pic %>" alt="Profile" />
+        <div class="info">
+          <div class="fw-bold text-truncate"><%= username %></div>
+        </div>
       </div>
     </nav>
-    <!-- Content Area (Unchanged) -->
+
+    <!-- Main Content -->
     <div id="content">
-      <div id="main-content">
-        <!-- Reservation view loads by default -->
-      </div>
+      <div id="main-content"><!-- AJAX HR views --></div>
     </div>
   </div>
-  
-  <!-- Scripts -->
+
+  <!-- JS dependencies -->
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
   <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-  
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
   <script>
     $(document).ready(function(){
-      // Function to load partial views from the /hr/ route
-      function loadContent(page) {
-        $("#main-content").load(`/hr/${page}`);
-      }
-      
-      // Initially load the reservation view
-      loadContent("reservation");
-      
-      // Handle sidebar menu clicks
-      $('.menu-item').on('click', function(e){
-  var href = $(this).attr('href');
-  // If href is set and not just "#", allow the default behavior (e.g., logout navigation)
-  if (href && href !== "#") {
-    return; // Do not prevent default so the browser can navigate to the logout route
-  }
-  // Otherwise, prevent default and load dynamic content via AJAX
-  e.preventDefault();
-  $('.menu-item').parent().removeClass('active');
-  $(this).parent().addClass('active');
-  const contentKey = $(this).data('content');
-  loadContent(contentKey);
-});
+      const isMobile = () => $(window).width() < 992;
 
-      
-      // Toggle sidebar collapse/expand
-      $('#toggleSidebar').on('click', function(){
-        $('#sidebar').toggleClass('collapsed');
-        if ($('#sidebar').hasClass('collapsed')) {
-          $(this).find('i').removeClass('fa-angle-double-left').addClass('fa-angle-double-right');
-        } else {
-          $(this).find('i').removeClass('fa-angle-double-right').addClass('fa-angle-double-left');
-        }
-      });
-    });
-      // =============================
-    // AUTO-REFRESH ACCESS TOKEN
-    // =============================
-    // This script automatically calls the refresh token endpoint every 50 seconds.
-    // With an access token expiry of 1 minute (for testing), this keeps the user logged in without re-login.
-  // Automatically refresh the access token every 50 seconds.
-  setInterval(function(){
-    $.ajax({
-      url: '/refresh-token',  // Correct endpoint
-      type: 'POST',
-      xhrFields: { withCredentials: true }, // Ensure cookies are sent
-      success: function(response) {
-        console.log("Access token refreshed:", response.message);
-      },
-      error: function(xhr) {
-        console.error("Error refreshing token:", xhr.responseJSON ? xhr.responseJSON.message : xhr.statusText);
+      function showSidebar() {
+        $('#sidebar').addClass('active');
+        $('#sidebarOverlay').addClass('show');
+        $('body').addClass('sidebar-open');
       }
+      function hideSidebar() {
+        $('#sidebar').removeClass('active');
+        $('#sidebarOverlay').removeClass('show');
+        $('body').removeClass('sidebar-open');
+      }
+
+      // mobile toggle
+      $('#menu-toggle').click(() => {
+        if (!isMobile()) return;
+        $('#sidebar').hasClass('active') ? hideSidebar() : showSidebar();
+      });
+      $('#sidebarOverlay').click(hideSidebar);
+
+      // load & switch HR views
+      const loadContent = page => {
+        $('#main-content').load(`/hr/${page}`);
+        $('#subnav-title').text({
+          reservation:      'Reservation',
+          petlist:          'Pet List',
+          'limit-per-hour': 'Limit Per Hour'
+        }[page]);
+      };
+
+      // initial load
+      loadContent('reservation');
+
+      // toggle active class on <a>, not <li>
+      $('.menu-item').click(function(e){
+        e.preventDefault();
+        $('.menu-item').removeClass('active');
+        $(this).addClass('active');
+        loadContent($(this).data('content'));
+        if (isMobile()) hideSidebar();
+      });
+
+      // messages popup
+      $('#messageButton').click(() => {
+        Swal.fire({
+          title: 'Messages',
+          text: 'You have new messages.',
+          icon: 'info',
+          confirmButtonText: 'View'
+        });
+      });
+
+      // keep sidebar responsive on resize
+      $(window).resize(() => {
+        isMobile() ? hideSidebar() : showSidebar();
+      });
+
+      // keep session alive
+      setInterval(() => {
+        $.ajax({
+          url: '/refresh-token',
+          type: 'POST',
+          xhrFields: { withCredentials: true }
+        });
+      }, 50 * 60 * 1000);
     });
-  }, 50 * 60 * 1000); // 50 minutes in milliseconds
   </script>
 </body>
 </html>

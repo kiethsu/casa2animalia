@@ -1,0 +1,15 @@
+#chatWidget {
+  position: fixed; bottom:80px; right:20px;
+  width:300px; max-height:400px;
+  display:none; flex-direction:column;
+  background:#fff; border:1px solid #ccc; border-radius:8px;
+  box-shadow:0 4px 8px rgba(0,0,0,0.2); z-index:9999;
+}
+#chatHeader { background:#2a9d8f; color:#fff; padding:10px; cursor:pointer; }
+#chatMessages { flex:1; padding:10px; overflow-y:auto; background:#f9f9f9; }
+#chatInputContainer { border-top:1px solid #ccc; padding:10px; }
+#chatInput { width:100%; padding:8px; }
+#suggestedPrompts { display:flex; flex-wrap:wrap; gap:5px; padding:5px 10px; background:#f1f1f1; }
+#suggestedPrompts button { background:#2a9d8f; color:#fff; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:0.9rem; }
+.user { text-align:right; color:#007bff; margin-bottom:5px; }
+.bot, .agent { text-align:left; color:#333; margin-bottom:5px; }

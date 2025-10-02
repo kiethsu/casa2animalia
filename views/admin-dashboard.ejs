@@ -1,509 +1,514 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Admin Dashboard</title>
-  <!-- Bootstrap CSS -->
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-  <!-- Font Awesome for icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
-  <style>
-    /* Base Styles */
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f4f7f9;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-    }
-    .wrapper {
-      display: flex;
-      height: 100vh;
-      overflow: hidden;
-    }
-    /* Sidebar (Doctor Dashboard style) */
-    #sidebar {
-      width: 250px;
-      background: #264653;
-      color: #fff;
-      transition: width 0.3s;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-    }
-    #sidebar.collapsed {
-      width: 80px;
-    }
-    .sidebar-header {
-      padding: 10px;
-      background: #3c4147;
-    }
-    .header-content {
-      display: flex;
-      align-items: center;
-    }
-    /* Profile picture (uploadable) */
-    .default-profile-icon {
-      width: 50px;
-      height: 50px;
-      background: #fff;
-      border-radius: 50%;
-      object-fit: cover;
-      cursor: pointer;
-      transition: width 0.3s, height 0.3s;
-      flex-shrink: 0;
-    }
-    .doctor-name {
-      margin-left: 10px;
-      font-size: 14px;
-      line-height: 1;
-    }
-    /* Hide name when collapsed */
-    #sidebar.collapsed .doctor-name {
-      display: none;
-    }
-    #sidebar.collapsed .header-content {
-      justify-content: center;
-    }
-    /* Menu Items */
-    #sidebar ul.components {
-      padding: 0;
-      margin: 0;
-      flex: 1;
-      list-style: none;
-    }
-    /* Top-level menu items */
-    #sidebar ul.components > li {
-      padding: 10px;
-      transition: background 0.3s;
-    }
-    #sidebar ul.components > li a {
-      color: #fff;
-      display: flex;
-      align-items: center;
-      text-decoration: none;
-      padding: 10px;
-      font-size: 14px;
-    }
-    #sidebar ul.components > li a:hover,
-    #sidebar ul.components > li.active > a {
-      background: #00796B;
-      color: #fff;
-      border-radius: 4px;
-    }
-    /* Force all icons to stay white */
-    #sidebar ul.components li a i {
-      width: 25px;
-      text-align: center;
-      font-size: 1.2em;
-      color: #fff !important;
-    }
-    #sidebar ul.components li a .menu-text {
-      margin-left: 10px;
-      transition: opacity 0.3s;
-    }
-    #sidebar.collapsed ul.components li a .menu-text {
-      display: none;
-    }
-    /* Dropdown Submenu Styling */
-    #sidebar ul.components li ul {
-      list-style: none;
-      padding-left: 20px;
-    }
-    #sidebar ul.components li ul li {
-      padding: 8px 10px;
-      transition: background 0.3s;
-    }
-    #sidebar ul.components li ul li a {
-      font-size: 0.9em;
-      color: #fff;
-      text-decoration: none;
-      display: block;
-    }
-    #sidebar ul.components li ul li a:hover,
-    #sidebar ul.components li ul li.active > a {
-      background: #00796B;
-      border-radius: 4px;
-      color: #fff;
-    }
-    /* Sidebar Footer */
-    .sidebar-footer {
-      padding: 10px;
-      text-align: center;
-      border-top: 1px solid rgba(255,255,255,0.1);
-    }
-    .sidebar-footer button {
-      background: none;
-      border: none;
-      color: #fff;
-      font-size: 1.1em;
-      cursor: pointer;
-    }
-    .sidebar-footer button:hover {
-      color: #fff;
-    }
-    .sidebar-footer .toggle-text {
-      margin-left: 5px;
-      transition: opacity 0.3s;
-    }
-    #sidebar.collapsed .sidebar-footer .toggle-text {
-      display: none;
-    }
-    /* Main Content (Do Not Change) */
-    #content {
-      flex: 1;
-      padding: 20px;
-      background: #fff;
-      overflow-y: auto;
-      height: 100vh;
-    }
-  </style>
+
+  <!-- Google Fonts (same as customer) -->
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet"/>
+  <!-- Bootstrap -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"/>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+  <!-- Daterangepicker -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"/>
+<style>
+  :root{
+    --primary:#1E88E5;
+    --primary-dark:#0D47A1;
+    --accent:#FFB400;
+    --white:#ffffff;
+    --text:#333;
+    --bg-dark:#0D1B2A;
+    --card-bg:#ffffff;
+    --border-color:rgba(0,0,0,0.08);
+  }
+
+  /* —— Top bar —— */
+  #topbar{
+    position:fixed;top:0;left:0;right:0;
+    height:56px;background:var(--bg-dark);
+    display:flex;align-items:center;padding:0 16px;z-index:3000;
+    box-shadow:0 2px 4px rgba(0,0,0,0.25);gap:12px;
+  }
+  #topbar .menu-toggle{color:#fff;font-size:1.5em;margin-right:16px;cursor:pointer;display:none;}
+  #topbar .topbar-paw{color:#fff;font-size:1.3em;margin-right:8px;}
+  #topbar .topbar-title{color:#fff;font-size:1.1em;font-weight:500;flex-grow:1;}
+  .topbar-actions{margin-left:auto;display:flex;align-items:center;gap:16px;}
+  @media (max-width:991.98px){
+    #topbar .topbar-title{display:none;}
+    #topbar .menu-toggle{display:inline-block;}
+  }
+
+  body{font-family:'Roboto',sans-serif;background:#f7f7f7;margin:0;padding:0;overflow-x:hidden;}
+  .wrapper{display:flex;position:relative;min-height:100vh;padding-top:calc(56px + 44px);width:100%;}
+
+  /* —— Sidebar —— */
+  #sidebar{
+    position:fixed;top:56px;left:0;width:250px;height:calc(100vh - 56px);
+    background:linear-gradient(180deg,var(--primary-dark),var(--bg-dark));
+    color:var(--white);display:flex;flex-direction:column;transition:left .3s ease;
+    box-shadow:2px 0 6px rgba(0,0,0,.15);z-index:2000;
+  }
+  .sidebar-header{padding:24px;display:flex;align-items:center;gap:12px;}
+  .sidebar-logo{font-size:1.8rem;color:var(--accent);}
+  .sidebar-title{font-size:1.2rem;font-weight:700;letter-spacing:.5px;}
+  .sidebar-menu{flex-grow:1;padding:0;margin:0;list-style:none;}
+  .sidebar-menu li{margin:4px 0;}
+  .sidebar-menu a{
+    display:flex;align-items:center;padding:12px 20px;color:var(--white);text-decoration:none;
+    font-weight:500;position:relative;border-radius:0 20px 20px 0;transition:background .2s;
+  }
+  .sidebar-menu a i{width:24px;text-align:center;margin-right:12px;}
+  .sidebar-menu a:hover,.sidebar-menu a:focus{background:rgba(255,255,255,.1);text-decoration:none;}
+  .sidebar-menu a.active{background:var(--accent);color:var(--primary-dark);}
+  .sidebar-menu a.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent);border-top-right-radius:4px;border-bottom-right-radius:4px;}
+
+  /* bottom profile */
+  .sidebar-bottom-profile{
+    padding:16px;background:rgba(255,255,255,.05);margin:16px;border-radius:12px;
+    display:flex;align-items:center;gap:12px;overflow:hidden;
+  }
+  .sidebar-bottom-profile img{
+    display:block;width:40px;height:40px;aspect-ratio:1/1;border-radius:50%;
+    object-fit:cover;object-position:center;border:2px solid var(--accent);
+  }
+  #sidebarAdminName{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  /* —— Sub-nav —— */
+  #sub-nav{
+    position:fixed;top:56px;left:250px;right:0;background:#f1f5fa;height:44px;padding:6px 16px;
+    z-index:2500;box-shadow:0 2px 6px rgba(0,0,0,.08);border-bottom:1px solid rgba(0,0,0,.04);
+    display:flex;align-items:center;font-size:.9rem;transition:height .2s;
+  }
+  #subnav-title{font-weight:600;font-size:1rem;color:var(--text);margin:0;}
+
+  /* —— Content —— */
+  #content{
+    margin-left:250px;padding:16px;background:#f7f7f7;min-height:100vh;width:calc(100% - 250px);
+    transition:margin-left .3s ease;box-shadow:inset 0 1px 3px rgba(0,0,0,.08);overflow:visible;
+  }
+  .collapsed-content{margin-left:0 !important;width:100% !important;}
+
+  /* Mobile drawer overlay */
+  #sidebarOverlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.35);backdrop-filter:blur(1px);z-index:1500;display:none;
+  }
+  #sidebarOverlay.show{display:block;}
+
+  /* —— Responsive —— */
+  @media (max-width:991.98px){
+    #sidebar{width:220px;left:-220px;}
+    #sidebar.active{left:0;}
+    #content{margin-left:0;width:100%;padding:12px;}
+    #sidebarOverlay.show{display:block;}
+    #sub-nav{left:0;z-index:1800;}
+    body.sidebar-open #sub-nav{display:none;}
+  }
+  @media (max-width:450px){
+    #sidebar{width:70vw;left:-70vw;}
+    #sidebar.active{left:0;}
+  }
+
+  /* ============================
+     HARD LOCKS (prevent font jumps)
+     ============================ */
+  #sidebar, #sidebar *{
+    font-family:'Roboto',sans-serif !important;
+    font-size:14px !important;
+    line-height:1.25 !important;
+  }
+  #topbar, #topbar *{ font-family:'Roboto',sans-serif !important; }
+  #sub-nav, #sub-nav *{ font-family:'Roboto',sans-serif !important; }
+
+  #sidebar .sidebar-title{ font-size:1.2rem !important; }
+  #sidebar .sidebar-logo,
+  #sidebar .sidebar-logo *{ font-size:1.8rem !important; }
+
+  #sidebar .sidebar-menu a{ font-weight:500 !important; font-size:0.95rem !important; }
+  #sidebar .sidebar-menu a.active,
+  #sidebar .sidebar-menu a:hover,
+  #sidebar .sidebar-menu a:focus{ font-weight:500 !important; }
+
+  #sidebar .sidebar-menu a i{
+    width:24px; min-width:24px; text-align:center; line-height:1 !important;
+    font-size:1rem;
+  }
+
+  /* Font Awesome exceptions */
+  #sidebar .fa, #sidebar .fas, #sidebar .far, #sidebar .fal, #sidebar .fad,
+  #topbar  .fa, #topbar  .fas, #topbar  .far, #topbar  .fal, #topbar  .fad,
+  #sidebar .fa-solid, #topbar .fa-solid,
+  #sidebar .fa-regular, #topbar .fa-regular{
+    font-family:"Font Awesome 6 Free" !important;
+  }
+  #sidebar .fas, #topbar .fas,
+  #sidebar .fa-solid, #topbar .fa-solid{ font-weight:900 !important; }
+  #sidebar .far, #topbar .far,
+  #sidebar .fa-regular, #topbar .fa-regular{ font-weight:400 !important; }
+  #sidebar .fab, #topbar .fab,
+  #sidebar .fa-brands, #topbar .fa-brands{
+    font-family:"Font Awesome 6 Brands" !important;
+    font-weight:400 !important;
+  }
+
+  #sidebar, #topbar{ -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+</style>
+
 </head>
 <body>
-  <div class="wrapper">
-    <!-- Sidebar -->
-    <nav id="sidebar">
-      <div class="sidebar-header">
-        <div class="header-content">
-          <img src="/images/default_profile_icon.png" alt="Profile" class="default-profile-icon" id="profilePic">
-          <h4 class="doctor-name">Admin Name</h4>
-        </div>
-      </div>
-      <ul class="components">
-        <!-- Top-level items -->
-        <li class="active">
-          <a href="#" class="menu-item" data-content="dashboard">
-            <i class="fas fa-home"></i>
-            <span class="menu-text">Dashboard</span>
-          </a>
-        </li>
-        <li>
-          <a href="#" class="menu-item" data-content="accounts">
-            <i class="fas fa-users"></i>
-            <span class="menu-text">Accounts</span>
-          </a>
-        </li>
-        <!-- New Pet List Menu Item -->
-        <li>
-          <a href="#" class="menu-item" data-content="petlist">
-            <i class="fas fa-paw"></i>
-            <span class="menu-text">Pet List</span>
-          </a>
-        </li>
-        <li>
-          <a href="#" class="menu-item" data-content="profile">
-            <i class="fas fa-user"></i>
-            <span class="menu-text">Profile</span>
-          </a>
-        </li>
-        <!-- Settings with submenu -->
-        <li>
-          <a href="#settingsSubmenu" data-target="#settingsSubmenu" aria-expanded="false" class="dropdown-toggle">
-            <i class="fas fa-cog"></i>
-            <span class="menu-text">Settings</span>
-          </a>
-          <ul class="collapse list-unstyled" id="settingsSubmenu">
-            <li>
-              <a href="#" class="submenu-item" data-content="pet-details">
-                <span class="menu-text">Pet Details</span>
-              </a>
-            </li>
-            <li>
-              <a href="#" class="submenu-item" data-content="about">
-                <span class="menu-text">About</span>
-              </a>
-            </li>
-            <li>
-              <a href="#" class="submenu-item" data-content="contact">
-                <span class="menu-text">Contact</span>
-              </a>
-            </li>
-            <li>
-              <a href="#" class="submenu-item" data-content="dashboardsetting">
-                <span class="menu-text">Dashboard Settings</span>
-              </a>
-            </li>
-          </ul>
-        </li>
-        <li>
-          <a href="/logout" class="menu-item">
-            <i class="fas fa-sign-out-alt"></i>
-            <span class="menu-text">Logout</span>
-          </a>
-        </li>
-      </ul>
-      
-      <div class="sidebar-footer">
-        <button id="toggleSidebar">
-          <i class="fas fa-angle-double-left"></i>
-          <span class="toggle-text">Collapse Sidebar</span>
-        </button>
-      </div>
-    </nav>
-    <!-- Main Content -->
-    <div id="content">
-      <div id="main-content">
-        <!-- On initial load, Dashboard content will be loaded -->
+<%
+  // ── Safe defaults to avoid ReferenceError when values aren't passed ──
+  const __adminName =
+    (typeof adminName  !== 'undefined' && adminName)  ? adminName  :
+    (typeof username   !== 'undefined' && username)   ? username   :
+    (locals && locals.adminName) ? locals.adminName : 'Admin';
+
+  const __profilePic =
+    (typeof profilePic !== 'undefined' && profilePic) ? profilePic :
+    (locals && locals.profilePic) ? locals.profilePic :
+    '/images/default_profile_icon.png';
+%>
+
+  <!-- Top bar -->
+  <header id="topbar">
+    <i id="menu-toggle" class="fas fa-bars menu-toggle" aria-label="Toggle sidebar"></i>
+    <i class="fas fa-paw topbar-paw"></i>
+    <span class="topbar-title">SmartVet</span>
+    <div class="topbar-actions"></div>
+  </header>
+
+  <!-- Sub-nav -->
+  <div id="sub-nav">
+    <div class="sub-nav-inner">
+      <div id="subnav-title-wrapper" style="display:flex;align-items:center;gap:12px;">
+        <div id="subnav-title">Admin Dashboard</div>
       </div>
     </div>
   </div>
-  
-  <!-- Hidden File Input for Profile Picture Upload -->
-  <input type="file" id="profilePicInput" accept="image/*" style="display: none;">
-  
-  <!-- jQuery and Bootstrap JS -->
+
+  <div class="wrapper">
+    <div id="sidebarOverlay"></div>
+
+    <!-- Sidebar -->
+    <nav id="sidebar" class="active" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <span class="sidebar-logo"><i class="fa-solid fa-paw"></i></span>
+        <span class="sidebar-title">Casa Animalia</span>
+      </div>
+
+      <ul class="sidebar-menu nav flex-column">
+        <li><a href="#" class="menu-item active" data-content="dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
+        <li><a href="#" class="menu-item" data-content="accounts"><i class="fas fa-users"></i> Accounts</a></li>
+        <li><a href="#" class="menu-item" data-content="petlist"><i class="fas fa-paw"></i> Pet List</a></li>
+        <li><a href="#" class="menu-item" data-content="inventory"><i class="fas fa-boxes"></i> Inventory</a></li>
+        <li><a href="#" class="menu-item" data-content="sales-report"><i class="fas fa-file-alt"></i> Sales Report</a></li>
+        <li><a href="#" class="menu-item" data-content="services"><i class="fas fa-concierge-bell"></i> Services</a></li>
+        <li><a href="#" class="menu-item" data-content="profile"><i class="fas fa-user"></i> Profile</a></li>
+
+        <!-- Settings submenu -->
+        <li>
+          <a href="#settingsSubmenu" data-target="#settingsSubmenu" aria-expanded="false" class="dropdown-toggle">
+            <i class="fas fa-cog"></i> Settings
+          </a>
+          <ul class="collapse list-unstyled" id="settingsSubmenu" style="padding-left:28px;">
+            <li><a href="#" class="submenu-item" data-content="pet-details">Pet Details</a></li>
+            <li><a href="#" class="submenu-item" data-content="about">About</a></li>
+            <li><a href="#" class="submenu-item" data-content="contact">Contact</a></li>
+            <li><a href="#" class="submenu-item" data-content="dashboardsetting">Dashboard Settings</a></li>
+          </ul>
+        </li>
+
+        <li class="logout mt-3"><a href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+      </ul>
+
+      <!-- Bottom profile -->
+      <div class="sidebar-bottom-profile mt-auto">
+        <img id="sidebarProfilePic" src="<%= __profilePic %>" alt="Profile"/>
+        <div class="info">
+          <div id="sidebarAdminName" class="fw-bold text-truncate"><%= __adminName %></div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main content -->
+    <div id="content" class="container-fluid" role="main">
+      <div id="main-content"></div>
+    </div>
+  </div>
+
+  <!-- Hidden File Input for avatar change (optional) -->
+  <input type="file" id="profilePicInput" accept="image/*" style="display:none;"/>
+
+  <!-- Scripts -->
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Load shared/feature bundles globally once -->
+<script src="/js/dashboard-common.js"></script>
+<script src="/js/sales-overview.js"></script>
+<script src="/js/inventory-overview.js"></script>
+<script src="/js/appointments.js"></script>
+
+
+
   <script>
-    // Global variables for charts
+    // ===== Charts (these are only for the small charts in this shell) =====
     let appointmentTrendsChart, servicesChart, petsChart, diseaseChart;
 
-    // Function to initialize dashboard charts and load dynamic data
-    function initDashboard() {
-      // Initialize Appointment Trends Chart (Line Chart)
-      const ctx1 = document.getElementById("appointmentTrendsChart").getContext("2d");
-      appointmentTrendsChart = new Chart(ctx1, {
-        type: "line",
-        data: {
-          labels: ["Day 1","Day 2","Day 3","Day 4","Day 5","Day 6","Day 7"],
-          datasets: [
-            { label: "Pending", data: [0,0,0,0,0,0,0], backgroundColor: "rgba(255, 193, 7, 0.5)", borderColor: "rgba(255, 193, 7, 1)", fill: true },
-            { label: "Approved", data: [0,0,0,0,0,0,0], backgroundColor: "rgba(40, 167, 69, 0.5)", borderColor: "rgba(40, 167, 69, 1)", fill: true },
-            { label: "Completed", data: [0,0,0,0,0,0,0], backgroundColor: "rgba(23, 162, 184, 0.5)", borderColor: "rgba(23, 162, 184, 1)", fill: true },
-          ]
-        },
-        options: { 
-          responsive: true, 
-          maintainAspectRatio: false, 
-          scales: { y: { beginAtZero: true } } 
-        }
-      });
+    function initDashboard(){
+      const ctx1 = document.getElementById("appointmentTrendsChart")?.getContext("2d");
+      if (ctx1){
+        appointmentTrendsChart = new Chart(ctx1,{ type:"line",
+          data:{ labels:["Day 1","Day 2","Day 3","Day 4","Day 5","Day 6","Day 7"],
+            datasets:[
+              {label:"Pending",data:[0,0,0,0,0,0,0],backgroundColor:"rgba(255,193,7,0.5)",borderColor:"rgba(255,193,7,1)",fill:true},
+              {label:"Approved",data:[0,0,0,0,0,0,0],backgroundColor:"rgba(40,167,69,0.5)",borderColor:"rgba(40,167,69,1)",fill:true},
+              {label:"Completed",data:[0,0,0,0,0,0,0],backgroundColor:"rgba(23,162,184,0.5)",borderColor:"rgba(23,162,184,1)",fill:true}
+            ]},
+          options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}}}
+        });
+      }
 
-      // Initialize Most Used Services Chart (Pie Chart)
-      const ctx2 = document.getElementById("servicesChart").getContext("2d");
-      servicesChart = new Chart(ctx2, {
-        type: "pie",
-        data: {
-          labels: ["Vaccination", "Checkup", "Surgery", "Grooming"],
-          datasets: [{
-            data: [0,0,0,0],
-            backgroundColor: [
-              "rgba(255, 99, 132, 0.7)",
-              "rgba(54, 162, 235, 0.7)",
-              "rgba(255, 206, 86, 0.7)",
-              "rgba(75, 192, 192, 0.7)"
-            ],
-            borderColor: [
-              "rgba(255, 99, 132, 1)",
-              "rgba(54, 162, 235, 1)",
-              "rgba(255, 206, 86, 1)",
-              "rgba(75, 192, 192, 1)"
-            ],
-            borderWidth: 1,
-          }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-      });
+      const ctx2 = document.getElementById("servicesChart")?.getContext("2d");
+      if (ctx2){
+        servicesChart = new Chart(ctx2,{ type:"pie",
+          data:{ labels:["Vaccination","Checkup","Surgery","Grooming"],
+            datasets:[{ data:[0,0,0,0],
+              backgroundColor:["rgba(255,99,132,0.7)","rgba(54,162,235,0.7)","rgba(255,206,86,0.7)","rgba(75,192,192,0.7)"],
+              borderColor:["rgba(255,99,132,1)","rgba(54,162,235,1)","rgba(255,206,86,1)","rgba(75,192,192,1)"],borderWidth:1}]},
+          options:{responsive:true,maintainAspectRatio:false}
+        });
+      }
 
-      // Initialize Pets by Species & Breed Chart (Bar Chart)
-      const ctx3 = document.getElementById("petsChart").getContext("2d");
-      petsChart = new Chart(ctx3, {
-        type: "bar",
-        data: {
-          labels: ["Dog", "Cat"],
-          datasets: [
-            { label: "Labrador", data: [0,0], backgroundColor: "rgba(153, 102, 255, 0.7)" },
-            { label: "Bulldog", data: [0,0], backgroundColor: "rgba(255, 159, 64, 0.7)" },
-            { label: "Persian", data: [0,0], backgroundColor: "rgba(75, 192, 192, 0.7)" },
-            { label: "Siamese", data: [0,0], backgroundColor: "rgba(255, 205, 86, 0.7)" },
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
-        }
-      });
+      const ctx3 = document.getElementById("petsChart")?.getContext("2d");
+      if (ctx3){
+        petsChart = new Chart(ctx3,{ type:"bar",
+          data:{ labels:["Dog","Cat"],
+            datasets:[
+              {label:"Labrador",data:[0,0],backgroundColor:"rgba(153,102,255,0.7)"},
+              {label:"Bulldog",data:[0,0],backgroundColor:"rgba(255,159,64,0.7)"},
+              {label:"Persian",data:[0,0],backgroundColor:"rgba(75,192,192,0.7)"},
+              {label:"Siamese",data:[0,0],backgroundColor:"rgba(255,205,86,0.7)"}
+            ]},
+          options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}}}
+        });
+      }
 
-      // Initialize Disease Analytics Chart (Bar Chart)
-      const ctx4 = document.getElementById("diseaseChart").getContext("2d");
-      diseaseChart = new Chart(ctx4, {
-        type: "bar",
-        data: {
-          labels: ["Parvovirus", "Distemper", "Rabies", "Leptospirosis"],
-          datasets: [{
-            label: "Reported Cases",
-            data: [0,0,0,0],
-            backgroundColor: "rgba(255, 99, 132, 0.7)",
-            borderColor: "rgba(255, 99, 132, 1)",
-            borderWidth: 1,
-          }],
-        },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-      });
+      const ctx4 = document.getElementById("diseaseChart")?.getContext("2d");
+      if (ctx4){
+        diseaseChart = new Chart(ctx4,{ type:"bar",
+          data:{ labels:["Parvovirus","Distemper","Rabies","Leptospirosis"],
+            datasets:[{label:"Reported Cases",data:[0,0,0,0],backgroundColor:"rgba(255,99,132,0.7)",borderColor:"rgba(255,99,132,1)",borderWidth:1}]},
+          options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}}}
+        });
+      }
 
-      // Load dynamic dashboard stats via AJAX
       loadDashboardStats();
     }
 
-    // Function to load dashboard stats from backend
-    function loadDashboardStats() {
+    function loadDashboardStats(){
       $.ajax({
-        url: '/admin/get-dashboard-stats',
-        method: 'GET',
-        cache: false,
-        dataType: 'json',
-        success: function(data) {
-          // Update Appointment Trends Chart
+        url:'/admin/get-dashboard-stats',method:'GET',cache:false,dataType:'json'
+      }).done(function(data){
+        if (appointmentTrendsChart && data.appointmentTrends){
           appointmentTrendsChart.data.labels = data.appointmentTrends.labels;
-          appointmentTrendsChart.data.datasets[0].data = data.appointmentTrends.pending;
-          appointmentTrendsChart.data.datasets[1].data = data.appointmentTrends.approved;
-          appointmentTrendsChart.data.datasets[2].data = data.appointmentTrends.completed;
+          appointmentTrendsChart.data.datasets[0].data = data.appointmentTrends.pending || [];
+          appointmentTrendsChart.data.datasets[1].data = data.appointmentTrends.approved || [];
+          appointmentTrendsChart.data.datasets[2].data = data.appointmentTrends.completed || [];
           appointmentTrendsChart.update();
-
-          // Update Most Used Services Chart
-          servicesChart.data.labels = data.servicesData.labels;
-          servicesChart.data.datasets[0].data = data.servicesData.data;
+        }
+        if (servicesChart && data.servicesData){
+          servicesChart.data.labels = data.servicesData.labels || [];
+          servicesChart.data.datasets[0].data = data.servicesData.data || [];
           servicesChart.update();
-
-          // Update Pets by Species & Breed Chart
-          petsChart.data.labels = data.petsData.labels;
-          petsChart.data.datasets = data.petsData.datasets;
+        }
+        if (petsChart && data.petsData){
+          petsChart.data.labels = data.petsData.labels || [];
+          petsChart.data.datasets = data.petsData.datasets || [];
           petsChart.update();
-
-          // Update Disease Analytics Chart
-          diseaseChart.data.labels = data.diseaseData.labels;
-          diseaseChart.data.datasets[0].data = data.diseaseData.data;
+        }
+        if (diseaseChart && data.diseaseData){
+          diseaseChart.data.labels = data.diseaseData.labels || [];
+          diseaseChart.data.datasets[0].data = data.diseaseData.data || [];
           diseaseChart.update();
-
-          // Update User Account Statistics
-          $("#doctorsCount").text(data.userStats.doctors);
-          $("#hrCount").text(data.userStats.hr);
-          $("#customersCount").text(data.userStats.customers);
-
-          // Update Activity Feed
-          const feedEl = $("#activityFeed");
-          feedEl.empty();
-          data.activityFeed.forEach(item => {
-            feedEl.append(`<li class="list-group-item">${item}</li>`);
-          });
-        },
-        error: function(err) {
-          console.error("Error loading dashboard stats:", err);
         }
-      });
+
+        $("#doctorsCount").text(data.userStats?.doctors ?? 0);
+        $("#hrCount").text(data.userStats?.hr ?? 0);
+        $("#customersCount").text(data.userStats?.customers ?? 0);
+
+        const feedEl = $("#activityFeed"); feedEl.empty();
+        (data.activityFeed || []).forEach(item => feedEl.append(`<li class="list-group-item">${item}</li>`));
+      }).fail(err => console.error('Error loading dashboard stats:', err));
     }
 
-    // Function to load content (default basePath: '/admin/')
-    function loadContent(page, basePath = '/admin/') {
-      $("#main-content").load(`${basePath}${page}`, function(response, status, xhr) {
-        // If the dashboard view is loaded, initialize dashboard functionalities
-        if (page === "dashboard") {
-          initDashboard();
-        }
-      });
+    /* ===== Layout helpers ===== */
+    function isMobile(){ return $(window).width() < 992; }
+    function showSidebar(){
+      $('#sidebar').addClass('active');
+      if (isMobile()){ $('#sidebarOverlay').addClass('show'); $('body').addClass('sidebar-open'); }
     }
-    
-    $(document).ready(function(){
-      // Initialize settings submenu collapse without auto-toggle
-      $('#settingsSubmenu').collapse({ toggle: false });
-      
-      // Custom click handler for the Settings header to toggle submenu
-      $('.dropdown-toggle').on('click', function(e){
-        e.preventDefault();
-        var target = $(this).data('target');
-        $(target).collapse('toggle');
-      });
-      
-      // Update aria-expanded attribute for accessibility
-      $('#settingsSubmenu').on('shown.bs.collapse', function(){
-         $('.dropdown-toggle').attr('aria-expanded', 'true');
-      });
-      $('#settingsSubmenu').on('hidden.bs.collapse', function(){
-         $('.dropdown-toggle').attr('aria-expanded', 'false');
-      });
-      
-      // Initially load the dashboard view
-      loadContent("dashboard");
-      
-      // Top-level menu click handler
-      $('.menu-item').on('click', function(e){
-  var href = $(this).attr('href');
-  // If href is set and not "#", let the default behavior (e.g. for logout) occur.
-  if (href && href !== "#") {
-    return; // Do not prevent default.
+    function hideSidebar(){
+      $('#sidebar').removeClass('active');
+      if (isMobile()){ $('#sidebarOverlay').removeClass('show'); $('body').removeClass('sidebar-open'); }
+    }
+    function setSubNavFor(page){
+      let title =
+        page === 'dashboard' ? 'Admin Dashboard' :
+        page === 'accounts' ? 'Accounts' :
+        page === 'petlist' ? 'Pet List' :
+        page === 'inventory' ? 'Inventory' :
+        page === 'sales-report' ? 'Sales Report' :
+        page === 'services' ? 'Services' :
+        page === 'profile' ? 'Profile' : 'Settings';
+      $('#subnav-title').text(title).show();
+      const topbarHeight = $('#topbar').outerHeight() || 56;
+      const subnavHeight = $('#sub-nav').outerHeight();
+      $('.wrapper').css('padding-top', (topbarHeight + subnavHeight) + 'px');
+    }
+
+    // ===== Lifecycle glue for SPA partial reloads =====
+  let __currentPage = null;
+
+  function runPageInit(page){
+    if (page === 'dashboard'){
+      window.SalesOverview && window.SalesOverview.init();
+      window.InventoryOverview && window.InventoryOverview.init && window.InventoryOverview.init();
+      window.Appointments && window.Appointments.init && window.Appointments.init();
+
+      // when switching tabs inside the dashboard, refresh the right module
+      wireDashboardTabRefreshes();
+    }
   }
-  e.preventDefault();
-  // Remove active state from top-level items only
-  $('#sidebar ul.components > li').removeClass('active');
-  $(this).closest('li').addClass('active');
-  const contentKey = $(this).data('content');
-  let route = contentKey === "accounts" ? "accounts-view" : contentKey;
-  loadContent(route);
-});
 
+  function runPageDestroy(page){
+    if (page === 'dashboard'){
+      window.SalesOverview && window.SalesOverview.destroy && window.SalesOverview.destroy();
+      window.InventoryOverview && window.InventoryOverview.destroy && window.InventoryOverview.destroy();
+      window.Appointments && window.Appointments.destroy && window.Appointments.destroy();
+      // remove delegated tab handler
+      $('#main-content').off('shown.bs.tab.dashboardTabs');
+    }
+  }
 
-      // Submenu click handler for Settings
-      $('.submenu-item').on('click', function(e){
-        e.preventDefault();
-        // Remove active state from all top-level items and submenu items
-        $('#sidebar ul.components > li').removeClass('active');
-        $('#sidebar ul.components li ul li').removeClass('active');
-        // Only add active state to the clicked submenu item (do not mark the parent Settings as active)
-        $(this).closest('li').addClass('active');
-        const contentKey = $(this).data('content');
-        loadContent(contentKey, '/settings/');
-      });
-      
-      // Sidebar collapse/expand toggle
-      $('#toggleSidebar').on('click', function(){
-        $('#sidebar').toggleClass('collapsed');
-        if ($('#sidebar').hasClass('collapsed')) {
-          $(this).find('i').removeClass('fa-angle-double-left').addClass('fa-angle-double-right');
-        } else {
-          $(this).find('i').removeClass('fa-angle-double-right').addClass('fa-angle-double-left');
-        }
-      });
-      
-      // Profile picture upload functionality
-      $('#profilePic').on('click', function(){
-        $('#profilePicInput').click();
-      });
-      
-      $('#profilePicInput').on('change', function(){
-        const file = this.files[0];
-        if(file){
-          const reader = new FileReader();
-          reader.onload = function(e){
-            $('#profilePic').attr('src', e.target.result);
-          }
-          reader.readAsDataURL(file);
-        }
-      });
-    });
-      // =============================
-    // AUTO-REFRESH ACCESS TOKEN
-    // =============================
-    // This script automatically calls the refresh token endpoint every 50 seconds.
-    // With an access token expiry of 1 minute (for testing), this keeps the user logged in without re-login.
-   // Automatically refresh the access token every 50 seconds.
-   setInterval(function(){
-    $.ajax({
-      url: '/refresh-token',  // Correct endpoint
-      type: 'POST',
-      xhrFields: { withCredentials: true }, // Ensure cookies are sent
-      success: function(response) {
-        console.log("Access token refreshed:", response.message);
-      },
-      error: function(xhr) {
-        console.error("Error refreshing token:", xhr.responseJSON ? xhr.responseJSON.message : xhr.statusText);
+  function wireDashboardTabRefreshes() {
+    // Delegated — works for content loaded via .load()
+    $('#main-content').on('shown.bs.tab.dashboardTabs', 'a[data-toggle="tab"]', function (e) {
+      const target = $(e.target).attr('href'); // '#salesOverview' | '#inventoryOverview' | '#appointmentTrends'
+      if (target === '#appointmentTrends') {
+        // ensure charts/values render even if the tab was hidden at init time
+        window.Appointments && (window.Appointments.refresh ? window.Appointments.refresh() : window.Appointments.init && window.Appointments.init());
+      } else if (target === '#salesOverview') {
+        window.SalesOverview && window.SalesOverview.init && window.SalesOverview.init(); // idempotent
       }
     });
-  }, 50 * 60 * 1000); // 50 minutes in milliseconds
+  }
+
+  // ===== Content loader (AJAX) =====
+  function loadContent(page, basePath = '/admin/'){
+    if (__currentPage) runPageDestroy(__currentPage);
+
+    $("#main-content").load(`${basePath}${page}`, function(_res, status, xhr){
+      if (status === 'error'){
+        $("#main-content").html(
+          `<div class="alert alert-danger mt-3">Failed to load <b>${page}</b>. ${xhr?.status || ''} ${xhr?.statusText || ''}</div>`
+        );
+      } else {
+        runPageInit(page);
+      }
+      setSubNavFor(page);
+      __currentPage = page;
+    });
+  }
+    $(document).ready(function(){
+      if (isMobile()) hideSidebar(); else showSidebar();
+
+      // menu toggle (mobile)
+      $('#menu-toggle').on('click', function(){
+        if (!isMobile()) return;
+        $('#sidebar').hasClass('active') ? hideSidebar() : showSidebar();
+      });
+      $('#sidebarOverlay').on('click', hideSidebar);
+
+      // submenu collapse
+      $('#settingsSubmenu').collapse({ toggle:false });
+      $('.dropdown-toggle').on('click', function(e){
+        e.preventDefault();
+        $($(this).data('target')).collapse('toggle');
+      }).attr('aria-expanded','false');
+      $('#settingsSubmenu')
+        .on('shown.bs.collapse', ()=>$('.dropdown-toggle').attr('aria-expanded','true'))
+        .on('hidden.bs.collapse', ()=>$('.dropdown-toggle').attr('aria-expanded','false'));
+
+      // top-level menu
+      $('.menu-item').on('click', function(e){
+        const href = $(this).attr('href');
+        if (href && href !== '#') return; // allow /logout
+        e.preventDefault();
+
+        $('.menu-item').removeClass('active');
+        $(this).addClass('active');
+
+        const key = $(this).data('content');
+        const route = (key === 'accounts') ? 'accounts-view' : key;
+        loadContent(route);
+        if (isMobile()) hideSidebar();
+      });
+
+      // submenu items
+      $('.submenu-item').on('click', function(e){
+        e.preventDefault();
+        $('#settingsSubmenu li a').removeClass('active');
+        $(this).addClass('active');
+        const key = $(this).data('content');
+        loadContent(key, '/settings/');
+        if (isMobile()) hideSidebar();
+      });
+
+      // initial load
+      loadContent('dashboard');
+
+      // keep layout correct on resize
+      $(window).on('resize', function(){
+        if (isMobile()) hideSidebar(); else showSidebar();
+        setSubNavFor($('.menu-item.active').data('content') || 'dashboard');
+      });
+
+      // optional avatar change
+      $('#sidebarProfilePic').on('click', function(){
+        $('#profilePicInput').click();
+      });
+      $('#profilePicInput').on('change', function(){
+        const file = this.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => $('#sidebarProfilePic').attr('src', String(e.target.result));
+        reader.readAsDataURL(file);
+      });
+    });
+
+    // expose to update sidebar name/pic from inner pages
+    window.applyUserToShell = function (user = {}){
+      if (user.adminName || user.username){
+        $('#sidebarAdminName').text(user.adminName || user.username);
+      }
+      if (user.profilePic){
+        $('#sidebarProfilePic').attr('src', user.profilePic + '?v=' + Date.now());
+      }
+    };
+
+    // refresh token every 50 minutes
+    setInterval(function(){
+      $.ajax({
+        url:'/refresh-token', type:'POST', xhrFields:{ withCredentials:true }
+      }).done(r => console.log('Access token refreshed:', r?.message || 'ok'))
+        .fail(xhr => console.error('Error refreshing token:', xhr.responseJSON ? xhr.responseJSON.message : xhr.statusText));
+    }, 50 * 60 * 1000);
   </script>
 </body>
 </html>

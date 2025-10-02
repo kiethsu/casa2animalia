@@ -10,6 +10,8 @@ const Joi = require("joi"); // <-- Added for input validation
 let otpStore = {};       // For registration OTP
 let resetOtpStore = {};  // For password reset OTP
 let adminOtpStore = {};  // For admin login OTP
+let otpCooldown = {};     // { email: lastSentMs }
+let resetOtpCooldown = {}; // optional: throttle for password-reset OTPs
 
 // In-memory login attempt counter (for demo only)
 const loginAttempts = {};  // e.g. { "admin@example.com": { count: 0, lockoutStart: Date } }
@@ -56,6 +58,17 @@ exports.sendOTP = async (req, res) => {
       return res.status(400).json({ message: "Admin email cannot be used for registration!" });
     }
 
+    // === NEW: Cooldown guard (before generating/sending the OTP) ===
+    const now = Date.now();
+    const COOLDOWN_MS = 60 * 1000; // 60 seconds
+    const last = otpCooldown[normalizedEmail] || 0;
+    if (now - last < COOLDOWN_MS) {
+      const wait = Math.ceil((COOLDOWN_MS - (now - last)) / 1000);
+      return res.status(429).json({ message: `Please wait ${wait}s before requesting another OTP.` });
+    }
+    otpCooldown[normalizedEmail] = now;
+    // ===============================================================
+
     const existingUser = await User.findOne({ email: { $regex: `^${normalizedEmail}$`, $options: "i" } });
     if (existingUser) {
       return res.status(400).json({ message: "This email is already registered! Please log in." });
@@ -73,6 +86,8 @@ exports.sendOTP = async (req, res) => {
 
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
+        // NEW: clear cooldown if send failed so the user can retry
+        delete otpCooldown[normalizedEmail];
         console.error("SMTP ERROR:", error);
         return res.status(500).json({ message: "Failed to send OTP. Check SMTP settings." });
       }
@@ -80,10 +95,13 @@ exports.sendOTP = async (req, res) => {
       res.status(200).json({ message: "OTP sent. Check your email!" });
     });
   } catch (error) {
+    // (Optional) also clear on unexpected errors
+    delete otpCooldown[normalizedEmail];
     console.error("Error Sending OTP:", error);
     res.status(500).json({ message: "Failed to send OTP" });
   }
 };
+
 
 // ================================
 // Verify OTP & Register User
@@ -226,7 +244,7 @@ exports.login = async (req, res) => {
     const accessToken = jwt.sign(
       { userId: user._id, username: user.username, email: user.email, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: "1m" }
+      { expiresIn: "1h" }
     );
     // Refresh token remains long-lived (e.g. 7 days)
     const refreshToken = jwt.sign(
@@ -235,15 +253,24 @@ exports.login = async (req, res) => {
       { expiresIn: "7d" }
     );
     // Role-specific access token cookie (expires in 1 minute for testing)
-    const accessCookieName = user.role.toLowerCase() + "_token";
-    res.cookie(accessCookieName, accessToken, { httpOnly: true, maxAge: 60 * 1000, path: "/" });
-    // Set refresh token cookie under a unified name (expires in 7 days)
-    res.cookie("refreshToken", refreshToken, { 
-      httpOnly: true, 
-      maxAge: 7 * 24 * 60 * 60 * 1000,  // 7 days 
-      path: "/", 
-      sameSite: "lax"  // added sameSite option for local testing
-    });
+   const isProd = process.env.NODE_ENV === "production";
+const accessCookieName = user.role.toLowerCase() + "_token";
+res.cookie(accessCookieName, accessToken, {
+  httpOnly: true,
+  maxAge: 60 * 60 * 1000,
+  path: "/",
+  sameSite: "lax",
+  secure: isProd
+});
+// --- ADD THIS: set refresh token cookie (7 days) ---
+res.cookie("refreshToken", refreshToken, {
+  httpOnly: true,
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  path: "/",
+  sameSite: "lax",
+  secure: isProd
+});
+
     // Send login notification email
     const mailOptions = {
       from: `"SmartVet" <dehe.marquez.au@phinmaed.com>`,
@@ -294,7 +321,14 @@ exports.verifyAdminOTP = async (req, res) => {
     process.env.JWT_SECRET,
     { expiresIn: "1h" }
   );
-  res.cookie("admin_token", accessToken, { httpOnly: true, maxAge: 60 * 60 * 1000, path: "/" });
+const isProd = process.env.NODE_ENV === "production";
+res.cookie("admin_token", accessToken, {
+  httpOnly: true,
+  maxAge: 60 * 60 * 1000,
+  path: "/",
+  sameSite: "lax",
+  secure: isProd
+});
   return res.status(200).json({
     message: "OTP verified! You are now logged in as Admin. Redirecting...",
     redirect: "/admin-dashboard"
@@ -363,6 +397,9 @@ exports.checkEmailAvailability = async (req, res) => {
 // ================================
 // SEND OTP for Password Reset (All Users)
 // ================================
+// ================================
+// SEND OTP for Password Reset (All Users) — with cooldown
+// ================================
 exports.sendResetOTP = async (req, res) => {
   const { email } = req.body;
   const normalizedEmail = email.trim().toLowerCase();
@@ -372,11 +409,23 @@ exports.sendResetOTP = async (req, res) => {
   }
 
   try {
+    // 1) Make sure the account exists first
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       return res.status(400).json({ message: "This email is not registered!" });
     }
 
+    // 2) Cooldown guard — before generating/sending OTP
+    const now = Date.now();
+    const COOLDOWN_MS = 60 * 1000; // 60 seconds
+    const last = resetOtpCooldown[normalizedEmail] || 0;
+    if (now - last < COOLDOWN_MS) {
+      const wait = Math.ceil((COOLDOWN_MS - (now - last)) / 1000);
+      return res.status(429).json({ message: `Please wait ${wait}s before requesting another OTP.` });
+    }
+    resetOtpCooldown[normalizedEmail] = now;
+
+    // 3) Generate and send OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     resetOtpStore[normalizedEmail] = otp;
 
@@ -389,6 +438,8 @@ exports.sendResetOTP = async (req, res) => {
 
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
+        // IMPORTANT: clear cooldown on SMTP failure so the user can retry
+        delete resetOtpCooldown[normalizedEmail];
         console.error("❌ SMTP ERROR:", error);
         return res.status(500).json({ message: "Failed to send OTP. Check SMTP settings." });
       }
@@ -396,10 +447,13 @@ exports.sendResetOTP = async (req, res) => {
       res.status(200).json({ message: "OTP sent. Check your email!" });
     });
   } catch (error) {
+    // Also clear cooldown on unexpected error
+    delete resetOtpCooldown[normalizedEmail];
     console.error("❌ Error sending reset OTP:", error);
     res.status(500).json({ message: "Failed to send OTP" });
   }
 };
+
 
 // ================================
 // VERIFY RESET OTP
@@ -456,11 +510,17 @@ exports.refreshToken = async (req, res) => {
       { expiresIn: "1h" } // You can test with "1h" or "1m" as needed
     );
     const cookieName = decoded.role.toLowerCase() + "_token";
-    res.cookie(cookieName, newAccessToken, { httpOnly: true, maxAge: 60 * 60 * 1000, path: "/" });
+const isProd = process.env.NODE_ENV === "production";
+res.cookie(cookieName, newAccessToken, {
+  httpOnly: true,
+  maxAge: 60 * 60 * 1000,
+  path: "/",
+  sameSite: "lax",
+  secure: isProd
+});
     res.status(200).json({ message: "Access token refreshed" });
   } catch (error) {
     console.error("Refresh token error:", error);
     return res.status(401).json({ message: "Invalid refresh token" });
   }
 };
-

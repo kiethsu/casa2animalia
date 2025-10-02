@@ -14,86 +14,60 @@
     return [year, month, day].join('-');
   }
 
-  // Filter the pets to only include those added via the reservation process.
-  var addedPets = pets.filter(function(pet) {
-    return pet.addedFromReservation === true;
-  });
+ // NEW: “entries” comes from your route:
+  //    const entries = await PetList.find(…)…
+  //    res.render('hr/petlist', { entries })
+  const list = typeof entries !== 'undefined' ? entries : [];
 %>
 <div class="container-fluid petlist-container">
+
   <style>
     /* Pet List Content Styles */
-    .petlist-container {
-      background-color: #f7f7f7;
-      min-height: 100vh;
-      padding: 2rem;
-    }
-    .table {
-      table-layout: fixed;
-      width: 100%;
-    }
-    .custom-table {
-      table-layout: fixed;
-      width: 100%;
-      background-color: #ffffff;
-    }
-    .custom-table thead tr {
-      background-color: #4B9CD3;
-      color: #ffffff;
-    }
-    .custom-table thead th {
-      text-align: center;
-      padding: 12px;
-      font-weight: 600;
-      border: none;
-    }
-    .custom-table tbody tr {
-      border-bottom: 1px solid #dee2e6;
-    }
-    .custom-table tbody td {
-      text-align: center;
-      padding: 12px;
-    }
-    .custom-table tbody tr:hover {
-      background-color: #f9f9f9;
-    }
-    .fixed-table-container {
-      height: 600px;
-      overflow-y: auto;
-    }
-    .search-box {
-      width: 430px;
-      margin-left: 0;
-      height: 30px;
-      border-radius: 4px;
+    .petlist-container { background: #f7f7f7; padding: 2rem; min-height: 100vh; }
+    .custom-table { background: #fff; width: 100%; table-layout: fixed; }
+    .custom-table thead tr { background: #4B9CD3; color: #fff; }
+    .custom-table thead th { text-align: center; padding: 12px; font-weight: 600; }
+    .custom-table tbody td { text-align: center; padding: 12px; }
+    .custom-table tbody tr:hover { background: #f9f9f9; }
+    .fixed-table-container { height: 600px; overflow-y: auto; }
+    .search-box { width: 430px; height: 30px; border-radius: 4px; border: 1px solid #ddd; padding-left: 10px; }
+
+    /* History Accordion Styles */
+    .history-item { margin-bottom: 1rem; }
+    .history-header {
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f1f1f1;
+      padding: 0.75rem 1rem;
       border: 1px solid #ddd;
-      padding-left: 10px;
-    }
-    .equal-btn {
-      width: 120px;
-    }
-    .modal-header {
-      background-color: #2a9d8f;
-      color: #fff;
-      border-bottom: none;
-    }
-    .modal-header .close {
-      color: #fff;
-    }
-    .modal-title {
+      border-radius: 4px;
       font-weight: bold;
     }
-    .modal-footer {
-      border-top: none;
+    .history-header:hover { background: #e9ecef; }
+    .history-header i {
+      transition: transform 0.2s;
     }
-    .consultation-card {
+    .history-header[aria-expanded="true"] i {
+      transform: rotate(180deg);
+    }
+    .history-content {
       border: 1px solid #ddd;
-      padding: 10px;
-      margin-bottom: 10px;
-      border-radius: 5px;
-      background: #f9f9f9;
+      border-top: none;
+      border-radius: 0 0 4px 4px;
+      background: #fff;
+      padding: 1rem;
     }
-    .history-date {
-      cursor: pointer;
+    .history-content p, .history-content ul { margin-bottom: 0.75rem; }
+    .history-content ul { padding-left: 1.25rem; }
+    .history-content li { margin-bottom: 0.5rem; }
+    .history-content .close {
+      position: absolute;
+      top: 0.5rem;
+      right: 1rem;
+      font-size: 1.25rem;
+      line-height: 1;
     }
   </style>
 
@@ -117,29 +91,37 @@
           <th>Details</th>
         </tr>
       </thead>
-      <tbody id="petTableBody">
-        <% if (addedPets && addedPets.length > 0) { %>
-          <% addedPets.forEach(function(pet) { %>
-            <tr id="pet-<%= pet._id %>">
-              <td class="ownerName"><%= pet.owner ? pet.owner.username : '' %></td>
-              <td class="petName"><%= pet.petName %></td>
-              <td>
-                <!-- Pass both pet._id and pet.petName -->
-                <button class="btn btn-info btn-sm equal-btn d-block mx-auto" 
-                onclick="viewPetDetails('<%= pet._id %>', '<%= pet.petName %>', '<%= pet.owner._id %>')">
-          View Details
-        </button>
-        
-                </button>
-              </td>
-            </tr>
-          <% }); %>
-        <% } else { %>
-          <tr>
-            <td colspan="3" class="text-center">No pets added.</td>
-          </tr>
-        <% } %>
-      </tbody>
+<tbody id="petTableBody">
+  <% if (Array.isArray(list) && list.length > 0) { %>
+    <% list.forEach(function(e) { 
+         // Is the owner populated? (owner may be missing/null or just an ObjectId)
+         var hasOwner   = e && e.owner && (e.owner._id || typeof e.owner === 'object');
+         var ownerIdStr = (hasOwner && e.owner._id) ? String(e.owner._id) : null;   // null, not ""
+         var ownerName  = (e && e.owner && e.owner.username) ? e.owner.username : (e.ownerName || '');
+    %>
+      <tr id="pet-<%= e._id %>">
+        <td class="ownerName"><%= ownerName %></td>
+        <td class="petName"><%= e.petName %></td>
+        <td class="text-center">
+          <button
+            class="btn btn-info btn-sm equal-btn"
+            onclick='viewPetDetails(
+              null,
+              <%- JSON.stringify(e.petName || "") %>,
+              <%= ownerIdStr ? `"${ownerIdStr}"` : 'null' %>,
+              <%- JSON.stringify(ownerName) %>
+            )'>
+            View History
+          </button>
+        </td>
+      </tr>
+    <% }); %>
+  <% } else { %>
+    <tr><td colspan="3" class="text-center">No pets added.</td></tr>
+  <% } %>
+</tbody>
+
+
     </table>
   </div>
 </div>
@@ -165,10 +147,6 @@
 </div>
 
 <!-- Include jQuery UI and Bootstrap scripts -->
-<link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 
 <script>
   // Search filtering for pet list based on owner name or pet name
@@ -189,67 +167,147 @@
     return d.toLocaleDateString('en-US', options).replace(',', '');
   }
 
-  // viewPetDetails: Fetches the consultation history for a pet using both petId and petName.
-  function viewPetDetails(petId, petName, ownerId) {
-  $('#petDetailsContent').html('<p>Loading details...</p>');
+  /**
+ * Fetches and displays a pet's consultation history.
+ * @param {String|null} petId    — Mongo ID of the pet (or null to fallback to name+owner)
+ * @param {String}      petName  — The pet's name
+ * @param {String}      ownerId  — The owner's user ID
+ */
+/**
+ * Fetches & displays a pet's full consultation history
+ * @param {String|null} petId
+ * @param {String}      petName
+ * @param {String}      ownerId
+ */
+function viewPetDetails(petId, petName, ownerId, ownerName) {
+  $('#petDetailsContent').html('<p>Loading…</p>');
   $('#petDetailsModal').modal('show');
 
-  $.ajax({
-    url: '/hr/get-pet-history',
-    method: 'GET',
-    data: { petId: petId, petName: petName, ownerId: ownerId },
-    success: function(response) {
-      if (response.success) {
-        const history = response.history;
-        if (history.length === 0) {
-          $('#petDetailsContent').html('<p>No consultations found for this pet.</p>');
-          return;
+  const params = { petId, petName };
+  if (ownerId) params.ownerId = ownerId;           // only when truthy
+  if (!ownerId && ownerName) params.ownerName = ownerName;
+  $.get('/hr/get-pet-history', { petId, petName, ownerId })
+    .done(({ success, history }) => {
+      if (!success) return $('#petDetailsContent').html('<p>Error loading details.</p>');
+      if (!history.length) return $('#petDetailsContent').html('<p>No consultations found.</p>');
+
+      let html = '';
+      history.forEach((rec, idx) => {
+        const dateStr = new Date(rec.date).toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric'
+        });
+        const doctor = rec.doctor?.username || 'Not Assigned';
+
+        // Notes & Diagnosis
+        const notes = rec.notes || '—';
+        const diag  = rec.diagnosis || '—';
+
+        // Physical Exam table
+        const { weight = '—', temperature = '—', observations = '—' } = rec.physical || {};
+        const examHtml = `
+          <p><strong>Physical Exam:</strong></p>
+          <table class="table table-sm table-bordered mb-3">
+            <thead class="thead-light">
+              <tr>
+                <th>Weight</th><th>Temp</th><th>Observations</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>${weight}</td>
+                <td>${temperature}</td>
+                <td>${observations}</td>
+              </tr>
+            </tbody>
+          </table>`;
+
+        // Services table
+        let srvHtml = '';
+        if (rec.services?.length) {
+          srvHtml = `
+            <p><strong>Services:</strong></p>
+            <table class="table table-sm table-bordered mb-3">
+              <thead class="thead-light">
+                <tr><th>Category</th><th>Name</th><th>Details</th><th>File</th></tr>
+              </thead>
+              <tbody>
+                ${rec.services.map(svc => {
+                  const fileLink = svc.file
+                    ? `<a href="${svc.file.replace(/^public/, '')}" download>📎</a>`
+                    : '—';
+                  return `
+                    <tr>
+                      <td>${svc.category || '—'}</td>
+                      <td>${svc.serviceName || '—'}</td>
+                      <td>${svc.details || '—'}</td>
+                      <td class="text-center">${fileLink}</td>
+                    </tr>`;
+                }).join('')}
+              </tbody>
+            </table>`;
         }
-        // (Optionally, you can remove client-side sorting if the server is already sorting)
-        // Here we sort by updatedAt descending, if needed:
-        history.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
-        let html = '';
-        history.forEach(function(record, index) {
-  const dateStr = new Date(record.date).toISOString().slice(0,10);
-  html += `
-    <div class="history-record mb-2">
-      <div class="history-date bg-light p-2" data-toggle="collapse" data-target="#historyRecord${index}" aria-expanded="false" aria-controls="historyRecord${index}" style="cursor:pointer;">
-        ${dateStr}
-      </div>
-      <div class="collapse" id="historyRecord${index}">
-        <div class="card card-body position-relative">
-          <button type="button" class="close position-absolute" style="top:10px; right:10px;" onclick="$('#historyRecord${index}').collapse('hide')">
-            <span aria-hidden="true">&times;</span>
-          </button>
-          <p><strong>Doctor:</strong> ${record.doctor ? (typeof record.doctor === 'object' ? record.doctor.username : record.doctor) : 'Not Assigned'}</p>
-          <p><strong>Consultation Notes:</strong> ${record.consultationNotes || 'N/A'}</p>
-          ${ record.medications && record.medications.length > 0 ? `<ul class="list-unstyled mb-0">` + record.medications.map(med => `
-            <li>
-              <p><strong>Medication:</strong> ${med.medicationName}</p>
-              <p><strong>Dosage:</strong> ${med.dosage}</p>
-              <p><strong>Frequency:</strong> ${med.frequency}</p>
-              ${ med.adminTime ? `<p><strong>Administration Time:</strong> ${med.adminTime}</p>` : '' }
-              ${ med.additionalInstructions ? `<p><strong>Instructions:</strong> ${med.additionalInstructions}</p>` : '' }
-              ${ med.quantity ? `<p><strong>Quantity:</strong> ${med.quantity}</p>` : '<p><strong>Quantity:</strong> N/A</p>' }
-            </li>
-          `).join('') + `</ul>` : '' }
-          ${ record.schedule && record.schedule.scheduleDate ? `<p><strong>Follow-Up Checkup Date:</strong> ${new Date(record.schedule.scheduleDate).toISOString().slice(0,10)}</p>` : '' }
-        </div>
-      </div>
-    </div>
-  `;
-});
+        // Medications table
+        let medHtml = '';
+        if (rec.medications?.length) {
+          medHtml = `
+            <p><strong>Medications:</strong></p>
+            <table class="table table-sm table-bordered mb-3">
+              <thead class="thead-light">
+                <tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr>
+              </thead>
+              <tbody>
+                ${rec.medications.map(med => `
+                  <tr>
+                    <td>${med.name || med.medicationName || '—'}</td>
+                    <td>${med.quantity || '—'}</td>
+                    <td>${med.dosage || '—'}</td>
+                    <td>${med.remarks || '—'}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>`;
+        }
 
-        $('#petDetailsContent').html(html);
-      } else {
-        $('#petDetailsContent').html('<p>Error loading details.</p>');
-      }
-    },
-    error: function() {
+        // Confinement & Next follow-up
+        const conf = rec.confinement?.length ? rec.confinement.join(', ') : 'N/A';
+        let schedHtml = '<p><strong>Next Follow-Up:</strong> N/A</p>';
+        if (rec.nextSchedule) {
+          const sd = rec.nextSchedule;
+          const sdate = new Date(sd.date).toLocaleDateString('en-US', {
+            month:'short', day:'numeric', year:'numeric'
+          });
+          schedHtml = `<p><strong>Next Follow-Up:</strong> ${sdate} — ${sd.details}</p>`;
+        }
+
+        html += `
+          <div class="history-item">
+            <div class="history-header d-flex justify-content-between align-items-center"
+                 data-toggle="collapse" data-target="#historyRecord${idx}"
+                 aria-expanded="false" aria-controls="historyRecord${idx}">
+              <span>${dateStr} — Dr. ${doctor}</span>
+              <i class="fas fa-chevron-down"></i>
+            </div>
+            <div class="collapse" id="historyRecord${idx}">
+              <div class="history-content position-relative">
+                <button type="button" class="close" onclick="$('#historyRecord${idx}').collapse('hide')">&times;</button>
+                <p><strong>Notes:</strong> ${notes}</p>
+                ${examHtml}
+                <p><strong>Diagnosis:</strong> ${diag}</p>
+                ${srvHtml}
+                ${medHtml}
+                <p><strong>Confinement:</strong> ${conf}</p>
+                ${schedHtml}
+              </div>
+            </div>
+          </div>`;
+      });
+
+      $('#petDetailsContent').html(html);
+    })
+    .fail(() => {
       $('#petDetailsContent').html('<p>Error loading details.</p>');
-    }
-  });
+    });
 }
+
 
 </script>
