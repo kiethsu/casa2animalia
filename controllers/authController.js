@@ -1,24 +1,27 @@
-// authController.js
+// controllers/authController.js
 const nodemailer = require("nodemailer");
 const User = require("../models/user");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
-const Joi = require("joi"); // <-- Added for input validation
+const Joi = require("joi");
 
-// In-memory stores (for demo only)
-let otpStore = {};       // For registration OTP
-let resetOtpStore = {};  // For password reset OTP
-let adminOtpStore = {};  // For admin login OTP
-let otpCooldown = {};     // { email: lastSentMs }
-let resetOtpCooldown = {}; // optional: throttle for password-reset OTPs
+// ================================
+// In-memory stores (demo only)
+// ================================
+let otpStore = {};            // Registration OTP
+let resetOtpStore = {};       // Password reset OTP
+let adminOtpStore = {};       // Admin login OTP
+let otpCooldown = {};         // { email: lastSentMs }
+let resetOtpCooldown = {};    // { email: lastSentMs }
 
-// In-memory login attempt counter (for demo only)
-const loginAttempts = {};  // e.g. { "admin@example.com": { count: 0, lockoutStart: Date } }
+const loginAttempts = {};     // { email: { count, lockoutStart } }
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes
 
-// Configure Brevo SMTP
+// ================================
+// SMTP Transport (Brevo relay)
+// ================================
 const transporter = nodemailer.createTransport({
   host: "smtp-relay.brevo.com",
   port: 587,
@@ -29,28 +32,113 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// ================================
+// Helpers: mail + captcha
+// ================================
+const MAIL_FROM =
+  process.env.SMTP_FROM ||
+  `"SmartVet" <${process.env.SMTP_EMAIL || "dehe.marquez.au@phinmaed.com"}>`;
+
+const hasBrevoApi = !!process.env.BREVO_API_KEY;
+
+let transporterVerified = false;
+async function ensureTransporterVerified() {
+  if (transporterVerified) return;
+  try {
+    // If SMTP envs are missing, this will fail quickly; we’ll fallback to API.
+    await transporter.verify();
+    transporterVerified = true;
+    console.log("[MAIL] SMTP transporter verified OK");
+  } catch (e) {
+    console.error("[MAIL] SMTP transporter verify FAILED:", fullErr(e));
+  }
+}
+
+function fullErr(e) {
+  return JSON.stringify(e, Object.getOwnPropertyNames(e));
+}
+
+async function sendEmail({ to, subject, text, html }) {
+  await ensureTransporterVerified();
+
+  // Try SMTP first if credentials exist
+  if (process.env.SMTP_EMAIL && process.env.SMTP_PASS) {
+    try {
+      const info = await transporter.sendMail({
+        from: MAIL_FROM,
+        to,
+        subject,
+        text,
+        html
+      });
+      console.log("[MAIL][SMTP] queued:", info.response || info);
+      return { ok: true, via: "smtp", info };
+    } catch (e) {
+      console.error("[MAIL][SMTP] send FAILED:", fullErr(e));
+      // fall through to API if available
+    }
+  } else {
+    console.warn("[MAIL] SMTP credentials not set; skipping SMTP and trying API fallback.");
+  }
+
+  // Fallback to Brevo HTTP API if configured
+  if (hasBrevoApi) {
+    try {
+      const senderEmail = (MAIL_FROM.match(/<(.+?)>/) || [])[1] || process.env.SMTP_EMAIL;
+      const payload = {
+        sender: { name: "SmartVet Clinic", email: senderEmail },
+        to: [{ email: to }],
+        subject,
+        textContent: text,
+        htmlContent: html || undefined
+      };
+      const resp = await axios.post(
+        "https://api.brevo.com/v3/smtp/email",
+        payload,
+        { headers: { "api-key": process.env.BREVO_API_KEY, "Content-Type": "application/json" } }
+      );
+      console.log("[MAIL][API] queued:", resp.status, resp.data?.messageId || "");
+      return { ok: true, via: "api", info: resp.data };
+    } catch (e2) {
+      console.error("[MAIL][API] send FAILED:", fullErr(e2));
+      return { ok: false, via: "api", error: e2 };
+    }
+  }
+
+  // No SMTP success and no API fallback
+  return { ok: false, via: "none", error: new Error("No mail transport available") };
+}
+
 /**
- * validateCaptcha: Validate the reCAPTCHA response using Google API.
+ * Validate the reCAPTCHA response using Google API.
+ * If GOOGLE_RECAPTCHA_SECRET is missing, we log a warning and skip validation (returns true).
  */
 async function validateCaptcha(captchaResponse) {
   const secretKey = process.env.GOOGLE_RECAPTCHA_SECRET;
+  if (!secretKey) {
+    console.warn("[CAPTCHA] GOOGLE_RECAPTCHA_SECRET not set; skipping verification.");
+    return true;
+  }
   try {
     const response = await axios.post(
       `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${captchaResponse}`
     );
-    return response.data.success;
+    return !!response.data.success;
   } catch (err) {
-    console.error("reCAPTCHA validation error:", err);
+    console.error("reCAPTCHA validation error:", fullErr(err));
     return false;
   }
+}
+
+function normEmail(v) {
+  return (v || "").trim().toLowerCase();
 }
 
 // =========================
 // SEND OTP (Registration)
 // =========================
 exports.sendOTP = async (req, res) => {
-  const { email } = req.body;
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = normEmail(req.body.email);
   const ADMIN_EMAIL = "smartvetclinic17@gmail.com";
 
   try {
@@ -58,58 +146,56 @@ exports.sendOTP = async (req, res) => {
       return res.status(400).json({ message: "Admin email cannot be used for registration!" });
     }
 
-    // === NEW: Cooldown guard (before generating/sending the OTP) ===
+    // Cooldown guard
     const now = Date.now();
-    const COOLDOWN_MS = 60 * 1000; // 60 seconds
+    const COOLDOWN_MS = 60 * 1000;
     const last = otpCooldown[normalizedEmail] || 0;
     if (now - last < COOLDOWN_MS) {
       const wait = Math.ceil((COOLDOWN_MS - (now - last)) / 1000);
       return res.status(429).json({ message: `Please wait ${wait}s before requesting another OTP.` });
     }
     otpCooldown[normalizedEmail] = now;
-    // ===============================================================
 
-    const existingUser = await User.findOne({ email: { $regex: `^${normalizedEmail}$`, $options: "i" } });
+    // Block if already registered
+    const existingUser = await User.findOne({
+      email: { $regex: `^${normalizedEmail}$`, $options: "i" }
+    });
     if (existingUser) {
       return res.status(400).json({ message: "This email is already registered! Please log in." });
     }
 
+    // Generate & send
     const otp = Math.floor(100000 + Math.random() * 900000);
     otpStore[normalizedEmail] = otp;
 
-    const mailOptions = {
-      from: `"SmartVet" <dehe.marquez.au@phinmaed.com>`,
+    const sendResult = await sendEmail({
       to: normalizedEmail,
       subject: "Your OTP Verification Code",
       text: `Your OTP code is: ${otp}. It expires in 5 minutes.`
-    };
-
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        // NEW: clear cooldown if send failed so the user can retry
-        delete otpCooldown[normalizedEmail];
-        console.error("SMTP ERROR:", error);
-        return res.status(500).json({ message: "Failed to send OTP. Check SMTP settings." });
-      }
-      console.log("Email sent: " + info.response);
-      res.status(200).json({ message: "OTP sent. Check your email!" });
     });
+
+    if (!sendResult.ok) {
+      delete otpCooldown[normalizedEmail];
+      console.error("[SEND_OTP] failed via:", sendResult.via, "err:", fullErr(sendResult.error));
+      return res.status(500).json({ message: "Failed to send OTP. Check SMTP/API settings." });
+    }
+
+    console.log(`[SEND_OTP] Sent via ${sendResult.via} to ${normalizedEmail}`);
+    return res.status(200).json({ message: "OTP sent. Check your email!" });
   } catch (error) {
-    // (Optional) also clear on unexpected errors
     delete otpCooldown[normalizedEmail];
-    console.error("Error Sending OTP:", error);
-    res.status(500).json({ message: "Failed to send OTP" });
+    console.error("Error Sending OTP:", fullErr(error));
+    return res.status(500).json({ message: "Failed to send OTP" });
   }
 };
-
 
 // ================================
 // Verify OTP & Register User
 // ================================
 exports.verifyOTPAndRegister = async (req, res) => {
   const { username, password, email, otp } = req.body;
-  const normalizedEmail = email.trim().toLowerCase();
-  const normalizedUsername = username.trim().toLowerCase();
+  const normalizedEmail = normEmail(email);
+  const normalizedUsername = (username || "").trim().toLowerCase();
   const ADMIN_EMAIL = "smartvetclinic17@gmail.com";
 
   if (normalizedEmail === ADMIN_EMAIL) {
@@ -121,12 +207,16 @@ exports.verifyOTPAndRegister = async (req, res) => {
   }
 
   try {
-    const existingUser = await User.findOne({ email: { $regex: `^${normalizedEmail}$`, $options: "i" } });
+    const existingUser = await User.findOne({
+      email: { $regex: `^${normalizedEmail}$`, $options: "i" }
+    });
     if (existingUser) {
       return res.status(400).json({ message: "This email is already registered! Please log in." });
     }
 
-    const existingUsername = await User.findOne({ username: { $regex: `^${normalizedUsername}$`, $options: "i" } });
+    const existingUsername = await User.findOne({
+      username: { $regex: `^${normalizedUsername}$`, $options: "i" }
+    });
     if (existingUsername) {
       return res.status(400).json({ message: "This username is already taken! Please choose another one." });
     }
@@ -142,10 +232,10 @@ exports.verifyOTPAndRegister = async (req, res) => {
 
     delete otpStore[normalizedEmail];
 
-    res.status(200).json({ message: "Successfully registered!", success: true });
+    return res.status(200).json({ message: "Successfully registered!", success: true });
   } catch (error) {
-    console.error("Registration error:", error);
-    res.status(500).json({ message: "Registration failed" });
+    console.error("Registration error:", fullErr(error));
+    return res.status(500).json({ message: "Registration failed" });
   }
 };
 
@@ -153,33 +243,33 @@ exports.verifyOTPAndRegister = async (req, res) => {
 // SEND OTP for Admin Login
 // ================================
 exports.sendAdminOTP = async (req, res) => {
-  const { email } = req.body;
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = normEmail(req.body.email);
   try {
     const user = await User.findOne({ email: normalizedEmail });
     if (!user || user.role !== "Admin") {
       return res.status(400).json({ message: "Admin account not found!" });
     }
+
     const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
     adminOtpStore[normalizedEmail] = otp;
-    console.log("Stored Admin OTP:", otp);
-    const mailOptions = {
-      from: `"SmartVet" <dehe.marquez.au@phinmaed.com>`,
+    console.log("[ADMIN_OTP] Stored:", otp);
+
+    const sendResult = await sendEmail({
       to: normalizedEmail,
       subject: "Admin OTP Verification",
       text: `Your OTP for admin login is: ${otp}. It expires in 5 minutes.`
-    };
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("SMTP ERROR:", error);
-        return res.status(500).json({ message: "Failed to send OTP. Check SMTP settings." });
-      }
-      console.log("Admin OTP sent:", info.response);
-      res.status(200).json({ message: "Admin OTP sent. Check your email!" });
     });
+
+    if (!sendResult.ok) {
+      console.error("[ADMIN_OTP] failed via:", sendResult.via, "err:", fullErr(sendResult.error));
+      return res.status(500).json({ message: "Failed to send OTP. Check SMTP/API settings." });
+    }
+
+    console.log(`[ADMIN_OTP] Sent via ${sendResult.via} to ${normalizedEmail}`);
+    return res.status(200).json({ message: "Admin OTP sent. Check your email!" });
   } catch (error) {
-    console.error("Error Sending Admin OTP:", error);
-    res.status(500).json({ message: "Failed to send OTP" });
+    console.error("Error Sending Admin OTP:", fullErr(error));
+    return res.status(500).json({ message: "Failed to send OTP" });
   }
 };
 
@@ -188,9 +278,15 @@ exports.sendAdminOTP = async (req, res) => {
 // ================================
 exports.login = async (req, res) => {
   const { email, password, captchaResponse } = req.body;
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = normEmail(email);
   const FAILED_ATTEMPTS_THRESHOLD = 3;
-  const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+  const LOCK_MS = 5 * 60 * 1000;
+
+  // Optional: verify reCAPTCHA (skips if secret is not set)
+  const captchaOK = await validateCaptcha(captchaResponse);
+  if (!captchaOK) {
+    return res.status(400).json({ message: "CAPTCHA verification failed." });
+  }
 
   if (!loginAttempts[normalizedEmail]) {
     loginAttempts[normalizedEmail] = { count: 0, lockoutStart: null };
@@ -198,10 +294,9 @@ exports.login = async (req, res) => {
   const attempt = loginAttempts[normalizedEmail];
   const now = new Date();
 
-  if (attempt.lockoutStart && now - attempt.lockoutStart < LOCKOUT_DURATION) {
-    console.log(`User ${normalizedEmail} is locked out.`);
+  if (attempt.lockoutStart && now - attempt.lockoutStart < LOCK_MS) {
     return res.status(429).json({ message: "Too many failed attempts. Please try again in 5 minutes." });
-  } else if (attempt.lockoutStart && now - attempt.lockoutStart >= LOCKOUT_DURATION) {
+  } else if (attempt.lockoutStart && now - attempt.lockoutStart >= LOCK_MS) {
     attempt.count = 0;
     attempt.lockoutStart = null;
   }
@@ -210,97 +305,96 @@ exports.login = async (req, res) => {
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       attempt.count++;
-      if (attempt.count >= FAILED_ATTEMPTS_THRESHOLD) {
-        attempt.lockoutStart = now;
-      }
-      console.log(`User not found. New attempt count for ${normalizedEmail}: ${attempt.count}`);
+      if (attempt.count >= FAILED_ATTEMPTS_THRESHOLD) attempt.lockoutStart = now;
       return res.status(400).json({ emailError: "Invalid Gmail" });
     }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       attempt.count++;
-      if (attempt.count >= FAILED_ATTEMPTS_THRESHOLD) {
-        attempt.lockoutStart = now;
-      }
-      console.log(`Password mismatch. New attempt count for ${normalizedEmail}: ${attempt.count}`);
+      if (attempt.count >= FAILED_ATTEMPTS_THRESHOLD) attempt.lockoutStart = now;
       return res.status(400).json({ passwordError: "Password did not match!" });
     }
 
+    // Success → reset attempts
     attempt.count = 0;
     attempt.lockoutStart = null;
 
-    console.log("User role:", user.role, "OTP enabled:", user.otpEnabled);
+    // Admin with OTP enabled: send OTP directly (do NOT call Express handler)
     if (user.role === "Admin" && user.otpEnabled) {
-      await exports.sendAdminOTP({ body: { email: normalizedEmail } });
+      const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
+      adminOtpStore[normalizedEmail] = otp;
+
+      const sendResult = await sendEmail({
+        to: normalizedEmail,
+        subject: "Admin OTP Verification",
+        text: `Your OTP for admin login is: ${otp}. It expires in 5 minutes.`
+      });
+
+      if (!sendResult.ok) {
+        console.error("[LOGIN->ADMIN_OTP] send failed:", fullErr(sendResult.error));
+        return res.status(500).json({ message: "Failed to send admin OTP." });
+      }
+
       return res.status(200).json({ message: "Admin OTP sent. Check your email!", requireOTP: true });
     }
 
+    // Issue tokens
     let redirectPath = "/customer-dashboard";
     if (user.role === "Doctor") redirectPath = "/doctor-dashboard";
     else if (user.role === "HR") redirectPath = "/hr-dashboard";
     else if (user.role === "Admin") redirectPath = "/admin-dashboard";
 
-    // For testing: Access token expires in 1 minute
     const accessToken = jwt.sign(
       { userId: user._id, username: user.username, email: user.email, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
-    // Refresh token remains long-lived (e.g. 7 days)
     const refreshToken = jwt.sign(
       { userId: user._id, username: user.username, email: user.email, role: user.role },
       process.env.JWT_REFRESH_SECRET,
       { expiresIn: "7d" }
     );
-    // Role-specific access token cookie (expires in 1 minute for testing)
-   const isProd = process.env.NODE_ENV === "production";
-const accessCookieName = user.role.toLowerCase() + "_token";
-res.cookie(accessCookieName, accessToken, {
-  httpOnly: true,
-  maxAge: 60 * 60 * 1000,
-  path: "/",
-  sameSite: "lax",
-  secure: isProd
-});
-// --- ADD THIS: set refresh token cookie (7 days) ---
-res.cookie("refreshToken", refreshToken, {
-  httpOnly: true,
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  path: "/",
-  sameSite: "lax",
-  secure: isProd
-});
 
-    // Send login notification email
-    const mailOptions = {
-      from: `"SmartVet" <dehe.marquez.au@phinmaed.com>`,
+    const isProd = process.env.NODE_ENV === "production";
+    const accessCookieName = user.role.toLowerCase() + "_token";
+
+    res.cookie(accessCookieName, accessToken, {
+      httpOnly: true,
+      maxAge: 60 * 60 * 1000,
+      path: "/",
+      sameSite: "lax",
+      secure: isProd
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+      sameSite: "lax",
+      secure: isProd
+    });
+
+    // Fire-and-forget login notification email (best-effort)
+    sendEmail({
       to: normalizedEmail,
       subject: "Login Notification",
       text: `You have just logged in. If this wasn't you, please contact support immediately.`
-    };
-    
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("Failed to send login notification email:", error);
-      } else {
-        console.log("Login notification email sent:", info.response);
-      }
-    });
+    }).catch(e => console.error("[LOGIN_NOTICE] failed:", fullErr(e)));
 
-    res.status(200).json({ message: "Login successful!", redirect: redirectPath });
+    return res.status(200).json({ message: "Login successful!", redirect: redirectPath });
   } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({ error: "Login failed!" });
+    console.error("Login error:", fullErr(error));
+    return res.status(500).json({ error: "Login failed!" });
   }
 };
-
 
 // ================================
 // VERIFY ADMIN OTP
 // ================================
 exports.verifyAdminOTP = async (req, res) => {
   const { email, otp } = req.body;
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = normEmail(email);
 
   console.log("Stored Admin OTP:", adminOtpStore[normalizedEmail]);
   console.log("Received OTP:", otp);
@@ -308,7 +402,9 @@ exports.verifyAdminOTP = async (req, res) => {
   if (!adminOtpStore[normalizedEmail] || adminOtpStore[normalizedEmail] !== otp) {
     return res.status(400).json({ message: "Invalid OTP" });
   }
+
   delete adminOtpStore[normalizedEmail];
+
   const user = await User.findOne({ email: normalizedEmail });
   if (!user) {
     return res.status(400).json({ message: "User not found." });
@@ -316,19 +412,21 @@ exports.verifyAdminOTP = async (req, res) => {
   if (user.role !== "Admin") {
     return res.status(403).json({ message: "Not an Admin user." });
   }
+
   const accessToken = jwt.sign(
     { userId: user._id, username: user.username, email: user.email, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: "1h" }
   );
-const isProd = process.env.NODE_ENV === "production";
-res.cookie("admin_token", accessToken, {
-  httpOnly: true,
-  maxAge: 60 * 60 * 1000,
-  path: "/",
-  sameSite: "lax",
-  secure: isProd
-});
+  const isProd = process.env.NODE_ENV === "production";
+  res.cookie("admin_token", accessToken, {
+    httpOnly: true,
+    maxAge: 60 * 60 * 1000,
+    path: "/",
+    sameSite: "lax",
+    secure: isProd
+  });
+
   return res.status(200).json({
     message: "OTP verified! You are now logged in as Admin. Redirecting...",
     redirect: "/admin-dashboard"
@@ -336,10 +434,8 @@ res.cookie("admin_token", accessToken, {
 };
 
 // ================================
-// Check Username & Email Availability and other functions...
+// Username & Email Availability
 // ================================
-
-// ---------- UPDATED: Check Username Availability with Joi Validation ----------
 const usernameSchema = Joi.object({
   username: Joi.string().alphanum().min(3).max(30).required(),
 });
@@ -350,74 +446,69 @@ exports.checkUsernameAvailability = async (req, res) => {
     return res.status(400).json({ available: false, message: "Username is required!" });
   }
 
-  // Validate the username using Joi
   const { error } = usernameSchema.validate({ username });
   if (error) {
     return res.status(400).json({ available: false, message: error.details[0].message });
   }
 
   try {
-    const normalizedUsername = username.trim().toLowerCase();
-    const existingUser = await User.findOne({ username: { $regex: `^${normalizedUsername}$`, $options: "i" } });
+    const normalizedUsername = (username || "").trim().toLowerCase();
+    const existingUser = await User.findOne({
+      username: { $regex: `^${normalizedUsername}$`, $options: "i" }
+    });
     if (existingUser) {
       return res.status(400).json({ available: false, message: "Username is already taken!" });
     }
-    res.status(200).json({ available: true, message: "Username is available!" });
+    return res.status(200).json({ available: true, message: "Username is available!" });
   } catch (error) {
-    console.error("❌ Error checking username:", error);
-    res.status(500).json({ available: false, message: "Server error, try again later." });
+    console.error("❌ Error checking username:", fullErr(error));
+    return res.status(500).json({ available: false, message: "Server error, try again later." });
   }
 };
 
-// ================================
-// Check Email Availability
-// ================================
 exports.checkEmailAvailability = async (req, res) => {
   const { email } = req.query;
   if (!email) {
     return res.status(400).json({ available: false, message: "Email is required!" });
   }
   try {
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = normEmail(email);
     const ADMIN_EMAIL = "smartvetclinic17@gmail.com";
     if (normalizedEmail === ADMIN_EMAIL) {
       return res.status(400).json({ available: false, message: "This email cannot be used for registration!" });
     }
-    const existingUser = await User.findOne({ email: { $regex: `^${normalizedEmail}$`, $options: "i" } });
+    const existingUser = await User.findOne({
+      email: { $regex: `^${normalizedEmail}$`, $options: "i" }
+    });
     if (existingUser) {
       return res.status(400).json({ available: false, message: "This email is already registered! Please log in." });
     }
-    res.status(200).json({ available: true, message: "Email is available!" });
+    return res.status(200).json({ available: true, message: "Email is available!" });
   } catch (error) {
-    console.error("❌ Error checking email:", error);
-    res.status(500).json({ available: false, message: "Server error, try again later." });
+    console.error("❌ Error checking email:", fullErr(error));
+    return res.status(500).json({ available: false, message: "Server error, try again later." });
   }
 };
 
 // ================================
-// SEND OTP for Password Reset (All Users)
-// ================================
-// ================================
 // SEND OTP for Password Reset (All Users) — with cooldown
 // ================================
 exports.sendResetOTP = async (req, res) => {
-  const { email } = req.body;
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = normEmail(req.body.email);
 
   if (!normalizedEmail.includes("@gmail.com")) {
     return res.status(400).json({ message: "Invalid Gmail address! Please enter a valid @gmail.com email." });
   }
 
   try {
-    // 1) Make sure the account exists first
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       return res.status(400).json({ message: "This email is not registered!" });
     }
 
-    // 2) Cooldown guard — before generating/sending OTP
+    // Cooldown guard
     const now = Date.now();
-    const COOLDOWN_MS = 60 * 1000; // 60 seconds
+    const COOLDOWN_MS = 60 * 1000;
     const last = resetOtpCooldown[normalizedEmail] || 0;
     if (now - last < COOLDOWN_MS) {
       const wait = Math.ceil((COOLDOWN_MS - (now - last)) / 1000);
@@ -425,47 +516,41 @@ exports.sendResetOTP = async (req, res) => {
     }
     resetOtpCooldown[normalizedEmail] = now;
 
-    // 3) Generate and send OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     resetOtpStore[normalizedEmail] = otp;
 
-    const mailOptions = {
-      from: `"SmartVet" <dehe.marquez.au@phinmaed.com>`,
+    const sendResult = await sendEmail({
       to: normalizedEmail,
       subject: "Password Reset OTP",
-      text: `Your OTP for password reset is: ${otp}. It expires in 5 minutes.`,
-    };
-
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        // IMPORTANT: clear cooldown on SMTP failure so the user can retry
-        delete resetOtpCooldown[normalizedEmail];
-        console.error("❌ SMTP ERROR:", error);
-        return res.status(500).json({ message: "Failed to send OTP. Check SMTP settings." });
-      }
-      console.log("✅ Reset OTP sent: " + info.response);
-      res.status(200).json({ message: "OTP sent. Check your email!" });
+      text: `Your OTP for password reset is: ${otp}. It expires in 5 minutes.`
     });
+
+    if (!sendResult.ok) {
+      delete resetOtpCooldown[normalizedEmail];
+      console.error("[RESET_OTP] failed via:", sendResult.via, "err:", fullErr(sendResult.error));
+      return res.status(500).json({ message: "Failed to send OTP. Check SMTP/API settings." });
+    }
+
+    console.log(`[RESET_OTP] Sent via ${sendResult.via} to ${normalizedEmail}`);
+    return res.status(200).json({ message: "OTP sent. Check your email!" });
   } catch (error) {
-    // Also clear cooldown on unexpected error
     delete resetOtpCooldown[normalizedEmail];
-    console.error("❌ Error sending reset OTP:", error);
-    res.status(500).json({ message: "Failed to send OTP" });
+    console.error("❌ Error sending reset OTP:", fullErr(error));
+    return res.status(500).json({ message: "Failed to send OTP" });
   }
 };
-
 
 // ================================
 // VERIFY RESET OTP
 // ================================
 exports.verifyResetOTP = async (req, res) => {
   const { email, otp } = req.body;
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = normEmail(email);
   if (!resetOtpStore[normalizedEmail] || resetOtpStore[normalizedEmail] !== otp) {
     return res.status(400).json({ message: "Invalid OTP" });
   }
   delete resetOtpStore[normalizedEmail];
-  res.status(200).json({ message: "OTP verified! You can now reset your password." });
+  return res.status(200).json({ message: "OTP verified! You can now reset your password." });
 };
 
 // ================================
@@ -474,25 +559,25 @@ exports.verifyResetOTP = async (req, res) => {
 exports.resetPassword = async (req, res) => {
   const { email, newPassword } = req.body;
   try {
-    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    const user = await User.findOne({ email: normEmail(email) });
     if (!user) {
       return res.status(400).json({ message: "User not found!" });
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     user.password = hashedPassword;
     await user.save();
-    res.status(200).json({ message: "Password reset successfully! You can now log in." });
+    return res.status(200).json({ message: "Password reset successfully! You can now log in." });
   } catch (error) {
-    console.error("❌ Error resetting password:", error);
-    res.status(500).json({ message: "Password reset failed." });
+    console.error("❌ Error resetting password:", fullErr(error));
+    return res.status(500).json({ message: "Password reset failed." });
   }
 };
 
 // ================================
-// REFRESH TOKEN Endpoint (Unified Refresh Token Cookie)
+// REFRESH TOKEN Endpoint
 // ================================
 exports.refreshToken = async (req, res) => {
-  console.log("Incoming cookies:", req.cookies);  // Debug log
+  console.log("Incoming cookies:", req.cookies);
   const refreshToken = req.cookies["refreshToken"];
   if (!refreshToken) {
     return res.status(401).json({ message: "No refresh token provided" });
@@ -507,20 +592,20 @@ exports.refreshToken = async (req, res) => {
         role: decoded.role
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" } // You can test with "1h" or "1m" as needed
+      { expiresIn: "1h" }
     );
     const cookieName = decoded.role.toLowerCase() + "_token";
-const isProd = process.env.NODE_ENV === "production";
-res.cookie(cookieName, newAccessToken, {
-  httpOnly: true,
-  maxAge: 60 * 60 * 1000,
-  path: "/",
-  sameSite: "lax",
-  secure: isProd
-});
-    res.status(200).json({ message: "Access token refreshed" });
+    const isProd = process.env.NODE_ENV === "production";
+    res.cookie(cookieName, newAccessToken, {
+      httpOnly: true,
+      maxAge: 60 * 60 * 1000,
+      path: "/",
+      sameSite: "lax",
+      secure: isProd
+    });
+    return res.status(200).json({ message: "Access token refreshed" });
   } catch (error) {
-    console.error("Refresh token error:", error);
+    console.error("Refresh token error:", fullErr(error));
     return res.status(401).json({ message: "Invalid refresh token" });
   }
 };
