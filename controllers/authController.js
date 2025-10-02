@@ -38,8 +38,9 @@ const transporter = nodemailer.createTransport({
 const MAIL_FROM =
   process.env.SMTP_FROM ||
   `"SmartVet" <${process.env.SMTP_EMAIL || "dehe.marquez.au@phinmaed.com"}>`;
+const BREVO_KEY = process.env.BREVO_API_KEY || process.env.BREVO_SMS_API_KEY;
+const hasBrevoApi = !!BREVO_KEY;
 
-const hasBrevoApi = !!process.env.BREVO_API_KEY;
 
 let transporterVerified = false;
 async function ensureTransporterVerified() {
@@ -95,7 +96,7 @@ async function sendEmail({ to, subject, text, html }) {
       const resp = await axios.post(
         "https://api.brevo.com/v3/smtp/email",
         payload,
-        { headers: { "api-key": process.env.BREVO_API_KEY, "Content-Type": "application/json" } }
+{ headers: { "api-key": BREVO_KEY, "Content-Type": "application/json" } }
       );
       console.log("[MAIL][API] queued:", resp.status, resp.data?.messageId || "");
       return { ok: true, via: "api", info: resp.data };
