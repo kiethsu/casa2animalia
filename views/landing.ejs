@@ -974,6 +974,35 @@ footer a:hover{color:#fff;}
 
   <script>
   document.addEventListener('DOMContentLoaded', function(){
+function startDots(btn, baseText = "Loading") {
+    if (!btn) return;
+    // prevent duplicate timers
+    if (btn.dataset.loading === "1") return;
+
+    btn.dataset.loading = "1";
+    btn.dataset.originalText = btn.textContent;
+    btn.dataset.baseText = baseText;
+
+    let i = 0;
+    btn.textContent = baseText;
+    const id = setInterval(() => {
+      i = (i + 1) % 4;                 // 0,1,2,3
+      btn.textContent = baseText + ".".repeat(i);
+    }, 400);
+
+    btn.dataset.dotsTimer = String(id);
+  }
+
+  function stopDots(btn) {
+    if (!btn) return;
+    const id = btn.dataset.dotsTimer;
+    if (id) clearInterval(Number(id));
+    btn.textContent = btn.dataset.originalText || btn.textContent.replace(/\.*$/, "");
+    delete btn.dataset.loading;
+    delete btn.dataset.dotsTimer;
+    delete btn.dataset.originalText;
+    delete btn.dataset.baseText;
+  }
   let isSendingRegOtp = false;
   let regOtpCountdownTimer = null;
     // Forgot Password (reset) OTP guards
@@ -1314,68 +1343,121 @@ $("#criteria-symbol").classList.toggle("text-danger", !spe);
       }
     });
 
-    const loginBtn = $("#loginBtn");
-    if(loginBtn){
+     const loginBtn = $("#loginBtn");
+    if (loginBtn) {
       loginBtn.addEventListener("click", async (event) => {
         event.preventDefault();
+
+        // guard against double clicks
+        if (loginBtn.disabled || loginBtn.dataset.loading === "1") return;
+
         const emailInput = $("#login-identifier");
         const passwordInput = $("#login-password");
         const emailError = $("#email-error");
         const passwordError = $("#password-error");
+
         emailError.classList.add("d-none");
         passwordError.classList.add("d-none");
+
         const email = emailInput.value.trim();
         const password = passwordInput.value.trim();
+
         if (!email || !password) {
-          if (!email) { emailError.textContent = "Please enter your Gmail."; emailError.classList.remove("d-none"); }
-          if (!password) { passwordError.textContent = "Please enter your password."; passwordError.classList.remove("d-none"); }
+          if (!email) {
+            emailError.textContent = "Please enter your Gmail.";
+            emailError.classList.remove("d-none");
+          }
+          if (!password) {
+            passwordError.textContent = "Please enter your password.";
+            passwordError.classList.remove("d-none");
+          }
           return;
         }
+
         const captchaResponse = grecaptcha.getResponse();
         if (!captchaResponse) { alert("Please complete the CAPTCHA."); return; }
-        let response = await fetch("/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, captchaResponse })
-        });
-        if (response.status === 429) {
+
+        // start animated dots on the Login button
+        loginBtn.disabled = true;
+        startDots(loginBtn, "Logging in");
+
+        try {
+          const response = await fetch("/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password, captchaResponse })
+          });
+
+          // rate-limited branch → stop dots and run countdown text
+          if (response.status === 429) {
+            stopDots(loginBtn);
+            const data = await response.json();
+            alert(data.message || "Too many failed attempts. Please try again in 5 minutes.");
+            let countdown = 300;
+            const originalText = loginBtn.textContent;
+            const intervalId = setInterval(() => {
+              loginBtn.textContent = `Wait ${countdown} seconds`;
+              countdown--;
+              if (countdown < 0) {
+                clearInterval(intervalId);
+                loginBtn.textContent = originalText;
+                loginBtn.disabled = false;
+              }
+            }, 1000);
+            return;
+          }
+
           const data = await response.json();
-          alert(data.message || "Too many failed attempts. Please try again in 5 minutes.");
-          const btn = $("#loginBtn");
-          btn.disabled = true;
-          let countdown = 300;
-          const originalText = btn.textContent;
-          const intervalId = setInterval(() => {
-            btn.textContent = `Wait ${countdown} seconds`;
-            countdown--;
-            if (countdown < 0) {
-              clearInterval(intervalId);
-              btn.textContent = originalText;
-              btn.disabled = false;
-            }
-          }, 1000);
-          return;
-        }
-        const data = await response.json();
-        if (data.passwordError) {
-          passwordError.textContent = data.passwordError;
-          passwordError.classList.remove("d-none");
-        } else if (data.emailError) {
-          emailError.textContent = data.emailError;
-          emailError.classList.remove("d-none");
-        } else if (data.requireOTP) {
-          var loginModal = bootstrap.Modal.getInstance($("#loginModal"));
-          var adminOTPModal = new bootstrap.Modal($("#adminOTPModal"));
-          loginModal.hide();
-          document.body.classList.remove("modal-open");
-          document.querySelector(".modal-backdrop")?.remove();
-          $("#admin-email").value = email;
-          adminOTPModal.show();
-        } else if (data.message && data.message.includes("successful")) {
-          window.location.href = data.redirect;
+
+          if (data.passwordError) {
+            stopDots(loginBtn);
+            passwordError.textContent = data.passwordError;
+            passwordError.classList.remove("d-none");
+            loginBtn.disabled = false;
+            return;
+          }
+
+          if (data.emailError) {
+            stopDots(loginBtn);
+            emailError.textContent = data.emailError;
+            emailError.classList.remove("d-none");
+            loginBtn.disabled = false;
+            return;
+          }
+
+          if (data.requireOTP) {
+            // OTP step → stop dots and show the Admin OTP modal
+            stopDots(loginBtn);
+            loginBtn.disabled = false;
+
+            const loginModal = bootstrap.Modal.getInstance($("#loginModal"));
+            const adminOTPModal = new bootstrap.Modal($("#adminOTPModal"));
+            loginModal.hide();
+            document.body.classList.remove("modal-open");
+            document.querySelector(".modal-backdrop")?.remove();
+            $("#admin-email").value = email;
+            adminOTPModal.show();
+            return;
+          }
+
+          if (data.message && data.message.includes("successful")) {
+            // success: let redirect happen; dots will stop on navigation
+            window.location.href = data.redirect;
+          } else {
+            // unexpected response
+            stopDots(loginBtn);
+            alert(data.message || "Login failed.");
+            loginBtn.disabled = false;
+          }
+        } catch (err) {
+          console.error(err);
+          stopDots(loginBtn);
+          alert("Network error. Please try again.");
+          loginBtn.disabled = false;
         }
       });
     }
+
 
     const verifyAdminOTPBtn = $("#verifyAdminOTPBtn");
     if(verifyAdminOTPBtn){
