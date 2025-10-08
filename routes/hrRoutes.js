@@ -12,17 +12,11 @@ const Inventory    = require('../models/inventory');
 const Service      = require('../models/service');
 const nodemailer = require('nodemailer'); // Import Nodemailer
 const Payment = require('../models/Payment')
+const { addClient, removeClient, broadcast } = require('../utils/hrSse');
+
 const mongoose = require('mongoose');;
 const { isValidObjectId } = mongoose;
 // ===== SSE for HR live updates =====
-const clientsHR = new Set(); // holds res objects
-
-function hrBroadcast(payload) {
-  const data = `data: ${JSON.stringify(payload)}\n\n`;
-  for (const res of clientsHR) {
-    try { res.write(data); } catch(e) {}
-  }
-}
 
 
 // at the top
@@ -179,21 +173,20 @@ router.get('/stream', authMiddleware, async (req, res) => {
   res.set({
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive'
+    'Connection': 'keep-alive',
   });
   res.flushHeaders?.();
-  res.write('retry: 3000\n\n'); // auto-retry in 3s
+  res.write('retry: 3000\n\n'); // client auto-retry
 
-  clientsHR.add(res);
-
-  // OPTIONAL: initial “hello” (so front-end knows stream is open)
+  addClient(res);
   res.write(`data: ${JSON.stringify({ type: 'hello', t: Date.now() })}\n\n`);
 
   req.on('close', () => {
-    clientsHR.delete(res);
-    try { res.end(); } catch(e) {}
+    removeClient(res);
+    try { res.end(); } catch (_) {}
   });
 });
+
 
 
 // Updated /petlist route
@@ -331,7 +324,7 @@ if (ownerIdNorm) {
       const reservation = await Reservation.create(reservationPayload);
 
       // 4) Broadcast so UIs update
-      hrBroadcast({
+      broadcast({
         type: 'reservation:walkin',
         reservation: {
           _id:       String(reservation._id),
@@ -374,7 +367,7 @@ router.post('/approve-reservation',
       await reservation.save();
 
       // 3) Broadcast to HR dashboards (SSE)
-      hrBroadcast({
+     broadcast({
         type: 'reservation:approved',
         id: String(reservation._id),
         reservation: {
@@ -472,7 +465,7 @@ router.post('/assign-doctor',
       await reservation.populate('doctor', 'username');
 
       // 3) Broadcast to HR dashboards (SSE)
-      hrBroadcast({
+     broadcast({
         type: 'reservation:assigned',
         id: String(reservation._id),
         reservation: {
@@ -792,6 +785,7 @@ router.post('/add-consult-existing', authMiddleware, async (req, res) => {
 });
 // GET /hr/get-consultation-details
 // GET /hr/get-consultation-details  (PASTE/REPLACE)
+// GET /hr/get-consultation-details
 router.get('/get-consultation-details', authMiddleware, async (req, res) => {
   try {
     const { reservationId } = req.query;
@@ -800,128 +794,187 @@ router.get('/get-consultation-details', authMiddleware, async (req, res) => {
     }
 
     const reservation = await Reservation.findById(reservationId)
-      .populate('owner', 'username')
-      .populate('pets.petId', 'petName')
+      .populate('owner', 'username')           // owner._id + username (lean)
+      .populate('pets.petId', 'petName')       // petId._id + petName (lean)
       .lean();
+
     if (!reservation) {
       return res.json({ success: false, message: 'Reservation not found' });
     }
 
-    // Pull all per-pet consultations for this reservation
-// load newest first
-const consultDocs = await Consultation
-  .find({ reservation: reservationId })
-  .sort({ updatedAt: -1, _id: -1 })
-  .lean();
+    // ----------------------------
+    // NEW: Compute PetList flags
+    // ----------------------------
+    // truth source: PetList (not just "has petId")
+    let petExists = false, isStacked = false, isInitialEntry = false;
+    {
+      const petNames = (reservation.pets || [])
+        .map(p => p?.petId?.petName || p?.petName)
+        .filter(Boolean);
 
-// keep ONLY the latest consultation per pet (prefer id; fallback to name)
-const latestByPet = new Map();
-for (const c of consultDocs) {
-  const key = c.targetPetId
-    ? `id:${c.targetPetId}`
-    : `name:${(c.targetPetName || c.petName || '').trim().toLowerCase()}`;
-  if (!latestByPet.has(key)) latestByPet.set(key, c); // first = newest due to sort
-}
+      if (petNames.length) {
+        // prefer account owner when available, else string ownerName
+        const ownerId = reservation.owner?._id || reservation.owner || null;
+        const lookup = ownerId
+          ? { owner: ownerId, petName: { $in: petNames } }
+          : { ownerName: reservation.ownerName, petName: { $in: petNames } };
 
-    // Helper: resolve pet name for a consultation (supports either petId or petName)
-   // at top of file we already have: const mongoose = require('mongoose');
-// Helper: resolve pet name for a consultation (supports targetPet* and legacy pet*)
-function resolvePetName(c) {
-  // 1) explicit names first
-  if (c?.targetPetName && String(c.targetPetName).trim()) return String(c.targetPetName).trim();
-  if (c?.petName && String(c.petName).trim())             return String(c.petName).trim();
+        const entries = await PetList
+          .find(lookup, 'petName reservation consultationHistory')
+          .lean();
 
-  const petsArr = reservation.pets || [];
+        const byName = new Map(entries.map(e => [e.petName, e]));
 
-  // 2) try by id (prefer targetPetId; fall back to petId)
-  const candidateId = c?.targetPetId || c?.petId;
-  if (candidateId && mongoose.isValidObjectId(candidateId)) {
-    const hitById = petsArr.find(p => String(p.petId?._id) === String(candidateId));
-    if (hitById) return hitById.petId?.petName || hitById.petName || '—';
-  }
+        let allExist = true;
+        let allStacked_ = true;
+        let anyInitial = false;
 
-  // 3) try by name string (some old data put the name in petId)
-  const candidateName =
-    (typeof candidateId === 'string' && !mongoose.isValidObjectId(candidateId))
-      ? candidateId
-      : (c?.targetPetName || c?.petName || null);
+        for (const name of petNames) {
+          const entry = byName.get(name);
+          if (!entry) { allExist = false; allStacked_ = false; continue; }
 
-  if (candidateName) {
-    const hitByName = petsArr.find(p => (p.petId?.petName || p.petName) === candidateName);
-    if (hitByName) return hitByName.petId?.petName || hitByName.petName || '—';
-  }
+          // already stacked to this consultation?
+          const hasThisConsult = (entry.consultationHistory || [])
+            .some(ch => String(ch.reservation) === String(reservation._id));
+          if (!hasThisConsult) allStacked_ = false;
 
-  // 4) single-pet reservation fallback
-  if (petsArr.length === 1) return petsArr[0].petId?.petName || petsArr[0].petName || '—';
+          // initial PetList entry was created by this reservation?
+          if (String(entry.reservation) === String(reservation._id)) {
+            anyInitial = true;
+          }
+        }
 
-  return '—';
-}
+        petExists = allExist;
+        isStacked = allStacked_;
+        isInitialEntry = anyInitial;
+      }
+    }
 
+    // -----------------------------------------
+    // Load consultations (newest first), keep
+    // ONLY the newest per pet (by id or name)
+    // -----------------------------------------
+    const consultDocs = await Consultation
+      .find({ reservation: reservationId })
+      .sort({ updatedAt: -1, _id: -1 })
+      .lean();
 
+    const latestByPet = new Map();
+    for (const c of consultDocs) {
+      const key = c.targetPetId
+        ? `id:${c.targetPetId}`
+        : `name:${(c.targetPetName || c.petName || '').trim().toLowerCase()}`;
+      if (!latestByPet.has(key)) latestByPet.set(key, c); // first = newest
+    }
 
-    // Enrich medications/services with prices (from Inventory/Service)
+    // Helper: resolve pet name for a consultation (supports targetPet* and legacy pet*)
+    // (requires: const mongoose = require('mongoose') at top of file)
+    function resolvePetName(c) {
+      // 1) explicit names first
+      if (c?.targetPetName && String(c.targetPetName).trim()) return String(c.targetPetName).trim();
+      if (c?.petName && String(c.petName).trim())             return String(c.petName).trim();
+
+      const petsArr = reservation.pets || [];
+
+      // 2) try by id (prefer targetPetId; fall back to petId)
+      const candidateId = c?.targetPetId || c?.petId;
+      if (candidateId && mongoose.isValidObjectId(candidateId)) {
+        const hitById = petsArr.find(p => String(p.petId?._id) === String(candidateId));
+        if (hitById) return hitById.petId?.petName || hitById.petName || '—';
+      }
+
+      // 3) try by name string (some old data put the name in petId)
+      const candidateName =
+        (typeof candidateId === 'string' && !mongoose.isValidObjectId(candidateId))
+          ? candidateId
+          : (c?.targetPetName || c?.petName || null);
+
+      if (candidateName) {
+        const hitByName = petsArr.find(p => (p.petId?.petName || p.petName) === candidateName);
+        if (hitByName) return hitByName.petId?.petName || hitByName.petName || '—';
+      }
+
+      // 4) single-pet reservation fallback
+      if (petsArr.length === 1) return petsArr[0].petId?.petName || petsArr[0].petName || '—';
+
+      return '—';
+    }
+
+    // -----------------------------------------
+    // Enrich medications/services with prices
+    // -----------------------------------------
     const consultations = [];
-for (const c of latestByPet.values()) {
-  const petName = resolvePetName(c);
+    for (const c of latestByPet.values()) {
+      const petName = resolvePetName(c);
 
-  // ----- Medications -----
-  const meds = [];
-  for (const m of (c.medications || [])) {
-    const medName = m.name || m.medicationName || '';
-    let inv = null;
-    if (medName) inv = await Inventory.findOne({ name: medName }).lean();
-const unitPrice =
-  (typeof m.unitPrice === 'number')
-    ? m.unitPrice
-    : (typeof inv?.basePrice === 'number'
-        ? inv.basePrice
-        : (typeof inv?.price === 'number' ? inv.price : 0));
+      // ----- Medications -----
+      const meds = [];
+      for (const m of (c.medications || [])) {
+        const medName = m.name || m.medicationName || '';
+        let inv = null;
+        if (medName) inv = await Inventory.findOne({ name: medName }).lean();
 
-    const hasConsultTarget = !!(c.targetPetId || c.targetPetName || c.petId || c.petName);
-    const medHasTarget     = !!(m.targetPetId || m.petId || m.targetPetName || m.petName);
-    const inferredAdded    = m.added === true ? true : (!hasConsultTarget && !medHasTarget);
+        const unitPrice =
+          (typeof m.unitPrice === 'number')
+            ? m.unitPrice
+            : (typeof inv?.basePrice === 'number'
+                ? inv.basePrice
+                : (typeof inv?.price === 'number' ? inv.price : 0));
 
-    meds.push({
-      ...m,
-      name: medName,
-      unitPrice,
-      category: m.category || inv?.category || 'Uncategorized',
-      quantity: Number(m.quantity || 0),
-      added: !!inferredAdded
-    });
-  }
+        // heuristic for "Added" label on manual rows
+        const hasConsultTarget = !!(c.targetPetId || c.targetPetName || c.petId || c.petName);
+        const medHasTarget     = !!(m.targetPetId || m.petId || m.targetPetName || m.petName);
+        const inferredAdded    = m.added === true ? true : (!hasConsultTarget && !medHasTarget);
 
-  // ----- Services -----
-  const svcs = [];
-  for (const s of (c.services || [])) {
-    let svcDoc = null;
-    if (s.serviceId) {
-      try { svcDoc = await Service.findById(s.serviceId).lean(); } catch {}
+        meds.push({
+          ...m,
+          name: medName,
+          unitPrice,
+          category: m.category || inv?.category || 'Uncategorized',
+          quantity: Number(m.quantity || 0),
+          added: !!inferredAdded
+        });
+      }
+
+      // ----- Services -----
+      const svcs = [];
+      for (const s of (c.services || [])) {
+        let svcDoc = null;
+        if (s.serviceId) {
+          try { svcDoc = await Service.findById(s.serviceId).lean(); } catch (e) {}
+        }
+        if (!svcDoc && s.serviceName) {
+          svcDoc = await Service.findOne({ serviceName: s.serviceName }).lean();
+        }
+        svcs.push({
+          ...s,
+          serviceName: s.serviceName || svcDoc?.serviceName || '',
+          price: (typeof s.price === 'number') ? s.price : (svcDoc?.price || 0)
+        });
+      }
+
+      consultations.push({
+        petId: c.petId || null,
+        petName,
+        medications: meds,
+        services: svcs
+      });
     }
-    if (!svcDoc && s.serviceName) {
-      svcDoc = await Service.findOne({ serviceName: s.serviceName }).lean();
-    }
-    svcs.push({
-      ...s,
-      serviceName: s.serviceName || svcDoc?.serviceName || '',
-      price: (typeof s.price === 'number') ? s.price : (svcDoc?.price || 0)
-    });
-  }
-
-  consultations.push({
-    petId: c.petId || null,
-    petName,
-    medications: meds,
-    services: svcs
-  });
-}
 
     // Payment present?
     const payment = await Payment.findOne({ reservation: reservationId }).lean();
 
+    // ----------------------------
+    // Respond with flags included
+    // ----------------------------
     res.json({
       success: true,
-      data: { reservation, consultations, payment: payment || null }
+      data: {
+        reservation,
+        consultations,
+        payment: payment || null,
+        flags: { petExists, isStacked, isInitialEntry }
+      }
     });
   } catch (err) {
     console.error('get-consultation-details failed:', err);
@@ -1091,6 +1144,56 @@ await payment.save();
     }
   }
 );
+ // === POS / Retail: mark paid without reservation ===
+ const retailPaidSchema = Joi.object({
+   customerName: Joi.string().optional().allow(''),
+   amount:        Joi.number().min(0).required(),
+   products:      Joi.array().items(lineItemSchema).min(1).required()
+ });
+
+ router.post(
+   '/mark-paid-retail',
+   authMiddleware,
+   validateRequest(retailPaidSchema),
+   async (req, res) => {
+     try {
+       const { customerName, amount, products } = req.body;
+
+       // sanitize like in /mark-paid
+       const cleanProducts = (products || []).map(p => ({
+         name:      p.name,
+         quantity:  Number(p.quantity)  || 0,
+         unitPrice: Number(p.unitPrice) || 0,
+         lineTotal: Number(p.lineTotal) || 0
+       }));
+
+       // decrement inventory for each product
+      for (const { name, quantity } of cleanProducts) {
+         const invDoc = await Inventory.findOne({ name }).lean();
+         if (!invDoc) continue;
+         const newQty = Math.max((invDoc.quantity || 0) - Number(quantity || 0), 0);
+         await Inventory.updateOne({ _id: invDoc._id }, { $set: { quantity: newQty } });
+       }
+
+      // save payment record (no reservation)
+       const payment = new Payment({
+         isRetail:    true,
+         customer:    undefined,
+         customerName: (customerName && customerName.trim()) || 'Walk-in',
+         by:          req.user.userId,
+         amount,
+         products:    cleanProducts,
+        services:    []
+       });
+       await payment.save();
+
+      return res.json({ success: true, paymentId: String(payment._id) });
+    } catch (err) {
+       console.error('Retail mark-paid failed:', err);
+       return res.status(500).json({ success: false, message: 'Server error' });
+     }
+   }
+ );
 
 
 // 1) Update one medication’s quantity
@@ -1214,6 +1317,43 @@ router.get('/search-owners', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('search-owners failed:', err);
     res.status(500).json({ items: [] });
+  }
+});
+// GET /hr/history and /hr/reservation-history  – Reservation History partial
+router.get(['/history', '/reservation-history'], authMiddleware, async (req, res) => {
+  try {
+    const statuses = ['Done', 'Paid', 'Not Attended'];
+
+    const reservations = await Reservation.find({ status: { $in: statuses } })
+      .populate('owner', 'username')
+      .lean();
+
+    const historyReservations = reservations.map(r => {
+      const service =
+        typeof r.service === 'string'
+          ? r.service
+          : (r.service && r.service.serviceName) || '';
+
+      const date = r.date || (r.schedule && r.schedule.scheduleDate) || r.createdAt;
+      const time = r.time || (r.schedule && (r.schedule.scheduleTime || r.schedule.time)) || '';
+
+      return {
+        ...r,
+        ownerName: r.ownerName || (r.owner && r.owner.username) || '',
+        service,
+        date,
+        time
+      };
+    });
+    // Retail payments (POS)
+    const retailSales = await Payment.find({ isRetail: true })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.render('hr/ReservationHistory', { historyReservations, retailSales });
+  } catch (err) {
+    console.error('Error loading History:', err);
+    res.status(500).send('Server error');
   }
 });
 
