@@ -12,7 +12,7 @@ const Inventory = require('../models/inventory');  // NEW: Inventory model
 const Consultation = require('../models/consultation');
 const mongoose = require('mongoose');
 const PetDetailsSetting = require('../models/petDetailsSetting');
-
+const { broadcast } = require('../utils/hrSse');
 // ----------------- Multer Setup -----------------
 // Updated storage: files will be stored in public/consultation/
 const multer = require('multer');
@@ -244,37 +244,89 @@ router.post('/mark-done', authMiddleware, async (req, res) => {
   try {
     const { reservationId, petId, petName } = req.body;
     if (!reservationId || (!petId && !petName)) {
-      return res.status(400).json({ success: false, message: 'reservationId + (petId or petName) are required' });
+      return res.status(400).json({
+        success: false,
+        message: 'reservationId + (petId or petName) are required'
+      });
     }
 
-    // Prefer matching by petId; fall back to petName for walk-ins
+    // Build selector (supports ObjectId or string) – same behavior you had
     let selector;
     if (petId) {
-      const rid = mongoose.Types.ObjectId.isValid(reservationId) ? new mongoose.Types.ObjectId(reservationId) : reservationId;
-      const pid = mongoose.Types.ObjectId.isValid(petId) ? new mongoose.Types.ObjectId(petId) : petId;
+      const rid = mongoose.Types.ObjectId.isValid(reservationId)
+        ? new mongoose.Types.ObjectId(reservationId)
+        : reservationId;
+      const pid = mongoose.Types.ObjectId.isValid(petId)
+        ? new mongoose.Types.ObjectId(petId)
+        : petId;
       selector = { _id: rid, 'pets.petId': pid };
     } else {
       selector = { _id: reservationId, 'pets.petName': petName };
     }
 
+    // Mark THIS pet as done
     const result = await Reservation.updateOne(selector, { $set: { 'pets.$.done': true } });
     if ((result.matchedCount ?? result.n) === 0) {
       return res.status(404).json({ success: false, message: 'Reservation or pet not found' });
     }
 
-    // If all pets are done, flip reservation to Done
+    // Re-fetch reservation to check if ALL pets are done
     const updated = await Reservation.findById(reservationId).lean();
     const allDone = (updated?.pets || []).every(p => !!p.done);
-    if (allDone && updated.status !== 'Done') {
-      await Reservation.updateOne({ _id: reservationId }, { $set: { status: 'Done' } });
+
+    // 🔴 realtime: pet-level done (you already broadcast pet progress)
+    broadcast({ type: 'reservation:pet-done', reservationId, petId, petName, allDone });
+
+    let finalStatus = updated?.status || '';
+
+    // If ALL pets are done, decide between Done vs Canceled (empty consult)
+    if (allDone) {
+      // Pull consults for this reservation
+      const consults = await Consultation.find({ reservation: reservationId }).lean();
+
+      // "Meaningful" = any meds/services/diagnosis/notes/PE/follow-up exist
+      const isNonEmpty = (c) => {
+        const hasMeds   = Array.isArray(c.medications) && c.medications.length > 0;
+        const hasSvcs   = Array.isArray(c.services)    && c.services.length > 0;
+        const hasDiag   = !!(c.diagnosis && String(c.diagnosis).trim());
+        const hasNotes  = !!(c.notes && String(c.notes).trim());
+        const hasExam   = !!(c.physicalExam && (c.physicalExam.weight || c.physicalExam.temperature || c.physicalExam.observations));
+        const hasFollow = !!(c.scheduleDate || (c.schedule && c.schedule.scheduleDate));
+        return hasMeds || hasSvcs || hasDiag || hasNotes || hasExam || hasFollow;
+      };
+
+      const nonEmptyCount = consults.filter(isNonEmpty).length;
+
+      // If there is at least one real/meaningful consultation → mark as Done
+      if (nonEmptyCount > 0) {
+        if (updated.status !== 'Done') {
+          await Reservation.updateOne({ _id: reservationId }, { $set: { status: 'Done' } });
+          finalStatus = 'Done';
+          broadcast({ type: 'reservation:done', reservation: { _id: reservationId } });
+        }
+      } else {
+        // Otherwise treat as empty consult → mark as Canceled
+        // (don’t override Paid if it somehow already is)
+        if (updated.status !== 'Paid' && updated.status !== 'Canceled') {
+          await Reservation.updateOne({ _id: reservationId }, { $set: { status: 'Canceled' } });
+          finalStatus = 'Canceled';
+          // Clean up empty consult docs so Payment/Details doesn’t show blanks
+          await Consultation.deleteMany({ reservation: reservationId });
+          broadcast({ type: 'reservation:canceled', reservation: { _id: reservationId } });
+        } else {
+          finalStatus = updated.status; // keep existing Paid/Canceled if already set
+        }
+      }
     }
 
-    return res.json({ success: true, allDone });
+    return res.json({ success: true, allDone, finalStatus });
   } catch (err) {
     console.error('mark-done error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
+
 
 // Get Consultation Details for a Reservation
 router.get("/get-consultation", authMiddleware, validateRequest(reservationIdSchema, 'query'), async (req, res) => {
@@ -455,8 +507,9 @@ reservation.services = services.map(srv => ({
       }
 
       await reservation.save();
+broadcast({ type: 'consultation:upserted', reservationId });
+return res.json({ success: true, consultation: updatedConsult });
 
-     res.json({ success: true, consultation: updatedConsult });
 
     } catch (error) {
       console.error("Error adding consultation details:", error);
