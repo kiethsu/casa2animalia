@@ -17,7 +17,17 @@ const PetList = require('../models/petlist');
 const Consultation = require('../models/consultation');
 const pdf = require('html-pdf');
 const Message = require('../models/message');
-
+const { broadcast } = require('../utils/hrSse');
+// --- helper: normalize to YYYY-MM-DD (local-safe fallback) ---
+// helper → normalize to YYYY-MM-DD
+const toYMD = (d) => {
+  const x = new Date(d);
+  if (!x || isNaN(x)) return '';
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, '0');
+  const dd = String(x.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+};
 // ===== SSE (Server-Sent Events) plumbing for realtime badge & status =====
 const clients = new Map(); // userId -> Set(res objects)
 
@@ -532,18 +542,46 @@ router.post(
         idemKey: idemKeyFromClient              // <-- NEW (important)
       });
 
-      // Save with duplicate-key protection (race-safe)
-      try {
-        await newReservation.save();
-      } catch (e) {
-        if (e && e.code === 11000) {
-          const r = await Reservation.findOne({ idemKey: idemKeyFromClient }).lean();
-          return res.json({ success: true, duplicate: true, reservation: r });
-        }
-        throw e;
-      }
+   // Save with duplicate-key protection (race-safe)
+try {
+  await newReservation.save();
+} catch (e) {
+  if (e && e.code === 11000) {
+    const r = await Reservation.findOne({ idemKey: idemKeyFromClient }).lean();
+    return res.json({ success: true, duplicate: true, reservation: r });
+  }
+  throw e;
+}
 
-      return res.json({ success: true, reservation: newReservation });
+// compute the exact day the customer picked (prefer raw body if it's already YYYY-MM-DD)
+// compute the exact day the customer picked (prefer raw body if already YYYY-MM-DD)
+const dateKey =
+  (typeof req.body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.body.date))
+    ? req.body.date
+    : toYMD(newReservation.date || newReservation.createdAt);
+
+// notify HR screens (Pending table + calendar day highlight)
+broadcast({
+  type: 'reservation:pending',
+  reservation: {
+    _id: String(newReservation._id),
+    ownerName: newReservation.ownerName,
+    service: newReservation.service,
+    time: newReservation.time,
+    status: newReservation.status,
+    date: newReservation.date || newReservation.createdAt, // legacy
+    dateKey,                                               // <- used by calendar
+    petCount:
+      (Array.isArray(newReservation.petRequests) && newReservation.petRequests.length)
+        ? newReservation.petRequests.length
+        : ((Array.isArray(newReservation.pets) && newReservation.pets.length)
+            ? newReservation.pets.length
+            : 1)
+  }
+});
+
+
+return res.json({ success: true, reservation: newReservation });
     } catch (error) {
       console.error("Error submitting reservation:", error);
       return res.status(500).json({ success: false, message: "Server error" });
@@ -611,6 +649,25 @@ router.post('/cancel-reservation', authMiddleware, async (req, res) => {
     reservation.canceledAt = new Date();
     reservation.doctor = undefined;
     await reservation.save();
+// After: await reservation.save();
+
+// compute the day this reservation was for
+const dateKey =
+  (reservation.date
+    ? toYMD(reservation.date)
+    : (reservation.schedule?.scheduleDate
+        ? toYMD(reservation.schedule.scheduleDate)
+        : toYMD(reservation.createdAt)));
+
+// tell HR screens to remove it from Pending (and refresh calendar)
+broadcast({
+  type: 'reservation:canceled',
+  id: String(reservation._id),
+  reservation: {
+    _id: String(reservation._id),
+    dateKey
+  }
+});
 
     // 4) Respond (use justSuspended to update UI)
     const justSuspended = !wasSuspended && user.isSuspended && user.cancelCount >= CANCEL_THRESHOLD;
