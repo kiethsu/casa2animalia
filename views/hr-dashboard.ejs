@@ -36,7 +36,8 @@ const pic = typeof profilePic !== 'undefined'
     rel="stylesheet"
     href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"
   />
-
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/airbnb.css">
   <style>
   :root {
     --primary:       #1E88E5;
@@ -47,6 +48,7 @@ const pic = typeof profilePic !== 'undefined'
     --bg-dark:       #0D1B2A;
     --card-bg:       #ffffff;
     --border-color:  rgba(0,0,0,0.08);
+    
   }
 
   /* —— Top bar —— */
@@ -254,6 +256,12 @@ const pic = typeof profilePic !== 'undefined'
             <i class="fas fa-clock"></i> Limit Per Hour
           </a>
         </li>
+        <li>
+  <a href="#" class="menu-item" data-content="history">
+    <i class="fas fa-clock-rotate-left"></i> History
+  </a>
+</li>
+
         <li class="logout mt-3">
           <a href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </li>
@@ -273,81 +281,94 @@ const pic = typeof profilePic !== 'undefined'
     </div>
   </div>
 
-  <!-- JS dependencies -->
-  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
-  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+ <!-- JS dependencies -->
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
-  <script>
-    $(document).ready(function(){
-      const isMobile = () => $(window).width() < 992;
+<script>
+  $(document).ready(function(){
+    const isMobile = () => $(window).width() < 992;
 
-      function showSidebar() {
-        $('#sidebar').addClass('active');
-        $('#sidebarOverlay').addClass('show');
-        $('body').addClass('sidebar-open');
-      }
-      function hideSidebar() {
-        $('#sidebar').removeClass('active');
-        $('#sidebarOverlay').removeClass('show');
-        $('body').removeClass('sidebar-open');
-      }
+    function showSidebar() {
+      $('#sidebar').addClass('active');
+      $('#sidebarOverlay').addClass('show');
+      $('body').addClass('sidebar-open');
+    }
+    function hideSidebar() {
+      $('#sidebar').removeClass('active');
+      $('#sidebarOverlay').removeClass('show');
+      $('body').removeClass('sidebar-open');
+    }
 
-      // mobile toggle
-      $('#menu-toggle').click(() => {
-        if (!isMobile()) return;
-        $('#sidebar').hasClass('active') ? hideSidebar() : showSidebar();
-      });
-      $('#sidebarOverlay').click(hideSidebar);
-
-      // load & switch HR views
-      const loadContent = page => {
-        $('#main-content').load(`/hr/${page}`);
-        $('#subnav-title').text({
-          reservation:      'Reservation',
-          petlist:          'Pet List',
-          'limit-per-hour': 'Limit Per Hour'
-        }[page]);
-      };
-
-      // initial load
-      loadContent('reservation');
-
-      // toggle active class on <a>, not <li>
-      $('.menu-item').click(function(e){
-        e.preventDefault();
-        $('.menu-item').removeClass('active');
-        $(this).addClass('active');
-        loadContent($(this).data('content'));
-        if (isMobile()) hideSidebar();
-      });
-
-      // messages popup
-      $('#messageButton').click(() => {
-        Swal.fire({
-          title: 'Messages',
-          text: 'You have new messages.',
-          icon: 'info',
-          confirmButtonText: 'View'
-        });
-      });
-
-      // keep sidebar responsive on resize
-      $(window).resize(() => {
-        isMobile() ? hideSidebar() : showSidebar();
-      });
-
-      // keep session alive
-      setInterval(() => {
-        $.ajax({
-          url: '/refresh-token',
-          type: 'POST',
-          xhrFields: { withCredentials: true }
-        });
-      }, 50 * 60 * 1000);
+    // mobile toggle
+    $('#menu-toggle').click(() => {
+      if (!isMobile()) return;
+      $('#sidebar').hasClass('active') ? hideSidebar() : showSidebar();
     });
-  </script>
+    $('#sidebarOverlay').click(hideSidebar);
+
+    // 🔗 Map logical page keys to routes + titles (includes History)
+    const PATH_MAP = {
+      reservation: '/hr/reservation',
+      petlist: '/hr/petlist',
+      'limit-per-hour': '/hr/limit-per-hour',
+      history: '/hr/reservation-history'
+    };
+    const TITLE_MAP = {
+      reservation: 'Reservation',
+      petlist: 'Pet List',
+      'limit-per-hour': 'Limit Per Hour',
+      history: 'History'
+    };
+
+    // load & switch HR views
+    const loadContent = page => {
+      const path = PATH_MAP[page] || `/hr/${page}`;
+      $('#main-content').load(path);
+      $('#subnav-title').text(TITLE_MAP[page] || 'SmartVet');
+    };
+
+    // initial load
+    loadContent('reservation');
+
+    // toggle active class on <a>, not <li>
+    $('.menu-item').click(function(e){
+      e.preventDefault();
+      $('.menu-item').removeClass('active');
+      $(this).addClass('active');
+      loadContent($(this).data('content'));
+      if (isMobile()) hideSidebar();
+    });
+
+    // messages popup
+    $('#messageButton').click(() => {
+      Swal.fire({
+        title: 'Messages',
+        text: 'You have new messages.',
+        icon: 'info',
+        confirmButtonText: 'View'
+      });
+    });
+
+    // keep sidebar responsive on resize
+    $(window).resize(() => {
+      isMobile() ? hideSidebar() : showSidebar();
+    });
+
+    // keep session alive
+    setInterval(() => {
+      $.ajax({
+        url: '/refresh-token',
+        type: 'POST',
+        xhrFields: { withCredentials: true }
+      });
+    }, 50 * 60 * 1000);
+  });
+</script>
+
 </body>
 </html>
