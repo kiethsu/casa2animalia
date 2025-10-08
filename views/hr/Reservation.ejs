@@ -67,38 +67,92 @@
       return t1.localeCompare(t2);
     });
 
-  var historyReservations = (reservations||[]).filter(function(r){
-    return r && ['Done','Not Attended','Paid'].includes(r.status);
-  });
-
-  var ongoingReservations = (reservations||[]).filter(function(r){
-    return r && (
-      r.status === 'Paid' ||
-      r.status === 'Done' ||
-      !!r.doctor
-    ) && !r.isInitialEntry && !r.isStacked;
-  });
+ var historyReservations = (reservations||[]).filter(function(r){
+  return r && ['Done','Not Attended','Paid','Canceled'].includes(r.status);
+});
+var ongoingReservations = (reservations||[]).filter(function(r){
+  return r
+    && r.status !== 'Canceled'
+    && (r.status === 'Paid' || r.status === 'Done' || !!r.doctor)
+    && !r.isInitialEntry && !r.isStacked;
+});
 %>
 
 
 <div class="container-fluid reservation-container">
 <style>
   /* =========================
-     Reservation Content Styles
+     Reservation Content Styles (UPDATED to match dashboard spacing)
      ========================= */
+
+  /* Use the same soft background and tight container padding as dashboard */
+  .container-fluid.reservation-container,
   .reservation-container {
-    background-color: #f7f7f7;
+    background-color: #f8f9fa;
     min-height: 100vh;
-    padding: 2rem;
+    padding: 8px 8px 10px !important; /* override old 2rem */
   }
+
+  /* dashboard-like narrow gutters so cards aren’t flush to the edges */
+  .reservation-container .row {
+    margin-left: -8px;
+    margin-right: -8px;
+  }
+  .reservation-container [class^="col-"],
+  .reservation-container [class*=" col-"] {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  /* Unify ALL reservation cards to match dashboard styling */
+  .reservation-container .card,
   .card {
     background: #fff;
-    border: none;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: 1px solid #e9ecef;
+    border-radius: 14px;
+    box-shadow: 0 3px 12px rgba(30, 34, 90, 0.08);
+    transition: box-shadow 0.15s;
     margin-bottom: 1.5rem;
+    padding: 1.15rem !important; /* same inner spacing as dashboard */
     overflow: visible;
   }
+  .reservation-container .card:hover,
+  .card:hover {
+    box-shadow: 0 5px 16px rgba(30, 34, 90, 0.13);
+  }
+
+  /* Card headers consistent with dashboard */
+  .reservation-container .card .card-header,
+  .reservation-container .card .view-details-header {
+    background: #fff !important;
+    border-bottom: 1px solid #e9ecef !important;
+    padding: 0.75rem 1.25rem !important;
+    font-weight: 600;
+    font-size: 1rem;
+  }
+
+  /* nice rounding with tables inside (prevents header/body looking cramped) */
+  .reservation-container .card table { margin-bottom: 0; }
+
+  /* your “card-like” blocks (walk-in modal) get the same look */
+  .reservation-container .card-like {
+    border: 1px solid #e9ecef !important;
+    border-radius: 14px !important;
+    box-shadow: 0 3px 12px rgba(30, 34, 90, 0.08) !important;
+    padding: 1.15rem !important;
+  }
+
+  /* Optional: make the larger right-side blocks match neatly */
+  .reservation-container #calendarCountCard,
+  .reservation-container .approved-reservations,
+  .reservation-container #historySection {
+    border-radius: 14px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 3px 12px rgba(30, 34, 90, 0.08);
+    padding: 1.15rem !important;
+  }
+
+  /* Typography / tables / buttons */
   .table th,
   .table td {
     vertical-align: middle;
@@ -150,7 +204,7 @@
     text-align: center;
   }
 
-  /* Datepicker highlighting */
+  /* Datepicker highlighting (legacy jQuery UI safeguard) */
   .has-appointment a {
     background-color: #2a9d8f !important;
     color: #fff !important;
@@ -238,7 +292,7 @@
   }
   .med-total-footer span#medTotal { color: #20c997; }
 
-  /* ===== HR consult view (match consult.ejs) ===== */
+  /* ===== HR consult view ===== */
   .view-details-header{
     background:#f1f5fa; padding:12px 18px; font-weight:600; font-size:.95rem; color:#444;
     border-bottom:1px solid rgba(0,0,0,.08); border-radius:12px 12px 0 0;
@@ -274,16 +328,12 @@
   /* ==============================
      Walk-In (+) Modal Facelift
      ============================== */
-  /* Keep the Walk-In modal above other modals/backdrops */
   #plusModal.modal { z-index: 3002 !important; }
-  /* jQuery UI spinner hint on the search */
   #walkinOwnerSearch.ui-autocomplete-loading {
     background: url('/spinner.svg') right 8px center / 16px 16px no-repeat;
   }
-  /* Ensure jQuery UI menu shows above Bootstrap modal */
   .ui-autocomplete { z-index: 4000 !important; }
 
-  /* Layout & shell (match consult card look) */
   #plusModal .modal-dialog {
     max-width: 640px;
     width: auto;
@@ -312,7 +362,6 @@
     background:#fff;
   }
 
-  /* Card-like blocks inside the modal */
   #plusModal .card-like{
     border:1px solid #eaeaea;
     border-radius:16px;
@@ -328,7 +377,6 @@
     margin:0 0 10px;
   }
 
-  /* Form grid */
   #plusModal .form-row-grid{
     display:grid;
     grid-template-columns: 1fr 1fr;
@@ -338,7 +386,6 @@
     #plusModal .form-row-grid{ grid-template-columns: 1fr; }
   }
 
-  /* Labels/controls */
   #plusModal .form-group label{
     font-weight:600;
     color:#264653;
@@ -359,7 +406,6 @@
   }
   #plusModal .btn{ border-radius:10px; font-weight:700; }
 
-  /* Search input with icon */
   #plusModal .input-icon{ position:relative; }
   #plusModal .input-icon i{
     position:absolute; left:10px; top:50%; transform:translateY(-50%);
@@ -367,7 +413,6 @@
   }
   #plusModal .input-icon input{ padding-left:34px; }
 
-  /* Modal footer strip */
   #plusModal .footer-hint{
     background:rgba(0,0,0,.03);
     border-top:1px solid rgba(0,0,0,.06);
@@ -375,338 +420,845 @@
     font-size:.75rem; color:#6c757d;
   }
 
-  /* Optional inline error under time select (hook for your JS) */
   #walkinTimeError { color:#dc3545; }
 
+  /* ---------- Modern calendar shell ---------- */
+  .calendar-wrapper {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  /* Flatpickr cosmetics */
+  .flatpickr-calendar.inline {
+    box-shadow: none;
+    border: 0;
+  }
+  .flatpickr-day.selected,
+  .flatpickr-day.startRange,
+  .flatpickr-day.endRange {
+    background: #1E88E5;
+    border-color: #1E88E5;
+    color: #fff;
+  }
+  .flatpickr-day.today {
+    border-color: #1E88E5;
+  }
+
+  /* Appointment heat */
+  .flatpickr-day.has-appointment {
+    background: #2a9d8f !important;
+    color: #fff !important;
+  }
+  .flatpickr-day.no-appointment {
+    box-shadow: inset 0 0 0 1px #e9ecef;
+  }
+
+  /* Keep old jQuery UI colors out of the way */
+  .has-appointment a, .no-appointment a { background: transparent !important; color: inherit !important; }
+
+  /* ===== Calendar + Counter Card ===== */
+  #calendarCountCard {
+    overflow: visible;
+    width: fit-content;      /* shrink to content */
+    max-width: 100%;
+    margin: 0 auto;          /* center the whole card */
+    padding: 8px 10px;       /* tight like dashboard */
+  }
+
+  /* keep calendar from stretching and keep layout tight */
+  #calendarCountCard > .d-flex {
+    justify-content: center; /* snug & centered */
+    gap: 8px;                /* small, consistent gap */
+  }
+
+  #calendarMount .flatpickr-calendar.inline { box-shadow: none; border: 0; }
+
+  /* override .flex-grow-1 on the calendar mount so it shrink-wraps */
+  #calendarCountCard #calendarMount {
+    margin-right: 0 !important;
+    flex: 0 0 auto !important;        /* stop stretching */
+    width: auto;                      /* shrink-wrap the calendar */
+  }
+
+  .count-box {
+    flex: 0 0 clamp(160px, 22vw, 200px);
+    border-left: 1px dashed #e9ecef;
+    padding: 12px;
+    text-align: center;
+    margin: 0 auto;
+  }
+  .count-number {
+    font-size: 56px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .count-label {
+    font-size: 14px;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    color: #6c757d;
+  }
+  .count-box .count-number,
+  .count-box .count-label,
+  .count-box .count-date {
+    width: 100%;
+    text-align: center;
+  }
+
+  @media (max-width: 991.98px){
+    #calendarCountCard > .d-flex{ justify-content: center; }
+    .count-box {
+      flex: 0 0 auto;
+      max-width: 240px;
+      border-left: 0;
+      border-top: 1px dashed #e9ecef;
+      margin-top: 12px;
+    }
+  }
+  #calendarCountCard{
+  width: fit-content !important;   /* compact width */
+  max-width: 100%;
+  margin-left: 0 !important;       /* hug the left */
+  margin-right: auto !important;   /* no centering */
+  padding: 8px 10px;
+}
+/* === Layout: calendar (left) + pending (right); approved below calendar === */
+#topRow .col-lg-6,
+#topRow .col-xl-6 { display: flex; }
+
+#calendarCountCard,
+#pendingCard { width: 100%; }
+
+/* Pending card flexes and its table scrolls */
+#pendingCard{
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;      /* height is set via JS to match calendar */
+}
+#pendingCard .header-buttons { flex: 0 0 auto; }
+#pendingCard .fixed-table-container{
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* On smaller screens, let it stack naturally */
+@media (max-width: 991.98px){
+  #pendingCard{ height: auto !important; }
+}
+/* Spinner overlay inside the Pending card */
+#pendingCard { position: relative; } /* ensure overlay positions correctly */
+
+.pending-spinner {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+  backdrop-filter: blur(1px);
+}
+.pending-spinner .spinner-dot {
+  width: 36px; height: 36px;
+  border: 3px solid #dbeafe;
+  border-top-color: #0D47A1; /* same blue as your pending header */
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+.pending-spinner .msg {
+  margin-left: 10px;
+  font-weight: 600;
+  color: #0D47A1;
+  font-size: .9rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* === Micro-gap between Calendar and Pending (desktop only) === */
+/* Tweak --inner-gutter to control how “superclose” they are */
+#topRow{
+  --outer-gutter: 8px;   /* keep edges consistent with your layout */
+  --inner-gutter: 4px;   /* ⇦ try 2px if you want them almost touching */
+}
+
+/* Keep full outer gutters, shrink only the middle gap */
+#topRow > [class*="col-"]:first-child{
+  padding-left: var(--outer-gutter);
+  padding-right: var(--inner-gutter);
+}
+#topRow > [class*="col-"]:last-child{
+  padding-left: var(--inner-gutter);
+  padding-right: var(--outer-gutter);
+}
+
+/* Mobile/tablet: restore normal gutters so it doesn’t feel cramped */
+@media (max-width: 991.98px){
+  #topRow > [class*="col-"]{
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
+/* === Super-close gap between Calendar and Pending (desktop) === */
+/* Put this at the very end of your <style> so it wins the cascade */
+#topRow { 
+  --outer-gutter: 8px;   /* edges against the container */
+  --inner-gutter: 6px;   /* tiny space between the two cards (try 4px or 2px if you want closer) */
+}
+
+@media (min-width: 992px){
+  /* Reset column padding just for this row */
+  #topRow > [class*="col-"]{
+    padding-left:  var(--outer-gutter) !important;
+    padding-right: var(--outer-gutter) !important;
+  }
+  /* Shrink only the middle gap */
+  #topRow > [class*="col-"]:first-child{ padding-right: var(--inner-gutter) !important; }
+  #topRow > [class*="col-"]:last-child { padding-left:  var(--inner-gutter) !important; }
+}
+
+/* On tablet/mobile, use normal gutters so it doesn’t feel cramped */
+@media (max-width: 991.98px){
+  #topRow > [class*="col-"]{
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}
+@media (min-width: 992px){
+  #topRow > [class*="col-"]:first-child{ padding-right: 6px !important; }
+  #topRow > [class*="col-"]:last-child { padding-left:  6px !important; }
+}
+/* ===== Payment Card v3 (refined, mobile-perfect) ===== */
+/* Local to the reservation page only */
+.reservation-container{
+  --ink:#0f172a;
+  --muted:#64748b;
+  --line:#e9edf5;
+  --panel-bg:linear-gradient(180deg,#f2f6ff 0%, #f6fffb 100%);
+  --accent:#4f46e5;
+  --accent-2:#06b6d4;
+  --success:#16a34a;
+}
+
+/* Card shell */
+#paymentPanel.payment-card{
+  position: sticky; top: 8px; align-self: flex-start;
+  background: var(--panel-bg);
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  box-shadow: 0 12px 28px rgba(30,34,90,.10);
+  overflow: hidden;
+  padding: 0;
+}
+
+/* Header (keeps your “good” look) */
+#paymentPanel .payment-header{
+  background: linear-gradient(90deg,var(--accent), var(--accent-2));
+  color:#fff; padding: 14px 16px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+#paymentPanel .payment-header .title{ font-weight:800; letter-spacing:.2px; }
+#paymentPanel .payment-header .subtitle{ opacity:.9; font-weight:500; }
+#paymentPanel .icon-pill{
+  width:36px; height:36px; border-radius:999px;
+  background: rgba(255,255,255,.18);
+  display:flex; align-items:center; justify-content:center;
+  margin-right:10px;
+}
+#paymentPanel .header-actions .btn-icon{
+  background: rgba(255,255,255,.18);
+  border:none; color:#fff; border-radius:10px; padding:6px 10px;
+}
+#paymentPanel .header-actions .btn-icon:hover{ background: rgba(255,255,255,.28); }
+
+/* Body */
+#paymentPanel .payment-body{ padding: 16px; }
+
+/* Meta block (where #receiptHeader renders) */
+#paymentPanel .meta-grid{
+  display:grid; grid-template-columns: 1fr 1fr; gap:8px 16px;
+  font-size:.92rem; background:#ffffffcc; border:1px solid var(--line);
+  border-radius:12px; padding:12px; margin-bottom:14px; color:var(--ink);
+}
+#paymentPanel .meta-grid p{ margin:0; line-height:1.25; }
+#paymentPanel .meta-grid p strong{ color:var(--ink); }
+
+/* Toolbar above Medications */
+#paymentPanel .tool-row{
+  display:flex; align-items:center; justify-content:space-between;
+  margin: 6px 0 12px 0;
+}
+#paymentPanel .tool-row .btn{ border-radius:10px; font-weight:600; }
+
+/* Add-med selector */
+#paymentPanel #receiptMedSelector{
+  background:#fff; border:1px solid var(--line);
+  border-radius:12px; padding:10px;
+  box-shadow: 0 4px 14px rgba(15,23,42,.06);
+}
+#paymentPanel #receiptMedSelector .form-control{
+  border-radius:10px; border:1px solid #d1d5db;
+}
+#paymentPanel #receiptMedSelector .form-control:focus{
+  border-color:#93c5fd; box-shadow: 0 0 0 0.15rem rgba(147,197,253,.35);
+}
+
+/* ===== Tables: clean desktop, perfect on mobile ===== */
+
+/* Desktop table chrome */
+#paymentPanel #receiptTable,
+#paymentPanel #servicesTable{
+  border-collapse: separate; border-spacing: 0;
+  width:100%; background:#fff;
+  border:1px solid var(--line); border-radius:12px; overflow:hidden;
+}
+#paymentPanel #receiptTable thead th,
+#paymentPanel #servicesTable thead th{
+  background:#f8fafc; color:var(--ink);
+  font-weight:700; text-transform:uppercase; font-size:.72rem; letter-spacing:.03em;
+  border-bottom:1px solid var(--line);
+  padding:.7rem .75rem;
+}
+#paymentPanel #receiptTable tbody td,
+#paymentPanel #servicesTable tbody td{
+  color:var(--ink); font-size:.92rem;
+  border-top: 1px dashed var(--line);
+  padding:.7rem .75rem; vertical-align: middle;
+}
+#paymentPanel #receiptTable tbody tr:hover,
+#paymentPanel #servicesTable tbody tr:hover{ background:#f9fbff; }
+
+/* Numeric alignment + tabular numbers */
+#receiptTable th:nth-child(4), #receiptTable th:nth-child(5),
+#receiptTable td:nth-child(4), #receiptTable td:nth-child(5),
+#servicesTable th:nth-child(3), #servicesTable td:nth-child(3){
+  text-align:right; font-variant-numeric: tabular-nums;
+}
+#receiptTable td:nth-child(3){ text-align:center; }
+
+/* Long names wrap nicely, never break layout */
+#paymentPanel #receiptTable .med-name,
+#paymentPanel #servicesTable td{ word-break: break-word; }
+
+/* Action buttons inside rows */
+#paymentPanel .btn.btn-sm.btn-outline-primary.btn-edit{
+  border-color:#1f2937; color:#1f2937; background:#fff;
+}
+#paymentPanel .btn.btn-sm.btn-outline-primary.btn-edit:hover{
+  background:#1f2937; color:#fff;
+}
+#paymentPanel .btn-remove{ color:#ef4444 !important; }
+
+/* Lighter “Added” pill (when your JS shows .badge-secondary) */
+#paymentPanel .badge.badge-secondary{
+  background:#e2e8f0; color:#0f172a; font-weight:600;
+  border-radius:999px; padding:.25rem .5rem;
+}
+
+/* Totals / summary */
+#paymentPanel .payment-summary{
+  position: sticky; bottom:-1px; z-index: 1;
+  background:#fff; border-top:1px solid var(--line);
+  padding:12px 16px; border-radius:0 0 16px 16px;
+}
+#paymentPanel .summary-line{
+  display:flex; justify-content:space-between; margin:4px 0; font-weight:600;
+}
+#paymentPanel .summary-line.muted{ color:var(--muted); font-weight:500; }
+#paymentPanel .summary-line.grand{ font-size:1.1rem; }
+#paymentPanel #btnMarkPaid{ min-width:160px; }
+
+/* Paid state -> green header */
+#paymentPanel.paid .payment-header{
+  background: linear-gradient(90deg,var(--success), #22c55e);
+}
+
+/* ===== Mobile (<768px): stack rows as cards, no ugly header ===== */
+@media (max-width: 768px){
+  /* remove table headers */
+  #paymentPanel #receiptTable thead,
+  #paymentPanel #servicesTable thead{ display:none; }
+
+  /* each row becomes a card */
+  #paymentPanel #receiptTable tbody tr,
+  #paymentPanel #servicesTable tbody tr{
+    display:block;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:12px;
+    box-shadow: 0 2px 8px rgba(30,34,90,.06);
+    margin:10px 0; padding:6px 8px;
+  }
+
+  /* cells become labeled rows */
+  #paymentPanel #receiptTable tbody td,
+  #paymentPanel #servicesTable tbody td{
+    display:flex; gap:12px;
+    justify-content:space-between; align-items:baseline;
+    border:0; padding:10px 6px;
+  }
+  #paymentPanel #receiptTable tbody td::before,
+  #paymentPanel #servicesTable tbody td::before{
+    content: attr(data-label);
+    font-weight:600; color:var(--muted); flex:0 0 auto; min-width:96px;
+  }
+
+  /* Reorder medication row so “Medication” shows first */
+  #paymentPanel #receiptTable tbody td:nth-child(2){ order:1; } /* Medication */
+  #paymentPanel #receiptTable tbody td:nth-child(1){ order:2; } /* Pet */
+  #paymentPanel #receiptTable tbody td:nth-child(3){ order:3; } /* Qty */
+  #paymentPanel #receiptTable tbody td:nth-child(4){ order:4; } /* Unit Price */
+  #paymentPanel #receiptTable tbody td:nth-child(5){ order:5; } /* Line Total */
+  #paymentPanel #receiptTable tbody td:nth-child(6){ order:6; } /* Action */
+
+  /* numeric cells still align nicely */
+  #paymentPanel #receiptTable tbody td[data-label="Unit Price"],
+  #paymentPanel #receiptTable tbody td[data-label="Line Total"],
+  #paymentPanel #servicesTable tbody td[data-label="Fee"]{
+    justify-content:space-between;
+  }
+
+  /* buttons a bit wider for touch */
+  #paymentPanel #receiptTable tbody td[data-label="Action"] > .btn{
+    min-width:96px;
+  }
+
+  /* meta collapses to single column */
+  #paymentPanel .meta-grid{ grid-template-columns: 1fr; }
+  /* card not sticky on small screens */
+  #paymentPanel.payment-card{ position: static; }
+}
+
+/* ===== Helpful column widths on desktop (optional fine-tune) ===== */
+@media (min-width: 769px){
+  #paymentPanel #receiptTable th:nth-child(1){ width:16%; } /* Pet */
+  #paymentPanel #receiptTable th:nth-child(2){ width:34%; } /* Medication */
+  #paymentPanel #receiptTable th:nth-child(3){ width:10%; } /* Qty */
+  #paymentPanel #receiptTable th:nth-child(4){ width:16%; } /* Unit */
+  #paymentPanel #receiptTable th:nth-child(5){ width:16%; } /* Line */
+  #paymentPanel #receiptTable th:nth-child(6){ width:8%;  } /* Edit */
+
+  #paymentPanel #servicesTable th:nth-child(1){ width:30%; } /* Pet */
+  #paymentPanel #servicesTable th:nth-child(2){ width:50%; } /* Service */
+  #paymentPanel #servicesTable th:nth-child(3){ width:20%; } /* Fee */
+}
+
+/* === Full-bleed pending header inside the card === */
+#pendingCard{
+  /* match your global .card padding and radius */
+  --card-pad: 1.15rem;
+  --card-radius: 14px;
+  overflow: hidden; /* clip header to card corners (you already had this) */
+}
+
+/* compact blue header that reaches the card's left/right/top edges */
+#pendingCard .pending-header{
+  background:#0D47A1;
+  color:#fff;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:8px 12px;
+  min-height:42px;
+  /* cancel the card's padding on top/left/right to touch corners */
+  margin: calc(var(--card-pad) * -1) calc(var(--card-pad) * -1) 12px;
+  border-radius: var(--card-radius) var(--card-radius) 0 0; /* curve with card */
+}
+
+/* keep your title/search styles */
+#pendingCard .pending-title{
+  font-weight:800; font-size:.95rem; letter-spacing:.3px;
+  cursor:pointer; user-select:none;
+}
+#pendingCard .pending-search{ position:relative; width:clamp(220px, 40%, 360px); }
+#pendingCard .pending-search i{
+  position:absolute; left:10px; top:50%; transform:translateY(-50%); opacity:.75;
+}
+#pendingCard .pending-search input{
+  background:#fff; border:0; height:32px; border-radius:999px;
+  padding:0 10px 0 30px; outline:none;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
+}
+@media (max-width:576px){
+  #pendingCard .pending-header{ flex-wrap:wrap; }
+  #pendingCard .pending-search{ width:100%; }
+}
+/* Spinner overlay anchor for Approved/Ongoing card */
+.approved-reservations { position: relative; }
+#paymentPanel .btn-icon.spinning i { animation: spin .8s linear infinite; }
+
 </style>
+
 
 
    <!-- Optional debug output -->
   <div id="doctorsDebug" style="display:none;"><%= JSON.stringify(doctors) %></div>
   
-  <!-- Content Header -->
-  <div class="content-header mb-4">
-    <h3 class="font-weight-bold text-dark" style="font-size: 18px;">Appointments</h3>
-  </div>
-  
-  <div class="row">
-    <!-- Left Column: Pending Appointments & History -->
-    <div class="col-lg-6">
-      <!-- Pending Appointments Card -->
-      <div class="card p-4 shadow-sm mb-4">
-        <!-- Header: Buttons & Search -->
-        <div class="d-flex justify-content-between align-items-center header-buttons mb-3">
-          <div>
-            <button class="btn btn-link" id="btnToday">Today</button>
-            <button class="btn btn-link" id="btnSelectDate">Select Date</button>
-            <button class="btn btn-success btn-sm" id="toggleHistory">History</button>
-          </div>
-          <input type="text" class="form-control form-control-sm search-box" id="searchInput" placeholder="Search">
-        </div>
-        <!-- Hidden datepicker container -->
-        <div id="datepickerContainer" class="mb-3" style="display: none;">
-          <input type="text" id="datepicker" class="form-control">
-        </div>
-        
-        <!-- Pending Appointments Table -->
-        <div class="table-responsive fixed-table-container">
-          <table class="table table-hover mb-0">
-            <thead>
-              <tr>
-                <th>Owner Name</th>
-                <th>Time</th>    
-                <th>Service</th>
-                <th class="text-center">Details</th>
-                <th class="text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody id="appointmentsTableBody">
-              <% pendingReservations.forEach(function(reservation) { %>
-                <% const rowDateP = resolveDate(reservation); %>
-                <tr id="reservation-<%= reservation._id %>"
-                    data-date="<%= formatLocalDate(rowDateP) %>"
-                    data-time="<%= safeTimeHHmm(reservation.time) %>">
-                  <td class="ownerName"><%= reservation.ownerName %></td>
-                  <td><%= formatTime(reservation.time) %></td>
-                  <td><%= reservation.service %></td>
-                  <td class="text-center">
-                    <button class="btn btn-info btn-sm equal-btn mx-auto d-block"
-                            onclick="viewReservation('<%= reservation._id %>','pending')">
-                      View
-                    </button>
-                  </td>
-                  <td class="text-center">
-                    <button class="btn btn-success btn-sm equal-btn mx-auto d-block"
-                            onclick="approveReservation('<%= reservation._id %>')">
-                      Approve
-                    </button>
-                  </td>
-                </tr>
-              <% }); %>
-            </tbody>
-          </table>
+ <!-- Modern Inline Calendar (filters Pending by day) -->
+
+  <!-- Modern Inline Calendar (filters Pending by day) -->
+
+<!-- Row 1: Calendar (left) + Pending (right) -->
+<div class="row align-items-stretch" id="topRow">
+  <!-- Left: Calendar + Count (shrink to content on lg+) -->
+  <div class="col-12 col-lg-auto d-flex">
+    
+    <div class="card p-3 shadow-sm mb-4" id="calendarCountCard">
+      <div class="d-flex flex-wrap align-items-stretch">
+        <!-- Calendar mount -->
+        <div id="calendarMount"></div>
+        <!-- Big counter -->
+        <div class="count-box d-flex flex-column justify-content-center align-items-center">
+          <div id="selectedDateCount" class="count-number">0</div>
+          <div id="selectedDateLabel" class="count-label">appointments</div>
+          <div class="count-date small text-muted mt-1" id="selectedDateText"></div>
         </div>
       </div>
-
-      <!-- Reservation History Card -->
-      <div class="card p-4 shadow-sm mb-4" id="historySection" style="display: none;">
-        <h4 class="font-weight-bold mb-3" style="font-size: 16px;">Reservation History</h4>
-        <div class="table-responsive fixed-table-container">
-          <table class="table table-hover mb-0">
-            <thead>
-              <tr>
-                <th>Owner Name</th>
-                <th>Time</th>
-                <th>Service</th>
-                <th>Status</th>
-                <th class="text-center">Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% if (historyReservations.length > 0) { %>
-                <% historyReservations.forEach(function(reservation) { %>
-                  <% const rowDateH = resolveDate(reservation); %>
-                  <tr data-date="<%= formatLocalDate(rowDateH) %>">
-                    <td><%= reservation.ownerName %></td>
-                    <td><%= formatTime(reservation.time) %></td>
-                    <td><%= reservation.service %></td>
-                    <td class="text-center">
-                      <span class="badge badge-<%= reservation.status === 'Not Attended' ? 'danger' : 'success' %>">
-                        <%= reservation.status === 'Not Attended' ? 'Not Attended' : 'Done' %>
-                      </span>
-                    </td>
-                    <td class="text-center">
-                      <button class="btn btn-info btn-sm equal-btn"
-                              onclick="viewReservation('<%= reservation._id %>')">
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                <% }); %>
-              <% } else { %>
-                <tr>
-                  <td colspan="5" class="text-center">No appointment history found.</td>
-                </tr>
-              <% } %>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div><!-- /.col-lg-6 -->
-
-    <!-- Right Column: Approved & Ongoing -->
-    <div class="col-lg-6">
-      <div class="card p-4 shadow-sm mb-4 approved-reservations">
-        <!-- Navigation Tabs -->
-        <div class="d-flex align-items-center" style="font-size: 14px; margin-bottom: 10px;">
-          <a href="#" id="approvedTab" class="tab-link active" style="margin-right: 10px;">Approved</a>
-          <a href="#" id="ongoingTab" class="tab-link" style="margin-right: 10px;">Ongoing</a>
-          <button type="button" class="btn btn-sm btn-success" data-toggle="modal" data-target="#plusModal">
-            <i class="fas fa-plus"></i>
-          </button>
-        </div>
-        <div class="approved-table-wrapper">
-          <!-- Approved View -->
-          <div id="approvedView">
-            <div class="table-responsive fixed-table-container">
-              <table class="table table-hover mb-0">
-                <thead>
-                  <tr>
-                    <th>Owner Name</th>
-                    <th class="text-center">Details</th>
-                    <th class="actions-column">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% let approvedReservations = reservations.filter(r =>
-                      (r.status === 'Approved' || r.status === 'Canceled') && !r.doctor
-                  ); %>
-                  <% if (approvedReservations.length > 0) { %>
-                    <% approvedReservations.forEach(function(reservation) { %>
-                      <% const rowDateA = resolveDate(reservation); %>
-                      <tr id="approved-<%= reservation._id %>"
-                          data-date="<%= formatLocalDate(rowDateA) %>">
-                        <td><%= reservation.ownerName %></td>
-                        <td class="text-center">
-                          <button class="btn btn-primary btn-sm equal-btn d-block mx-auto"
-                                  onclick="viewReservation('<%= reservation._id %>')">
-                            View
-                          </button>
-                        </td>
-                        <td class="actions-column">
-                          <% if (reservation.status === 'Canceled') { %>
-                            <span class="badge badge-secondary">Canceled</span>
-                          <% } else { %>
-                            <div class="dropdown d-inline-block">
-                              <button class="btn btn-primary btn-sm dropdown-toggle equal-btn"
-                                      type="button" id="doctorDropdown-<%= reservation._id %>"
-                                      data-toggle="dropdown" data-boundary="window">
-                                Assign Doctor
-                              </button>
-                              <div class="dropdown-menu" aria-labelledby="doctorDropdown-<%= reservation._id %>">
-                                <% if (doctors && doctors.length > 0) { %>
-                                  <% doctors.forEach(function(doctor) { %>
-                                    <a class="dropdown-item" href="#"
-                                       onclick="assignDoctor('<%= reservation._id %>','<%= doctor._id %>')">
-                                      <%= doctor.username %>
-                                    </a>
-                                  <% }); %>
-                                <% } else { %>
-                                  <span class="dropdown-item">No doctors available</span>
-                                <% } %>
-                              </div>
-                            </div>
-                          <% } %>
-                        </td>
-                      </tr>
-                    <% }); %>
-                  <% } else { %>
-                    <tr>
-                      <td colspan="3" class="text-center">No approved appointments found.</td>
-                    </tr>
-                  <% } %>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Ongoing View -->
-          <div id="ongoingView" style="display: none;">
-            <div class="table-responsive fixed-table-container">
-              <table class="table table-hover mb-0">
-                <thead>
-                  <tr>
-                    <th>Owner Name</th>
-                    <th class="text-center">Doctor Name</th>
-                    <th class="text-center">Medication</th>
-                    <th class="text-center">Status</th>
-                    <th class="text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% if (ongoingReservations.length > 0) { %>
-                    <% ongoingReservations.forEach(function(reservation) { %>
-                      <% const rowDateO = resolveDate(reservation); %>
-                      <tr id="ongoing-<%= reservation._id %>"
-                          data-date="<%= formatLocalDate(rowDateO) %>">
-                        <td><%= reservation.ownerName %></td>
-                        <td class="text-center"><%= reservation.doctor?.username || 'N/A' %></td>
-                        <td class="medication-column text-center">
-                          <button class="btn btn-info btn-sm equal-btn d-block mx-auto"
-                                  onclick="viewReceipt('<%= reservation._id %>')">View Details</button>
-                        </td>
-                        <td class="text-center">
-                          <% if (reservation.status === 'Paid') { %>
-                            <span class="badge badge-primary">Paid</span>
-                          <% } else if (reservation.status === 'Done') { %>
-                            <span class="badge badge-success">Done</span>
-                          <% } else { %>
-                            <span class="badge badge-secondary">Ongoing</span>
-                          <% } %>
-                        </td>
-                        <td class="text-center">
-                          <% if (reservation.petExists && !reservation.isStacked && reservation.status === 'Paid') { %>
-                            <button class="btn btn-warning btn-sm"
-                                    onclick="updatePetList('<%= reservation._id %>')">
-                              Update
-                            </button>
-                          <% } else if (!reservation.petExists && reservation.status === 'Paid') { %>
-                            <button class="btn btn-primary btn-sm"
-                                    onclick="addToPetList('<%= reservation._id %>')">
-                              Add
-                            </button>
-                          <% } else { %>
-                            N/A
-                          <% } %>
-                        </td>
-                      </tr>
-                    <% }); %>
-                  <% } else { %>
-                    <tr>
-                      <td colspan="5" class="text-center">No ongoing appointments found.</td>
-                    </tr>
-                  <% } %>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
+      <input id="hrInlineCalendar" type="text" class="d-none" />
     </div>
   </div>
 
+  <!-- Right: Pending Appointments (takes remaining width) -->
+  <div class="col-12 col-lg d-flex">
+    <div class="card p-3 shadow-sm mb-4 w-100" id="pendingCard">
+      <!-- Header: Buttons & Search -->
+  <!-- Header: compact blue bar with "Today" + search -->
+<div class="pending-header">
+  <!-- keep id=btnToday so your existing click handler still works -->
+  <div class="pending-title" id="btnToday" title="Jump to today">Today</div>
+
+  <div class="pending-search">
+    <i class="fa fa-search"></i>
+    <input type="text"
+           id="searchInput"
+           class="form-control form-control-sm"
+           placeholder="Search owner name…">
+  </div>
 </div>
-
-<!-- Consultation Receipt Modal -->
-<div class="modal fade" id="medicationModal" tabindex="-1" role="dialog">
-  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-    <div class="modal-content border-0 rounded shadow-sm">
-      <div class="modal-header bg-dark text-white">
-        <h5 class="modal-title">Consultation Receipt</h5>
-        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div id="receiptHeader" class="mb-3"><!-- pet, date, concerns, follow-up --></div>
-
-        <h6 class="d-flex justify-content-start align-items-center">
-          Medications
-          <button id="btnAddMedReceipt" class="btn btn-sm btn-secondary ml-2">Add</button>
-        </h6>
-
-        <div id="receiptMedSelector" class="mb-3" style="display:none;">
-          <div class="form-row">
-            <div class="col">
-              <select id="receiptMedCategory" class="form-control form-control-sm">
-                <option value="">-- Choose category --</option>
-              </select>
-            </div>
-            <div class="col">
-              <select id="receiptMedProduct" class="form-control form-control-sm">
-                <option value="">-- Choose product --</option>
-              </select>
-            </div>
-            <div class="col-2">
-              <input type="number" id="receiptMedQtyInput" class="form-control form-control-sm" placeholder="Qty" min="1">
-            </div>
-            <div class="col-auto">
-              <button id="receiptMedAddConfirm" class="btn btn-sm btn-success">Add</button>
-            </div>
-          </div>
-        </div>
-
-        <div id="medicationsByCategory" class="table-responsive mb-3">
-          <!-- one table per category will be injected here -->
-        </div>
-
-        <h6>Services & Fees</h6>
-        <table class="table table-sm mb-3" id="servicesTable">
-          <thead class="thead-light">
+  <!-- loading overlay for pending list -->
+  <div id="pendingSpinner" class="pending-spinner d-none" aria-live="polite" aria-busy="true">
+    <div class="spinner-dot" aria-hidden="true"></div>
+    <div class="msg">Loading appointments…</div>
+  </div>
+      <!-- Pending Appointments Table -->
+      <div class="table-responsive fixed-table-container">
+        <table class="table table-hover mb-0">
+          <thead>
             <tr>
+              <th>Owner Name</th>
+              <th>Time</th>
               <th>Service</th>
-              <th>Fee</th>
+              <th class="text-center">Details</th>
+              <th class="text-center">Action</th>
             </tr>
           </thead>
-          <tbody></tbody>
-          <tfoot>
-            <tr>
-              <th colspan="2" class="text-left">
-                Services Total: ₱ <span id="svcTotal">0.00</span>
-              </th>
-            </tr>
-          </tfoot>
-        </table>
+         <tbody id="appointmentsTableBody">
+  <% pendingReservations.forEach(function(reservation) { 
+       const rowDateP = resolveDate(reservation);
+       const petCount =
+         (Array.isArray(reservation.petRequests) && reservation.petRequests.length)
+           ? reservation.petRequests.length
+           : ((Array.isArray(reservation.pets) && reservation.pets.length)
+               ? reservation.pets.length
+               : 1);
+  %>
+    <tr id="reservation-<%= reservation._id %>"
+        data-date="<%= formatLocalDate(rowDateP) %>"
+        data-time="<%= safeTimeHHmm(reservation.time) %>"
+        data-petcount="<%= petCount %>">
+      <td class="ownerName"><%= reservation.ownerName %></td>
+      <td><%= formatTime(reservation.time) %></td>
+      <td><%= reservation.service %></td>
+      <td class="text-center">
+        <button class="btn btn-info btn-sm equal-btn mx-auto d-block"
+                onclick="viewReservation('<%= reservation._id %>','pending')">
+          View
+        </button>
+      </td>
+      <td class="text-center">
+        <button class="btn btn-success btn-sm equal-btn mx-auto d-block"
+                onclick="approveReservation('<%= reservation._id %>')">
+          Approve
+        </button>
+      </td>
+    </tr>
+  <% }); %>
+</tbody>
 
-        <div class="d-flex justify-content-end">
-          <h5>Grand Total: ₱ <span id="grandTotal">0.00</span></h5>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button id="btnMarkPaid" class="btn btn-success">Mark as Paid</button>
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        </table>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Row 2: Approved/Ongoing (left) + Permanent Payment/Details panel (right) -->
+<div class="row">
+  <!-- Left: Approved/Ongoing -->
+  <div class="col-lg-6 col-xl-6">
+    <div class="card p-4 shadow-sm mb-4 approved-reservations">
+      <!-- Spinner overlay for Approved/Ongoing card -->
+<div id="aoSpinner" class="pending-spinner d-none" aria-live="polite" aria-busy="true">
+  <div class="spinner-dot" aria-hidden="true"></div>
+  <div class="msg">Loading list…</div>
+</div>
+
+      <!-- Navigation Tabs -->
+      <div class="d-flex align-items-center" style="font-size: 14px; margin-bottom: 10px;">
+        <a href="#" id="approvedTab" class="tab-link active" style="margin-right: 10px;">Approved</a>
+        <a href="#" id="ongoingTab" class="tab-link" style="margin-right: 10px;">Ongoing</a>
+        <button type="button" class="btn btn-sm btn-success" data-toggle="modal" data-target="#plusModal">
+          <i class="fas fa-plus"></i>
+        </button>
+      </div>
+
+      <div class="approved-table-wrapper">
+        <!-- Approved View -->
+        <div id="approvedView">
+          <div class="table-responsive fixed-table-container">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Owner Name</th>
+                  <th class="text-center">Details</th>
+                  <th class="actions-column">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% let approvedReservations = reservations.filter(r =>
+  (r.status === 'Approved') && !r.doctor
+);
+%>
+                <% if (approvedReservations.length > 0) { %>
+                  <% approvedReservations.forEach(function(reservation) { %>
+                    <% const rowDateA = resolveDate(reservation); %>
+                    <tr id="approved-<%= reservation._id %>"
+                        data-date="<%= formatLocalDate(rowDateA) %>">
+                      <td><%= reservation.ownerName %></td>
+                      <td class="text-center">
+                        <button class="btn btn-primary btn-sm equal-btn d-block mx-auto"
+                                onclick="viewReservation('<%= reservation._id %>')">
+                          View
+                        </button>
+                      </td>
+                      <td class="actions-column">
+                        <% if (reservation.status === 'Canceled') { %>
+                          <span class="badge badge-secondary">Canceled</span>
+                        <% } else { %>
+                          <div class="dropdown d-inline-block">
+                            <button class="btn btn-primary btn-sm dropdown-toggle equal-btn"
+                                    type="button" id="doctorDropdown-<%= reservation._id %>"
+                                    data-toggle="dropdown" data-boundary="window">
+                              Assign Doctor
+                            </button>
+                            <div class="dropdown-menu" aria-labelledby="doctorDropdown-<%= reservation._id %>">
+                              <% if (doctors && doctors.length > 0) { %>
+                                <% doctors.forEach(function(doctor) { %>
+                                  <a class="dropdown-item" href="#"
+                                     onclick="assignDoctor('<%= reservation._id %>','<%= doctor._id %>')">
+                                    <%= doctor.username %>
+                                  </a>
+                                <% }); %>
+                              <% } else { %>
+                                <span class="dropdown-item">No doctors available</span>
+                              <% } %>
+                            </div>
+                          </div>
+                        <% } %>
+                      </td>
+                    </tr>
+                  <% }); %>
+                <% } else { %>
+                  <tr>
+                    <td colspan="3" class="text-center">No approved appointments found.</td>
+                  </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Ongoing View -->
+        <div id="ongoingView" style="display: none;">
+          <div class="table-responsive fixed-table-container">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Owner Name</th>
+                  <th class="text-center">Doctor Name</th>
+                  <th class="text-center">Medication</th>
+                  <th class="text-center">Status</th>
+                  <th class="text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (ongoingReservations.length > 0) { %>
+                  <% ongoingReservations.forEach(function(reservation) { %>
+                    <% const rowDateO = resolveDate(reservation); %>
+                  <tr id="ongoing-<%= reservation._id %>"
+    data-date="<%= formatLocalDate(rowDateO) %>"
+    data-pet-exists="<%= !!reservation.petExists %>"
+    data-is-stacked="<%= !!reservation.isStacked %>">
+
+                      <td><%= reservation.ownerName %></td>
+                      <td class="text-center"><%= reservation.doctor?.username || 'N/A' %></td>
+                      <td class="medication-column text-center">
+                        <!-- This now fills the right payment panel instead of opening a modal -->
+                        <button class="btn btn-info btn-sm equal-btn d-block mx-auto"
+                                onclick="viewReceipt('<%= reservation._id %>')">View Details</button>
+                      </td>
+                      <td class="text-center">
+                        <% if (reservation.status === 'Paid') { %>
+                          <span class="badge badge-primary">Paid</span>
+                        <% } else if (reservation.status === 'Done') { %>
+                          <span class="badge badge-success">Done</span>
+                        <% } else { %>
+                          <span class="badge badge-secondary">Ongoing</span>
+                        <% } %>
+                      </td>
+                    <td class="text-center action-cell">
+                        <% if (reservation.petExists && !reservation.isStacked && reservation.status === 'Paid') { %>
+                          <button class="btn btn-warning btn-sm"
+                                  onclick="updatePetList('<%= reservation._id %>')">
+                            Update
+                          </button>
+                        <% } else if (!reservation.petExists && reservation.status === 'Paid') { %>
+                          <button class="btn btn-primary btn-sm"
+                                  onclick="addToPetList('<%= reservation._id %>')">
+                            Add
+                          </button>
+                        <% } else { %>
+                          N/A
+                        <% } %>
+                      </td>
+                    </tr>
+                  <% }); %>
+                <% } else { %>
+                  <tr>
+                    <td colspan="5" class="text-center">No ongoing appointments found.</td>
+                  </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+<!-- Right: Payment / Details (modern colored card) -->
+<div class="col-lg-6 col-xl-6 d-flex">
+  <div id="paymentPanel" class="payment-card w-100">
+    <!-- Spinner overlay for Payment & Details -->
+<div id="paymentSpinner" class="pending-spinner d-none" aria-live="polite" aria-busy="true">
+  <div class="spinner-dot" aria-hidden="true"></div>
+  <div class="msg">Loading details…</div>
+</div>
+
+    <div class="payment-header">
+      <div class="d-flex align-items-center">
+        <span class="icon-pill"><i class="fas fa-receipt"></i></span>
+        <div>
+          <div class="title">Payment &amp; Details</div>
+          <div class="subtitle small" id="receiptSub">
+            Select an item in <strong>Ongoing</strong> and click <em>View Details</em>.
+          </div>
+        </div>
+      </div>
+     <div class="header-actions">
+  <button class="btn btn-sm btn-icon" id="refreshReceiptBtn" title="Refresh">
+    <i class="fas fa-sync-alt"></i>
+  </button>
+  <button class="btn btn-sm btn-icon" id="printReceiptBtn" title="Print">
+    <i class="fas fa-print"></i>
+  </button>
+   <button class="btn btn-sm btn-icon" id="posModeBtn" title="New retail sale">
+    <i class="fas fa-plus"></i>
+  </button>
+</div>
+
+    </div>
+
+    <div class="payment-body">
+      <!-- Header meta (no Concerns, no Follow-Up) -->
+      <div id="receiptHeader" class="meta-grid">
+        <!-- Owner, Pets, Date will render here via JS -->
+      </div>
+
+      <div class="tool-row">
+        <h6 class="mb-0">Products</h6>
+        <button id="btnAddMedReceipt" class="btn btn-sm btn-outline-dark">
+          <i class="fas fa-plus mr-1"></i>Add Product
+        </button>
+      </div>
+
+      <!-- Compact selector card -->
+      <div id="receiptMedSelector" class="mb-3" style="display:none;">
+        <div class="form-row">
+          <div class="col">
+            <select id="receiptMedCategory" class="form-control form-control-sm">
+              <option value="">— Choose category —</option>
+            </select>
+          </div>
+          <div class="col">
+            <select id="receiptMedProduct" class="form-control form-control-sm">
+              <option value="">— Choose product —</option>
+            </select>
+          </div>
+          <div class="col-2">
+            <input type="number" id="receiptMedQtyInput" class="form-control form-control-sm" placeholder="Qty" min="1">
+          </div>
+          <div class="col-auto">
+            <button id="receiptMedAddConfirm" class="btn btn-sm btn-success">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-modern">
+        <!-- Medications -->
+        <div id="medicationsByCategory" class="table-responsive mb-3">
+          <table id="receiptTable" class="table table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Pet</th><th>Product</th><th>Qty</th><th>Unit Price</th><th>Line Total</th><th>Edit</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Services -->
+        <h6 class="mt-3">Services &amp; Fees</h6>
+        <div class="table-responsive">
+          <table id="servicesTable" class="table table-sm table-hover mb-0">
+            <thead>
+              <tr><th>Pet</th><th>Service</th><th>Fee</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sticky summary footer -->
+    <div class="payment-summary">
+      <div class="summary-line muted">
+        <span>Products</span><span>₱ <span id="medTotal">0.00</span></span>
+      </div>
+      <div class="summary-line muted">
+        <span>Services</span><span>₱ <span id="svcTotal">0.00</span></span>
+      </div>
+      <div class="summary-line grand">
+        <span>Grand Total</span><span>₱ <span id="grandTotal">0.00</span></span>
+      </div>
+      <div class="actions">
+        <button id="btnMarkPaid" class="btn btn-success" disabled>
+          <i class="fas fa-check mr-1"></i>Mark as Paid
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 
 <!-- Edit Medication Modal -->
 <div class="modal fade" id="editMedModal" tabindex="-1" role="dialog">
@@ -1062,11 +1614,14 @@ function appendOngoingRow(res, doctorName) {
   const id = String(res._id);
   if (document.getElementById('ongoing-' + id)) return;
 
-  const doctor = doctorName || (res.doctor && (res.doctor.username || res.doctor.name)) || 'N/A';
+  const doctor  = doctorName || (res.doctor && (res.doctor.username || res.doctor.name)) || 'N/A';
   const dateISO = res.date || res.createdAt || new Date().toISOString();
 
   const row = `
-    <tr id="ongoing-${id}" data-date="${(new Date(dateISO)).toISOString().slice(0,10)}">
+    <tr id="ongoing-${id}"
+        data-date="${(new Date(dateISO)).toISOString().slice(0,10)}"
+        data-pet-exists="${!!res.petExists}"
+        data-is-stacked="${!!res.isStacked}">
       <td>${res.ownerName || '—'}</td>
       <td class="text-center">${doctor}</td>
       <td class="medication-column text-center">
@@ -1076,17 +1631,138 @@ function appendOngoingRow(res, doctorName) {
       <td class="text-center">
         <span class="badge badge-secondary">Ongoing</span>
       </td>
-      <td class="text-center">
-        N/A
-      </td>
+      <td class="text-center action-cell">N/A</td>
     </tr>
   `;
 
   const $tbody = $('#ongoingView tbody');
-  if ($tbody.find('td[colspan="5"]').length) $tbody.empty(); // remove empty-state
+  if ($tbody.find('td[colspan="5"]').length) $tbody.empty();
   $tbody.prepend(row);
+
+  // render the Action cell based on current badge & flags
+  setOngoingActionButtons(id);
+}
+function setOngoingActionButtons(reservationId, flags) {
+  const $row = $('#ongoing-' + reservationId);
+  if (!$row.length) return;
+
+  // optionally refresh flags from caller
+  if (flags) {
+    if (typeof flags.petExists !== 'undefined') $row.attr('data-pet-exists', !!flags.petExists);
+    if (typeof flags.isStacked !== 'undefined') $row.attr('data-is-stacked', !!flags.isStacked);
+  }
+
+  const statusTxt = ($row.find('.badge').text() || '').trim().toLowerCase();
+  const isPaid    = statusTxt === 'paid';
+
+  const petExists = String($row.attr('data-pet-exists')) === 'true';
+  const isStacked = String($row.attr('data-is-stacked')) === 'true';
+
+  const $cell = $row.find('td.action-cell').length
+    ? $row.find('td.action-cell')
+    : $row.find('td').eq(4); // fallback
+
+  let html = 'N/A';
+  if (isPaid) {
+    if (petExists && !isStacked) {
+      html = `<button class="btn btn-warning btn-sm" onclick="updatePetList('${reservationId}')">Update</button>`;
+    } else if (!petExists) {
+      html = `<button class="btn btn-primary btn-sm" onclick="addToPetList('${reservationId}')">Add</button>`;
+    }
+  }
+  $cell.html(html);
+}
+
+</script>
+<script>
+// Append a fresh Pending row + refresh highlights/counter (browser-safe, with pet count & correct day)
+function appendPendingRow(res) {
+  try {
+    if (!res || !res._id) return;
+    const id = String(res._id);
+    if (document.getElementById('reservation-' + id)) return;
+
+    // --- local helpers ---
+    const pad2 = n => { n = parseInt(n, 10) || 0; return (n < 10 ? '0' : '') + n; };
+    const ymdFromDate = (dateLike) => {
+      const d = new Date(dateLike);
+      if (Number.isNaN(d.getTime())) return '';
+      return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+    };
+    const safeTimeHHmm = (timeStr) => {
+      if (!timeStr || typeof timeStr !== 'string') return '00:00';
+      const m = timeStr.trim().match(/^(\d{1,2}):?(\d{2})?\s*([AaPp][Mm])?$/);
+      if (!m) return '00:00';
+      let h = parseInt(m[1], 10) || 0;
+      const min = parseInt(m[2] || '0', 10) || 0;
+      const suf = (m[3] || '').toUpperCase();
+      if (suf === 'PM' && h < 12) h += 12;
+      if (suf === 'AM' && h === 12) h = 0;
+      if (h < 0 || h > 23) h = 0;
+      const mm = (min < 0 || min > 59) ? 0 : min;
+      return `${pad2(h)}:${pad2(mm)}`;
+    };
+    const formatTime = (timeStr) => {
+      const [hStr, m] = safeTimeHHmm(timeStr).split(':');
+      let h = parseInt(hStr, 10);
+      if (Number.isNaN(h)) return '—';
+      const suffix = h < 12 ? 'AM' : 'PM';
+      const h12 = (h % 12 === 0) ? 12 : (h % 12);
+      return `${h12}:${m} ${suffix}`;
+    };
+
+    // --- build row props ---
+    const rawDate = res.date || (res.schedule && res.schedule.scheduleDate) || res.createdAt || new Date().toISOString();
+    // prefer server-sent exact key (avoids timezone drift), else fallback
+    const dateKey = (typeof res.dateKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(res.dateKey))
+      ? res.dateKey
+      : ymdFromDate(rawDate);
+
+    const hhmm   = safeTimeHHmm(res.time);
+    const pretty = formatTime(res.time);
+
+    // pet count for the counter card
+    const petCount = Number(res.petCount) > 0
+      ? Number(res.petCount)
+      : (Array.isArray(res.petRequests) && res.petRequests.length
+          ? res.petRequests.length
+          : (Array.isArray(res.pets) && res.pets.length ? res.pets.length : 1));
+
+    const row = `
+      <tr id="reservation-${id}"
+          data-date="${dateKey}"
+          data-time="${hhmm}"
+          data-petcount="${petCount}">
+        <td class="ownerName">${res.ownerName || '—'}</td>
+        <td>${pretty}</td>
+        <td>${res.service || '—'}</td>
+        <td class="text-center">
+          <button class="btn btn-info btn-sm equal-btn mx-auto d-block"
+                  onclick="viewReservation('${id}','pending')">View</button>
+        </td>
+        <td class="text-center">
+          <button class="btn btn-success btn-sm equal-btn mx-auto d-block"
+                  onclick="approveReservation('${id}')">Approve</button>
+        </td>
+      </tr>
+    `;
+
+    const $tbody = $('#appointmentsTableBody');
+    $tbody.find('tr.no-appointment').remove();
+    $tbody.prepend(row);
+
+    // mark calendar day & redraw
+    (window.appointmentDates || (window.appointmentDates = {}))[dateKey] = true;
+    if (window.fp && typeof window.fp.redraw === 'function') window.fp.redraw();
+
+    // ALWAYS refilter so the row only shows on its selected day
+    if (typeof window.filterRows === 'function') window.filterRows();
+  } catch (e) {
+    console.error('appendPendingRow failed:', e);
+  }
 }
 </script>
+
 
 <script>
 // Recalculate Meds + Services + Grand totals (safe on empty tables)
@@ -1111,6 +1787,219 @@ function recalcTotals() {
   $('#grandTotal').text((medTotal + svcTotal).toFixed(2));
 }
 </script>
+<script>
+  // Branding used by the Print button
+  window.__clinicName    = 'Casa Animalia';
+  window.__clinicAddress = 'Km111 H. Concepcion, Cabanatuan City, Nueva Ecija';
+  // window.__clinicPhone = ''; // optional
+  window.__clinicLogo    = '/images/casa.png'; // <-- put your logo (served from /public/images)
+</script>
+
+<script>
+// ===== Receipt printing (PDF via browser print) =====
+window.__lastReceiptData = window.__lastReceiptData || null;
+
+function _esc(s){ return String(s||'')
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+  .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+  .replace(/'/g,'&#39;'); }
+function _peso(n){ n = Number(n)||0; return '₱ ' + n.toFixed(2); }
+
+// Fallback: build a receipt object from what's on the card right now
+function _buildReceiptDataFromDOM() {
+  const isPOS = !!window.__posMode;
+  const owner = isPOS
+    ? (($('#posCustomerInput').val()||'').trim() || 'Walk-in Customer')
+    : (window.__activeOwnerName || ($('#receiptHeader').find('p').eq(0).text().replace(/^Owner:\s*/,'').trim() || '—'));
+  const pets  = isPOS ? '' : (window.__activePetsList || '');
+
+  const products = [];
+  $('#receiptTable tbody tr').each(function(){
+    const name  = $(this).data('name') || $(this).find('td').eq(1).text().trim();
+    const qty   = parseInt($(this).find('.qty-display').text(),10) || 0;
+    const unit  = parseFloat($(this).data('unit')) || 0;
+    products.push({ name, quantity: qty, unitPrice: unit, lineTotal: qty*unit });
+  });
+
+  const services = [];
+  $('#servicesTable tbody tr').each(function(){
+    const name = $(this).data('name') || $(this).find('td').eq(1).text().trim();
+    const fee  = parseFloat($(this).data('service-price')) || 0;
+    services.push({ name, quantity: 1, unitPrice: fee, lineTotal: fee });
+  });
+
+  const medSub = products.reduce((a,b)=>a+Number(b.lineTotal||0),0);
+  const svcSub = services.reduce((a,b)=>a+Number(b.lineTotal||0),0);
+  const grand  = medSub + svcSub;
+
+  return {
+    type: isPOS ? 'POS' : 'CONSULT',
+    paid: true,
+    receiptNo: (window.__lastReceiptNo) || ((isPOS?'POS-':'R-') + Date.now()),
+    date: new Date().toISOString(),
+    ownerName: owner,
+    pets: pets,
+    reservationId: window.__activeReservationId || null,
+    products, services,
+    amount: grand
+  };
+}
+
+function _openPrintableReceipt(data){
+  const clinicName    = window.__clinicName    || 'Casa Animalia';
+const clinicAddress = window.__clinicAddress || 'Km111 H. Concepcion, Cabanatuan City, Nueva Ecija';
+const clinicPhone   = window.__clinicPhone   || '';
+const clinicLogo    = window.__clinicLogo    || '';
+
+
+  const rows = []
+    .concat((data.products||[]).map(p => ({type:'Product', desc:p.name, qty:p.quantity, unit:p.unitPrice, total:p.lineTotal})))
+    .concat((data.services||[]).map(s => ({type:'Service', desc:s.name, qty:s.quantity||1, unit:s.unitPrice, total:s.lineTotal})));
+
+  const medSub = (data.products||[]).reduce((a,b)=>a+Number(b.lineTotal||0),0);
+  const svcSub = (data.services||[]).reduce((a,b)=>a+Number(b.lineTotal||0),0);
+  const grand  = Number(data.amount || (medSub + svcSub));
+  const issued = new Date(data.date || Date.now()).toLocaleString('en-PH',{ year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  // Optional: show the consultation's scheduled visit date/time if we have it
+const visitDisplay = (() => {
+  const d = data.visitDateISO || data.visitDate;
+  const t = (data.visitTime || '').toString().trim();
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return t ? `${d} ${t}` : `${d}`;
+  const dStr = dt.toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' });
+  return t ? `${dStr} ${t}` : dStr;
+})();
+
+  const receiptNo = data.receiptNo || ((data.reservationId?'R-':'POS-') + Date.now());
+
+  const rowsHtml = rows.length
+    ? rows.map(r => `
+        <tr>
+          <td>${_esc(r.desc)}</td>
+          <td>${r.type}</td>
+          <td class="num">${r.qty}</td>
+          <td class="num">${_peso(r.unit)}</td>
+          <td class="num">${_peso(r.total)}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="5" style="text-align:center;color:#64748b;">No items</td></tr>`;
+
+  const html = `
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Casa Animalia — Receipt</title>
+
+<style>
+@page { size: A4; margin: 0; }      /* minimize browser header/footer area */
+@media print {
+  @page { margin: 0; }               /* enforce zero at print time */
+  body { margin: 12mm; }             /* add our own margin inside the page */
+}
+
+  *{ box-sizing:border-box; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:#0f172a; }
+  .container{ max-width:720px; margin:0 auto; }
+  .header{ text-align:center; margin-bottom:12px; }
+  .header h1{ margin:0; font-size:20px; letter-spacing:.3px; }
+  .meta{ display:flex; justify-content:space-between; gap:12px; border:1px solid #e5e7eb; padding:8px 10px; border-radius:8px; background:#f8fafc; font-size:12px; }
+  .table{ width:100%; border-collapse:collapse; margin-top:12px; font-size:13px; }
+  .table th,.table td{ border:1px solid #e5e7eb; padding:8px; }
+  .table th{ background:#f1f5f9; text-transform:uppercase; font-size:11px; letter-spacing:.03em; text-align:left; }
+  .table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .summary{ margin-top:10px; width:100%; }
+  .summary td{ padding:6px 8px; font-size:13px; }
+  .summary tr td:first-child{ text-align:right; }
+  .paid{ position:absolute; right:24px; top:24px; transform:rotate(-12deg); color:#22c55e; font-weight:800; font-size:24px; border:3px solid #22c55e; padding:6px 18px; border-radius:8px; opacity:.9; }
+  .footer{ margin-top:16px; font-size:11px; color:#64748b; text-align:center; }
+  hr.sep{ border:0; border-top:1px dashed #e5e7eb; margin:12px 0; }
+  @media print { .container{ max-width:none; } }
+  .header .logo{ width:72px; height:auto; display:block; margin:0 auto 6px; }
+
+</style>
+</head>
+<body>
+  <div class="container">
+    <div style="position:relative">
+      <div class="paid">PAID</div>
+ <div class="header">
+  ${clinicLogo ? `<img src="${_esc(clinicLogo)}" class="logo" alt="${_esc(clinicName)} logo">` : ''}
+  <h1>${_esc(clinicName)}</h1>
+  ${clinicAddress ? `<div>${_esc(clinicAddress)}</div>` : '' }
+  ${clinicPhone   ? `<div>${_esc(clinicPhone)}</div>`   : '' }
+</div>
+<div class="meta">
+  <div>
+    <div><strong>Receipt #:</strong> ${_esc(receiptNo)}</div>
+    <div><strong>Issued:</strong> ${_esc(issued)}</div>
+  </div>
+  <div>
+    <div><strong>Customer:</strong> ${_esc(data.ownerName||'—')}</div>
+    ${data.pets ? `<div><strong>Pet(s):</strong> ${_esc(data.pets)}</div>` : ''}
+  </div>
+  ${visitDisplay ? `<div><strong>Visit:</strong> ${_esc(visitDisplay)}</div>` : ''}
+</div>
+
+
+      <table class="table">
+        <thead>
+          <tr><th style="width:50%">Description</th><th>Type</th><th>Qty</th><th>Unit</th><th>Total</th></tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+
+      <table class="summary">
+        <tr><td><strong>Products</strong></td><td class="num">${_peso(medSub)}</td></tr>
+        <tr><td><strong>Services</strong></td><td class="num">${_peso(svcSub)}</td></tr>
+        <tr><td><strong>Grand Total</strong></td><td class="num"><strong>${_peso(grand)}</strong></td></tr>
+      </table>
+
+      <hr class="sep">
+      <div class="footer">Thank you for your visit.</div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  // Print via hidden iframe (reliable, no pop-up blockers)
+  const frame = document.createElement('iframe');
+  frame.style.position='fixed';
+  frame.style.right='0'; frame.style.bottom='0';
+  frame.style.width='0'; frame.style.height='0'; frame.style.border='0';
+  document.body.appendChild(frame);
+
+  frame.onload = function(){
+    // Small delay so fonts/layout settle before print
+    setTimeout(() => {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+      setTimeout(() => frame.remove(), 200);
+    }, 60);
+  };
+
+  const doc = frame.contentDocument || frame.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
+}
+
+// Handle the Print button
+$(document).on('click', '#printReceiptBtn', function () {
+  // Prefer the last paid receipt saved at "Mark as Paid" time
+  let data = window.__lastReceiptData;
+  const btnTxt = ($('#btnMarkPaid').text()||'').trim().toLowerCase();
+  const isPaidNow = ($('#btnMarkPaid').prop('disabled') && btnTxt === 'paid');
+
+  if (!data && !isPaidNow) {
+    return Swal.fire('Not paid yet', 'Mark as Paid first, then click Print.', 'info');
+  }
+  if (!data) data = _buildReceiptDataFromDOM(); // fallback if paid & still on screen
+
+  if (!data || (!data.products?.length && !data.services?.length)) {
+    return Swal.fire('Nothing to print', 'No items found on this receipt.', 'info');
+  }
+  _openPrintableReceipt(data);
+});
+</script>
 
 <script>
   function hrFormatVisitDate(dateLike) {
@@ -1124,12 +2013,74 @@ function recalcTotals() {
   window.ADDED_LABEL = 'Added';
 </script>
 <script>
+  // --- POS (Retail) mode state ---
+  window.__posMode = false;
+
+  function clearPaymentCard() {
+    $('#receiptHeader').empty();
+    $('#receiptTable tbody').empty();
+    $('#servicesTable tbody').empty();
+    $('#medTotal').text('0.00');
+    $('#svcTotal').text('0.00');
+    $('#grandTotal').text('0.00');
+    $('#paymentPanel').removeClass('paid');
+  }
+
+  function enterPOSMode() {
+    window.__posMode = true;
+    window.__activeReservationId = null;           // nothing selected
+    clearPaymentCard();
+
+    // subtitle + meta
+    $('#receiptSub').html('Retail sale — add products and check out.');
+    $('#receiptHeader').html(`
+      <p><strong>Customer:</strong>
+        <input id="posCustomerInput" class="form-control form-control-sm d-inline-block"
+               style="max-width:260px;" placeholder="(optional) Walk-in name">
+      </p>
+      <p><strong>Date:</strong> ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>
+    `);
+
+    // enable Add Medication & Mark as Paid
+    $('#btnAddMedReceipt').prop('disabled', false);
+    $('#btnMarkPaid')
+      .data('id', null)
+      .prop('disabled', false)
+      .removeClass('btn-secondary').addClass('btn-success')
+      .text('Mark as Paid');
+
+    // visual cue on the card if you like
+    $('#paymentPanel').attr('data-mode', 'pos');
+  }
+
+  function exitPOSMode() {
+    window.__posMode = false;
+    $('#paymentPanel').removeAttr('data-mode');
+    // restore default subtitle
+    $('#receiptSub').html('Select an item in <strong>Ongoing</strong> and click <em>View Details</em>.');
+    clearPaymentCard();
+    // disable Mark as Paid until a reservation is opened
+    $('#btnMarkPaid').prop('disabled', true).text('Mark as Paid');
+  }
+
+  // Plus button -> POS mode
+ // Plus button -> POS mode WITH spinner (uses the existing #paymentSpinner overlay)
+// Plus button -> POS mode (no spinner, no disable)
+$(document).off('click', '#posModeBtn').on('click', '#posModeBtn', function () {
+  $(this).removeClass('spinning').prop('disabled', false); // make sure nothing spins
+  enterPOSMode(); // instantly switch the Payment & Details card to POS mode
+});
+
+
+  // Ensure viewing a reservation exits POS mode
+
+</script>
+
+<script>
 $(document).ready(function () {
   $('.dropdown-toggle').dropdown();
 
-  $('#toggleHistory').on('click', function () {
-    $('#historySection').toggle();
-  });
+
 
   // ---- data & helpers ----
   var reservationsData = <%- JSON.stringify(reservations || []) %>;
@@ -1154,56 +2105,174 @@ $(document).ready(function () {
     var key = dateKeyLocal(d);
     if (key) appointmentDates[key] = true;
   });
+  window.appointmentDates = appointmentDates;   // ← INSERT THIS LINE
+
+// Format "Oct 6, 2025" for the small text under the number
+function updateSelectedDateText() {
+  const k = window.activeDate;
+  const d = k ? new Date(k + 'T00:00:00') : new Date();
+  const txt = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  $('#selectedDateText').text(txt);
+}
+
+// Smooth count-up (nice but lightweight)
+function animateCount(from, to, duration) {
+  const el = document.getElementById('selectedDateCount');
+  if (!el) return;
+  const start = performance.now();
+  function tick(now) {
+    const p = Math.min(1, (now - start) / duration);
+    el.textContent = String(Math.round(from + (to - from) * p));
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// Recompute count using current visible rows (excluding placeholder)
+function updatePendingCount() {
+  let totalPets = 0;
+  $('#appointmentsTableBody tr:visible')
+    .not('.no-appointment')
+    .each(function(){
+      const c = parseInt($(this).data('petcount'), 10);
+      totalPets += isNaN(c) ? 1 : c;
+    });
+
+  const prev = parseInt($('#selectedDateCount').text(), 10) || 0;
+  animateCount(prev, totalPets, 280);
+  $('#selectedDateLabel').text(totalPets === 1 ? 'appointment' : 'appointments');
+}
+
 
   // filter pending rows by window.activeDate
-  function filterRows(){
-    var shown = 0;
-    $('#appointmentsTableBody tr[data-date]').each(function(){
-      var rd = $(this).data('date');  // already yyyy-mm-dd
-      var show = !window.activeDate || rd === window.activeDate;
-      $(this).toggle(show);
-      if (show) shown++;
-    });
-    // empty-state row
-    $('#appointmentsTableBody tr.no-appointment').remove();
-    if (shown === 0) {
-      $('#appointmentsTableBody').append(
-        '<tr class="no-appointment"><td colspan="5" class="text-center">No appointments found for the selected date.</td></tr>'
-      );
-    }
+ function filterRows(){
+  var shown = 0;
+  $('#appointmentsTableBody tr[data-date]').each(function(){
+    var rd = $(this).data('date');  // already yyyy-mm-dd
+    var show = !window.activeDate || rd === window.activeDate;
+    $(this).toggle(show);
+    if (show) shown++;
+  });
+  // empty-state row
+  $('#appointmentsTableBody tr.no-appointment').remove();
+  if (shown === 0) {
+    $('#appointmentsTableBody').append(
+      '<tr class="no-appointment"><td colspan="5" class="text-center">No appointments found for the selected date.</td></tr>'
+    );
   }
 
-  // ---- datepicker (single init) ----
-  $("#datepicker").datepicker({
-    dateFormat: "yy-mm-dd",
-    beforeShowDay: function(date){
-      var key = dateKeyLocal(date);
-      return appointmentDates[key]
-        ? [true, "has-appointment", "Pending appointments exist"]
-        : [true, "no-appointment", "No pending appointments"];
-    },
-    onSelect: function(dateText){
-      window.activeDate = dateText;   // yyyy-mm-dd
-      filterRows();
+  // NEW: refresh the big counter and date text
+  updateSelectedDateText();
+  updatePendingCount();
+}
+window.filterRows = filterRows;   // ← INSERT THIS LINE
+  function refreshCalendarAfterPendingMutation(dateKey) {
+    if (!dateKey) return;
+    // does this date still have any pending rows?
+    const anyLeft = $('#appointmentsTableBody tr[data-date="' + dateKey + '"]').length > 0;
+
+    if (!window.appointmentDates) window.appointmentDates = {};
+    if (anyLeft) { window.appointmentDates[dateKey] = true; }
+    else { delete window.appointmentDates[dateKey]; }
+
+    if (window.fp && typeof window.fp.redraw === 'function') window.fp.redraw();
+
+    // only recompute the visible list & counter if we’re looking at that day
+    if (window.activeDate === dateKey && typeof window.filterRows === 'function') {
+      window.filterRows();
     }
-  });
-  $("#datepicker").datepicker("setDate", window.activeDate);
+  }
+  /* Match pending card height to the calendar card */
+  function syncPendingHeight(){
+    var $cal = $('#calendarCountCard');
+    var $pend = $('#pendingCard');
+    if (!$cal.length || !$pend.length) return;
+    $pend.css('height', $cal.outerHeight());   // exact match
+  }
+
+  // keep in sync on load and resize
+  $(window).on('load resize', function(){ syncPendingHeight(); });
+  let _pendingSpinStart = 0;
+  function showPendingSpinner() {
+    _pendingSpinStart = performance.now();
+    $('#pendingSpinner').removeClass('d-none');
+  }
+  function hidePendingSpinner() {
+    const elapsed = performance.now() - _pendingSpinStart;
+    const minVisible = 250; // ms
+    const wait = Math.max(0, minVisible - elapsed);
+    setTimeout(() => $('#pendingSpinner').addClass('d-none'), wait);
+  }
+   let _paySpinStart = 0;
+  function showPaymentSpinner() {
+    _paySpinStart = performance.now();
+    $('#paymentPanel').attr('aria-busy', 'true');
+    $('#paymentSpinner').removeClass('d-none');
+  }
+  function hidePaymentSpinner() {
+    const elapsed = performance.now() - _paySpinStart;
+    const minVisible = 250; // ms to avoid flicker
+    const wait = Math.max(0, minVisible - elapsed);
+    setTimeout(() => {
+      $('#paymentSpinner').addClass('d-none');
+      $('#paymentPanel').attr('aria-busy', 'false');
+    }, wait);
+  }
+  // === AO (Approved/Ongoing card) spinner helpers ===
+let _aoSpinStart = 0;
+function showAOSpinner() {
+  _aoSpinStart = performance.now();
+  $('#aoSpinner').removeClass('d-none');
+}
+function hideAOSpinner() {
+  const elapsed = performance.now() - _aoSpinStart;
+  const minVisible = 250; // ms, to avoid flicker
+  const wait = Math.max(0, minVisible - elapsed);
+  setTimeout(() => $('#aoSpinner').addClass('d-none'), wait);
+}
+
+  // ---- modern inline calendar (Flatpickr) ----
+// ---- modern inline calendar (Flatpickr) ----
+var fp = flatpickr('#hrInlineCalendar', {
+  inline: true,
+  appendTo: document.getElementById('calendarMount'),
+  dateFormat: 'Y-m-d',
+  defaultDate: window.activeDate,   // yyyy-mm-dd
+  onReady: function(){
+    setTimeout(syncPendingHeight, 0);
+  },
+  onChange: function(selectedDates){
+    if (!selectedDates || !selectedDates[0]) return;
+    showPendingSpinner();
+    window.activeDate = dateKeyLocal(selectedDates[0]);
+    // filter + update UI, then hide spinner
+    requestAnimationFrame(() => {
+      filterRows();
+      setTimeout(hidePendingSpinner, 0);
+    });
+    setTimeout(syncPendingHeight, 0);
+  },
+  onMonthChange: function(){ setTimeout(syncPendingHeight, 0); },
+  onYearChange:  function(){ setTimeout(syncPendingHeight, 0); },
+  onDayCreate: function(dObj, dStr, instance, dayElem) {
+    var key = dateKeyLocal(dayElem.dateObj);
+    if (appointmentDates[key]) { dayElem.classList.add('has-appointment'); }
+    else { dayElem.classList.add('no-appointment'); }
+  }
+});
+window.fp = fp;
+  // Ensure rows are filtered on first paint
   filterRows();
 
   // ---- header buttons ----
   $('#btnToday').on('click', function(){
     window.activeDate = dateKeyLocal(new Date());
-    $("#datepicker").datepicker("setDate", window.activeDate);
-    filterRows();
-    $('#datepickerContainer').hide();
+    fp.setDate(window.activeDate, true); // true => trigger onChange -> filterRows()
   });
 
-  $('#btnSelectDate').on('click', function(){
-    $('#datepickerContainer').toggle();
-    if ($('#datepickerContainer').is(':visible')) {
-      $("#datepicker").datepicker("show");
-    }
-  });
+  // (Removed #btnSelectDate + old jQuery-UI datepicker toggling)
+
+
 
   // ---- search (only visible rows for selected day) ----
   $('#searchInput').on('keyup', function(){
@@ -1212,24 +2281,29 @@ $(document).ready(function () {
       var match = $(this).find('.ownerName').text().toLowerCase().indexOf(q) > -1;
       $(this).toggle(match);
     });
+      updatePendingCount(); // NEW
+
   });
 
   // ---- tabs ----
-  $('#approvedTab').on('click', function(e){
-    e.preventDefault();
-    $(this).addClass('active'); $('#ongoingTab').removeClass('active');
-    $('#approvedView').show();  $('#ongoingView').hide();
-  });
-  $('#ongoingTab').on('click', function(e){
-    e.preventDefault();
-    $(this).addClass('active'); $('#approvedTab').removeClass('active');
-    $('#ongoingView').show();   $('#approvedView').hide();
-  });
-
+$('#approvedTab').on('click', function(e){
+  e.preventDefault();
+  showAOSpinner();
+  $(this).addClass('active'); $('#ongoingTab').removeClass('active');
+  $('#approvedView').show();  $('#ongoingView').hide();
+  setTimeout(hideAOSpinner, 0);
+});
+$('#ongoingTab').on('click', function(e){
+  e.preventDefault();
+  showAOSpinner();
+  $(this).addClass('active'); $('#approvedTab').removeClass('active');
+  $('#ongoingView').show();   $('#approvedView').hide();
+  setTimeout(hideAOSpinner, 0);
+});
   // ---- actions exposed for inline onclicks ----
   window.viewReservation = function(id){ viewDetails(id); };
 
-// Approve -> move from Pending table to Approved list immediately
+// Approve -> move from Pending table to Approved list immediately (and refresh calendar/count)
 window.approveReservation = function(reservationId){
   Swal.fire({
     title: 'Approve Reservation?',
@@ -1247,24 +2321,47 @@ window.approveReservation = function(reservationId){
           return Swal.fire('Error', response?.message || 'Error approving reservation.', 'error');
         }
 
-        // 1) remove from Pending table
-        $('#reservation-' + reservationId).remove();
+        // --- capture info BEFORE removing the row ---
+        const $row    = $('#reservation-' + reservationId);
+        const dateKey = $row.data('date'); // yyyy-mm-dd
+        const ownerNm = ($row.find('.ownerName').text() || response.ownerName || '—');
 
-        // 2) Add to Approved list
-        // Prefer server-returned reservation, else build a minimal one from the row we just removed
+        // 1) remove from Pending table
+        $row.remove();
+
+        // 2) refresh calendar heat + visible list & counter for that date
+        (function refreshAfterRemoval(dKey){
+          if (!dKey) { if (typeof window.filterRows === 'function') window.filterRows(); return; }
+          const anyLeft = $('#appointmentsTableBody tr[data-date="' + dKey + '"]').length > 0;
+
+          if (!window.appointmentDates) window.appointmentDates = {};
+          if (anyLeft) { window.appointmentDates[dKey] = true; }
+          else { delete window.appointmentDates[dKey]; }
+
+          if (window.fp && typeof window.fp.redraw === 'function') window.fp.redraw();
+          if (window.activeDate === dKey && typeof window.filterRows === 'function') window.filterRows();
+        })(dateKey);
+
+        // 3) Add to Approved list
         const res = response.reservation || {
           _id: reservationId,
-          ownerName: (response.ownerName) ||
-                     ($('#reservation-' + reservationId + ' .ownerName').text() || '—'),
+          ownerName: ownerNm,
           createdAt: new Date().toISOString()
         };
         appendApprovedRow(res);
 
-        Swal.fire({ icon:'success', title:'Approved', text:'Reservation has been approved.', timer:900, showConfirmButton:false });
+        Swal.fire({
+          icon: 'success',
+          title: 'Approved',
+          text: 'Reservation has been approved.',
+          timer: 900,
+          showConfirmButton: false
+        });
       })
       .fail(() => Swal.fire('Error','Server error while approving reservation.','error'));
   });
 };
+
 
 // Assign Doctor -> move from Approved to Ongoing instantly
 window.assignDoctor = function(reservationId, doctorId){
@@ -1418,10 +2515,42 @@ window.assignDoctor = function(reservationId, doctorId){
       })
       .fail(() => Swal.fire('Error', 'Server error while fetching details.', 'error'));
   }
+// === Cache helpers (put this above window.viewReceipt) ===
+function computeReservationFlagsFromPayload(payload) {
+  // Prefer explicit flags returned by the server in a `flags` object
+  const f = payload?.data?.flags || payload?.flags;
+  if (f && typeof f.petExists === 'boolean') {
+    return { petExists: !!f.petExists, isStacked: !!f.isStacked };
+  }
 
-  // === Fetch & render the receipt ===
+  // Legacy fallback: some APIs may put booleans on the reservation itself.
+  const rez = payload?.data?.reservation || payload?.reservation;
+  if (rez && (typeof rez.petExists === 'boolean' || typeof rez.isStacked === 'boolean')) {
+    return { petExists: !!rez.petExists, isStacked: !!rez.isStacked };
+  }
 
+  // No trustworthy flags provided -> tell caller NOT to override row attributes.
+  return null;
+}
+window.__rezFlags = window.__rezFlags || {};
+// NEW: only trust server-provided flags; don't guess on the client
+function computeReservationFlagsFromPayload(payload) {
+  const f = payload?.data?.flags || payload?.flags;
+  if (f && typeof f.petExists === 'boolean') {
+    return { petExists: !!f.petExists, isStacked: !!f.isStacked };
+  }
+  return null; // no flags provided — leave row as-is
+}
+
+// === Fetch & render the receipt ===
 window.viewReceipt = function(reservationId) {
+  // ★ Always leave POS mode when opening a reservation
+  if (window.__posMode) exitPOSMode();
+
+  window.__activeReservationId = String(reservationId);
+  // show loading overlay on the Payment & Details card
+  showPaymentSpinner();
+
   $.get('/hr/get-consultation-details', { reservationId })
     .done(resp => {
       if (!resp || !resp.success) {
@@ -1432,7 +2561,23 @@ window.viewReceipt = function(reservationId) {
       const reservation = data.reservation || {};
       const paid        = !!data.payment || reservation.status === 'Paid';
 
-      // --- helpers ---
+      // cache flags for Action cell to use after Mark as Paid (guard null)
+      const flags = computeReservationFlagsFromPayload(resp) || null;
+      window.__rezFlags = window.__rezFlags || {};
+      window.__rezFlags[reservationId] = flags;
+
+      // also write flags into the Ongoing row right now (only if provided)
+      const $row = $('#ongoing-' + reservationId);
+      if (flags && $row.length) {
+        $row.attr('data-pet-exists', !!flags.petExists);
+        $row.attr('data-is-stacked', !!flags.isStacked);
+        // if it's already Paid for some reason, re-render the Action cell now
+        setOngoingActionButtons(reservationId, flags);
+      } else {
+        // update actions based on current row attrs (no override)
+        setOngoingActionButtons(reservationId);
+      }
+
       function escAttr(s) {
         return String(s || '')
           .replace(/&/g, '&amp;')
@@ -1441,39 +2586,27 @@ window.viewReceipt = function(reservationId) {
           .replace(/>/g, '&gt;')
           .replace(/'/g, '&#39;');
       }
+      function fallbackPetName(res, c) {
+        const pets = res.pets || [];
+        if (c && c.targetPetName && c.targetPetName !== '-' && c.targetPetName !== '—') return c.targetPetName;
+        if (c && c.petName       && c.petName       !== '-' && c.petName       !== '—') return c.petName;
+        const pidStr = c && (c.targetPetId || c.petId) ? String(c.targetPetId || c.petId) : '';
+        if (pidStr && pets.length) {
+          const byId = pets.find(p => String(p.petId && p.petId._id) === pidStr);
+          if (byId) return byId.petId?.petName || byId.petName || '—';
+        }
+        if (typeof (c && (c.targetPetId || c.petId)) === 'string' && pets.length) {
+          const nameMaybe = c.targetPetId || c.petId;
+          const byName = pets.find(p => (p.petId?.petName || p.petName) === nameMaybe);
+          if (byName) return byName.petId?.petName || byName.petName || '—';
+        }
+        if (pets.length === 1) return pets[0].petId?.petName || pets[0].petName || '—';
+        return '—';
+      }
 
-     function fallbackPetName(res, c) {
-    
-  const pets = res.pets || [];
-
-  // prefer explicit names first
-  if (c && c.targetPetName && c.targetPetName !== '-' && c.targetPetName !== '—') return c.targetPetName;
-  if (c && c.petName       && c.petName       !== '-' && c.petName       !== '—') return c.petName;
-
-  // try matching by id string
-  const pidStr = c && (c.targetPetId || c.petId) ? String(c.targetPetId || c.petId) : '';
-  if (pidStr && pets.length) {
-    const byId = pets.find(p => String(p.petId && p.petId._id) === pidStr);
-    if (byId) return byId.petId?.petName || byId.petName || '—';
-  }
-
-  // some old data put the name in the id field
-  if (typeof (c && (c.targetPetId || c.petId)) === 'string' && pets.length) {
-    const nameMaybe = c.targetPetId || c.petId;
-    const byName = pets.find(p => (p.petId?.petName || p.petName) === nameMaybe);
-    if (byName) return byName.petId?.petName || byName.petName || '—';
-  }
-
-  // single-pet fallback
-  if (pets.length === 1) return pets[0].petId?.petName || pets[0].petName || '—';
-
-  return '—';
-}
-
-      // consultations[] -> one per pet (fallback to single consultation shape if backend not yet updated)
       const consultations = Array.isArray(data.consultations) && data.consultations.length
         ? data.consultations
-        : (function fallback() {
+        : (function () {
             const one = data.consultation || {};
             return [{
               petId: one.petId || null,
@@ -1483,7 +2616,7 @@ window.viewReceipt = function(reservationId) {
             }];
           })();
 
-      // ---------- Header ----------
+      // Header: NO Concerns, NO Follow-Up
       const petList = (reservation.pets || [])
         .map(p => p.petId?.petName || p.petName)
         .filter(Boolean).join(', ') || '—';
@@ -1493,141 +2626,221 @@ window.viewReceipt = function(reservationId) {
             .toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
         : new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
 
+      // ★ Consultation-specific subtitle (replaces any POS text)
+      $('#receiptSub').html(`Consultation — <strong>${reservation.ownerName || '—'}</strong> • ${visitDate}`);
+
       let hdr  = `<p><strong>Owner:</strong> ${reservation.ownerName || '—'}</p>`;
           hdr += `<p><strong>Pets:</strong> ${petList}</p>`;
           hdr += `<p><strong>Date:</strong> ${visitDate}</p>`;
-          hdr += `<p><strong>Concerns:</strong> ${reservation.concerns || '—'}</p>`;
-          hdr += `<p><strong>Follow-Up:</strong>${
-                    reservation.schedule
-                      ? ' ' + new Date(reservation.schedule.scheduleDate)
-                          .toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) +
-                        ' – ' + (reservation.schedule.scheduleDetails || '')
-                      : ' None'
-                  }</p>`;
       $('#receiptHeader').html(hdr);
+      $('#paymentPanel').toggleClass('paid', paid);
+// remember for printing
+window.__activeOwnerName = reservation.ownerName || '—';
+window.__activePetsList  = petList;
+window.__activeVisitDateISO = reservation.date || reservation.schedule?.scheduleDate || reservation.createdAt || null;
+window.__activeVisitTime    = reservation.time || '';
 
-      // ---------- Medications (UNIFIED with Pet column) ----------
-      const $medWrap = $('#medicationsByCategory').empty();
-      const $medTbl  = $(`
-        <div class="table-responsive mb-2">
-          <table id="receiptTable" class="table table-sm table-striped mb-0">
-            <thead class="thead-light">
-              <tr>
-                <th>Pet</th><th>Medication</th><th>Qty</th><th>Unit Price</th><th>Line Total</th><th>Edit</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-            <tfoot>
-              <tr>
-                <th colspan="6" class="text-left">
-                  Medications Total: ₱ <span id="medTotal">0.00</span>
-                </th>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      `);
-      const $medBody = $medTbl.find('tbody');
-
-consultations.forEach(c => {
-  (c.medications || []).forEach(m => {
-    const unit = Number(m.unitPrice ?? m.price ?? 0);
-    const qty  = Number(m.quantity ?? 0);
-    const medName = (m.name || m.medicationName || '');
-    const isAdded = (m.added === true);
-
-    // raw value for data attributes / payloads
-    const petLabelRaw = isAdded ? ADDED_LABEL : fallbackPetName(reservation, c);
-
-    // pretty HTML for the cell (badge when it's an Added row)
-    const petCellHtml = isAdded
-      ? `<span class="badge badge-secondary">${ADDED_LABEL}</span>`
-      : petLabelRaw;
-
-    $medBody.append(`
-      <tr data-unit="${unit}"
-          data-name="${escAttr(medName)}"
-          data-pet="${escAttr(petLabelRaw)}">
-        <td>${petCellHtml}</td>
-        <td>${medName}</td>
-        <td><span class="qty-display">${isNaN(qty) ? 0 : qty}</span></td>
-        <td>₱ ${unit.toFixed(2)}</td>
-        <td class="line-total">${(unit * (isNaN(qty) ? 0 : qty)).toFixed(2)}</td>
-        <td><button class="btn btn-sm btn-primary btn-edit">Edit</button></td>
-      </tr>
-    `);
-  });
-});
-
-      $medWrap.append($medTbl);
-
-      // ---------- Services (add Pet column) ----------
-      $('#servicesTable thead').html(`
-        <tr>
-          <th>Pet</th>
-          <th>Service</th>
-          <th>Fee</th>
-        </tr>
-      `);
-      // ensure footer matches 3 columns
-      $('#servicesTable tfoot').html(`
-        <tr>
-          <th colspan="3" class="text-left">
-            Services Total: ₱ <span id="svcTotal">0.00</span>
-          </th>
-        </tr>
-      `);
-
-      const $svcBody = $('#servicesTable tbody').empty();
-
+      // ---- Medications (responsive labels + data-* for totals/submit) ----
+      const $medBody = $('#receiptTable tbody').empty();
       consultations.forEach(c => {
-        const petLabel = fallbackPetName(reservation, c);
-        (c.services || []).forEach(svc => {
-          const fee = Number(svc.price) || 0;
-          $svcBody.append(`
-            <tr data-service-price="${fee}" data-pet="${escAttr(petLabel)}">
-              <td>${petLabel}</td>
-              <td>${svc.serviceName || ''}</td>
-              <td>₱ ${fee.toFixed(2)}</td>
+        (c.medications || []).forEach(m => {
+          const unit = Number(m.unitPrice ?? m.price ?? 0);
+          const qty  = Number(m.quantity ?? 0);
+          const medName = (m.name || m.medicationName || '');
+          const isAdded = (m.added === true);
+
+          // what to show in the Pet cell & what to store in data-pet
+          const petLabelForShow = isAdded ? (window.ADDED_LABEL || 'Added') : fallbackPetName(reservation, c);
+          const petCellHtml     = isAdded
+            ? `<span class="badge badge-secondary">${window.ADDED_LABEL || 'Added'}</span>`
+            : escAttr(petLabelForShow);
+
+          $medBody.append(`
+            <tr
+              data-pet="${escAttr(petLabelForShow)}"
+              data-name="${escAttr(medName)}"
+              data-unit="${unit}"
+            >
+              <td data-label="Pet">${petCellHtml}</td>
+              <td data-label="Medication" class="med-name text-break">${escAttr(medName)}</td>
+              <td data-label="Qty" class="text-center">
+                <span class="qty-display">${isNaN(qty) ? 0 : qty}</span>
+              </td>
+              <td data-label="Unit Price" class="text-right">₱ ${unit.toFixed(2)}</td>
+              <td data-label="Line Total" class="text-right line-total">
+                ${(unit * (isNaN(qty) ? 0 : qty)).toFixed(2)}
+              </td>
+              <td data-label="Action" class="text-right">
+                <button class="btn btn-sm btn-outline-primary btn-edit">Edit</button>
+              </td>
             </tr>
           `);
         });
       });
 
-      // ---------- Totals + button state ----------
-      recalcTotals();
+      // ---- Services (put price on the <tr> so recalcTotals sees it) ----
+      const $svcBody = $('#servicesTable tbody').empty();
+      consultations.forEach(c => {
+        const petLabel = fallbackPetName(reservation, c);
+        (c.services || []).forEach(svc => {
+          // support price | fee | amount
+          const fee = Number(svc.price ?? svc.fee ?? svc.amount ?? 0);
+          const svcName = svc.serviceName || svc.name || '';
 
-      $('#btnMarkPaid')
-        .data('id', reservationId)
-        .prop('disabled', paid)
-        .toggleClass('btn-success', !paid)
-        .toggleClass('btn-secondary', paid)
-        .text(paid ? 'Paid' : 'Mark as Paid');
+          $svcBody.append(`
+            <tr
+              data-pet="${escAttr(petLabel)}"
+              data-name="${escAttr(svcName)}"
+              data-service-price="${fee}"
+            >
+              <td data-label="Pet">${escAttr(petLabel)}</td>
+              <td data-label="Service" class="text-break">${escAttr(svcName)}</td>
+              <td data-label="Fee" class="text-right">₱ ${fee.toFixed(2)}</td>
+            </tr>
+          `);
+        });
+      });
 
-      $('#medicationModal').modal('show');
+      // Totals + button
+// Totals + button (only enable when status === 'Done' and not yet paid)
+recalcTotals();
+
+const statusStr = (reservation.status || '').trim();
+const isDone    = statusStr === 'Done';
+window.__lastReceiptStatus = statusStr; // cache for the click-guard
+
+const shouldDisable = paid || !isDone;
+
+$('#btnMarkPaid')
+  .data('id', reservationId)
+  .prop('disabled', shouldDisable)
+  .toggleClass('btn-success', !shouldDisable)
+  .toggleClass('btn-secondary', shouldDisable)
+  .text(paid ? 'Paid' : 'Mark as Paid')
+  .attr('title', paid ? 'Already paid' : (isDone ? '' : 'Available once status is Done'));
+
+
+      if (window.matchMedia('(max-width: 991.98px)').matches) {
+        document.getElementById('paymentPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     })
-    .fail(() => Swal.fire('Error', 'Error fetching consultation details.', 'error'));
+    .fail(() => {
+      Swal.fire('Error', 'Error fetching consultation details.', 'error');
+    })
+    .always(() => {
+      // hide loading overlay no matter what
+      hidePaymentSpinner();
+    });
 };
 
+// Refresh the Payment & Details card (NEW)
+$(document).on('click', '#refreshReceiptBtn', function () {
+  const $btn = $(this);
+  const id = window.__activeReservationId; // set inside window.viewReceipt(...)
+  if (!id) {
+    return Swal.fire('No selection', 'Open an item in Ongoing then click Refresh.', 'info');
+  }
 
+  // visual feedback on the icon
+  $btn.addClass('spinning').prop('disabled', true);
 
-  // === MARK AS PAID (single delegated handler) ===
-$(document).on('click', '#btnMarkPaid', function() {
+  // stop spinning once the payment panel is no longer busy
+  const panel = document.getElementById('paymentPanel');
+  const cleanup = () => { $btn.removeClass('spinning').prop('disabled', false); observer.disconnect(); };
+  const observer = new MutationObserver(() => {
+    if (panel.getAttribute('aria-busy') !== 'true') cleanup();
+  });
+  observer.observe(panel, { attributes: true, attributeFilter: ['aria-busy'] });
+
+  // re-use your existing loader (shows overlay, fetches, re-renders)
+  viewReceipt(id);
+});
+
+ // === MARK AS PAID (updates Ongoing Action cell too) ===
+$(document).on('click', '#btnMarkPaid', function () {
   const $btn = $(this);
   const reservationId = $btn.data('id');
-  if (!reservationId) return Swal.fire('Error', 'No reservation selected.', 'error');
+ // Guard: for consultation receipts, allow only when status is Done
+  // (POS mode has no reservationId, so it’s allowed)
+  if (reservationId && window.__lastReceiptStatus !== 'Done') {
+    return Swal.fire(
+      'Not ready',
+      'You can only mark as paid once the consultation is marked Done.',
+      'info'
+    );
+  }
+  // --- POS branch (no reservation, retail sale) ---
+  if (!reservationId && window.__posMode) {
+    // Gather products from the Medications table
+    const products = [];
+   $('#receiptTable tbody tr').each(function () {
+      const name = $(this).data('name') || $(this).find('td').eq(1).text().trim();
+      const quantity = parseInt($(this).find('.qty-display').text(), 10) || 0;
+      const unitPrice = parseFloat($(this).data('unit')) || 0;
+      products.push({ name, quantity, unitPrice, lineTotal: quantity * unitPrice });
+    });
+    if (!products.length) {
+      return Swal.fire('Empty cart', 'Add at least one product.', 'info');
+    }
+    const amount = parseFloat($('#grandTotal').text()) || 0;
+    const customerName = ($('#posCustomerInput').val() || '').trim();
 
+    Swal.fire({
+     icon: 'question',
+      title: 'Mark as Paid?',
+     text: `Confirm retail payment of ₱${amount.toFixed(2)}?`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, paid'
+   }).then(({ isConfirmed }) => {
+      if (!isConfirmed) return;
+      $.post('/hr/mark-paid-retail', { customerName, amount, products })
+       .done((r) => {
+  if (!r?.success) return Swal.fire('Error', r?.message || 'Save failed.', 'error');
+    // Save a snapshot for the Print button
+  window.__lastReceiptData = {
+    type: 'POS',
+    paid: true,
+    receiptNo: r?.receiptNo || ('POS-' + Date.now()),
+    date: new Date().toISOString(),
+    ownerName: customerName || 'Walk-in Customer',
+    pets: '',
+    reservationId: null,
+    products: products.map(p => ({
+      name: p.name, quantity: p.quantity,
+      unitPrice: Number(p.unitPrice)||0, lineTotal: Number(p.lineTotal)||0
+    })),
+    services: [],
+    amount: amount
+  };
+  Swal.fire({ icon:'success', title:'Paid!', text:'Retail sale saved.', timer:900, showConfirmButton:false });
+  // Reset for the next sale without leaving the page
+  enterPOSMode(); // re-renders the POS header & clears tables/totals
+})
+        .fail(() => Swal.fire('Error', 'Server error while saving sale.', 'error'));
+    });
+    return; // stop here; POS flow done
+ }
+ 
+ // --- Original (reservation) flow below ---
+
+  // Collect products from the table
   const products = [];
-  $('#medicationsByCategory table tbody tr').each(function() {
+  $('#medicationsByCategory table tbody tr').each(function () {
     const pet       = $(this).data('pet') || '';
     const name      = $(this).data('name') || $(this).find('td').eq(1).text().trim();
     const quantity  = parseInt($(this).find('.qty-display').text(), 10) || 0;
-    const unitPrice = parseFloat($(this).data('unit')) || 0;
+    let   unitPrice = parseFloat($(this).data('unit'));
+    if (isNaN(unitPrice)) {
+      // fallback: derive unit from line-total if quantity > 0
+      const lt = parseFloat($(this).find('.line-total').text());
+      unitPrice = quantity > 0 && !isNaN(lt) ? (lt / quantity) : 0;
+    }
     products.push({ pet, name, quantity, unitPrice, lineTotal: quantity * unitPrice });
   });
 
+  // Collect services
   const services = [];
-  $('#servicesTable tbody tr').each(function() {
+  $('#servicesTable tbody tr').each(function () {
     const pet       = $(this).data('pet') || '';
     const name      = $(this).find('td').eq(1).text().trim();
     const unitPrice = parseFloat($(this).data('service-price')) || 0;
@@ -1646,17 +2859,85 @@ $(document).on('click', '#btnMarkPaid', function() {
     if (!isConfirmed) return;
 
     $.post('/hr/mark-paid', { reservationId, amount, products, services })
-      .done(({ success }) => {
-        if (!success) return Swal.fire('Error', 'Could not mark paid.', 'error');
+      .done((payload) => {
+        if (!payload?.success) {
+          return Swal.fire('Error', payload?.message || 'Could not mark paid.', 'error');
+        }
 
-        // update ongoing badge to Paid
         const $row = $('#ongoing-' + reservationId);
-        $row.find('.badge').removeClass('badge-success badge-secondary').addClass('badge-primary').text('Paid');
 
-        // update modal button
-        $btn.text('Paid').prop('disabled', true).removeClass('btn-success').addClass('btn-secondary');
+        // 1) Flip badge to Paid in Ongoing (if row is visible)
+        if ($row.length) {
+          $row.find('.badge')
+              .removeClass('badge-success badge-secondary')
+              .addClass('badge-primary')
+              .text('Paid');
+        }
 
-        Swal.fire('Paid!', 'Consultation has been marked as paid.', 'success');
+        // 2) Disable button in the Payment card
+        $btn.text('Paid')
+            .prop('disabled', true)
+            .removeClass('btn-success')
+            .addClass('btn-secondary');
+// Save a snapshot for the Print button
+window.__lastReceiptData = {
+  type: 'CONSULT',
+  paid: true,
+  receiptNo: payload?.receiptNo || ('R-' + (String(reservationId).slice(-6) || Date.now())),
+  date: new Date().toISOString(),
+  ownerName: window.__activeOwnerName || '—',
+  pets: window.__activePetsList || '',
+  reservationId: reservationId,
+  products: (products||[]).map(p => ({
+    name: p.name, quantity: p.quantity,
+    unitPrice: Number(p.unitPrice)||0, lineTotal: Number(p.lineTotal)||0
+  })),
+  services: (services||[]).map(s => ({
+    name: s.name, quantity: 1,
+    unitPrice: Number(s.unitPrice)||0, lineTotal: Number(s.lineTotal)||0
+  })),
+  amount: (parseFloat($('#grandTotal').text()) || 0),
+  visitDateISO: window.__activeVisitDateISO || null,
+visitTime: window.__activeVisitTime || '',
+
+};
+
+        // 3) Decide the flags:
+        //    priority: cached -> payload -> row data -> refetch once
+        let flags =
+          (window.__rezFlags && window.__rezFlags[reservationId]) || null;
+
+        if (!flags && (typeof payload.petExists !== 'undefined' || typeof payload.isStacked !== 'undefined')) {
+          flags = { petExists: !!payload.petExists, isStacked: !!payload.isStacked };
+        }
+
+        if (!flags && $row.length) {
+          flags = {
+            petExists: String($row.attr('data-pet-exists')) === 'true',
+            isStacked: String($row.attr('data-is-stacked')) === 'true'
+          };
+        }
+
+        const applyFlags = (f) => {
+          if (f && $row.length) {
+            $row.attr('data-pet-exists', !!f.petExists);
+            $row.attr('data-is-stacked', !!f.isStacked);
+          }
+          setOngoingActionButtons(reservationId, f || undefined);
+        };
+
+        if (flags) {
+          applyFlags(flags);
+          return Swal.fire('Paid!', 'Consultation has been marked as paid.', 'success');
+        }
+
+$.get('/hr/get-consultation-details', { reservationId })
+  .done(r => {
+    const f = computeReservationFlagsFromPayload(r);
+    applyFlags(f || null);
+  })
+  .always(() => Swal.fire('Paid!', 'Consultation has been marked as paid.', 'success'));
+
       })
       .fail((xhr) => {
         const err = xhr.responseJSON?.message || 'Server error while marking paid.';
@@ -1664,6 +2945,8 @@ $(document).on('click', '#btnMarkPaid', function() {
       });
   });
 });
+
+
   // 3) Live stock check on quantity edits
   $(document).on('input', '.edit-qty', function() {
     const $input     = $(this);
@@ -1698,25 +2981,7 @@ const product = $row.data('name') || $row.find('td').eq(1).text().trim();    if 
       .fail(() => recalcTotals());
   });
 
-  // 4) Remove a medication row (inline)
-  $(document).on('click', '.btn-remove', function() {
-    const $row = $(this).closest('tr');
-    Swal.fire({
-      icon: 'warning',
-      title: 'Remove Item?',
-      text: 'Are you sure?',
-      showCancelButton: true,
-      confirmButtonText: 'Yes, remove',
-      cancelButtonText: 'Cancel'
-    }).then(res => {
-      if (res.isConfirmed) {
-        $row.remove();
-        recalcTotals();
-        Swal.fire('Removed!','Item removed successfully.','success');
-      }
-    });
-  });
-
+ 
   let $currentRow = null;
 
   // 6) Open edit modal (delegated)
@@ -1728,28 +2993,68 @@ const product = $row.data('name') || $row.find('td').eq(1).text().trim();    if 
   });
 
   // 7) Handle Save in the edit form
-  $('#editMedForm').on('submit', function(e) {
-    e.preventDefault();
-    const newQty    = parseInt($('#editMedQty').val(), 10) || 0;
-    const unit      = parseFloat($currentRow.data('unit')) || 0;
-    const medName   = $currentRow.data('name');
-    const reservationId = $('#btnMarkPaid').data('id');
+$('#editMedForm').on('submit', function(e) {
+  e.preventDefault();
+  const newQty        = parseInt($('#editMedQty').val(), 10) || 0;
+  const unit          = parseFloat($currentRow.data('unit')) || 0;
+  const medName       = $currentRow.data('name');
+  const reservationId = $('#btnMarkPaid').data('id');
 
-    // 1) update the DOM
-    $currentRow.find('.qty-display').text(newQty);
-    $currentRow.find('.line-total').text((newQty * unit).toFixed(2));
-    recalcTotals();
-    $('#editMedModal').modal('hide');
+  // 1) update the DOM
+  $currentRow.find('.qty-display').text(newQty);
+  $currentRow.find('.line-total').text((newQty * unit).toFixed(2));
+  recalcTotals();
+  $('#editMedModal').modal('hide');
 
-    // 2) persist to the server
-    $.post('/hr/update-medication', {
-      reservationId,
-      medicationName: medName,
-      quantity: newQty
-    }).fail(() => {
-      Swal.fire('Error','Could not save quantity change.','error');
-    });
+  // 2) POS mode (or no reservation selected) => client-only, no server call
+  if (!reservationId || window.__posMode) return;
+
+  // 3) Persist to server for real receipts
+  $.post('/hr/update-medication', {
+    reservationId,
+    medicationName: medName,
+    quantity: newQty
+  }).fail(() => {
+    Swal.fire('Error','Could not save quantity change.','error');
   });
+});
+// === Unified REMOVE handler for medication rows (works for POS & real receipts) ===
+$(document).off('click', '.btn-remove').on('click', '.btn-remove', function () {
+  const $row          = $(this).closest('tr');
+  const medName       = $row.data('name') || $row.find('td').eq(1).text().trim();
+  const reservationId = $('#btnMarkPaid').data('id');
+
+  Swal.fire({
+    icon: 'warning',
+    title: 'Remove Item?',
+    text: 'Are you sure you want to remove this item?',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, remove',
+    cancelButtonText: 'Cancel'
+  }).then(res => {
+    if (!res.isConfirmed) return;
+
+    // 1) Remove from UI
+    $row.remove();
+    recalcTotals();
+
+    // 2) POS mode (or no reservation loaded) => client-only, no server call
+    if (!reservationId || window.__posMode) {
+      Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Removed', showConfirmButton:false, timer:800, width:200 });
+      return;
+    }
+
+    // 3) Persist to server for real receipts
+    $.post('/hr/remove-medication', { reservationId, medicationName: medName })
+      .done(() => {
+        Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Removed', showConfirmButton:false, timer:800, width:200 });
+      })
+      .fail(() => {
+        Swal.fire('Error','Could not remove medication.','error');
+      });
+  });
+});
+
 
   // 8) Handle Remove inside edit modal
   $('#removeMedBtn').click(function() {
@@ -1948,24 +3253,14 @@ window.updatePetList = function(reservationId) {
         );
       });
   });
-
-  function persistNewMedication(reservationId, name, qty) {
-    $.post('/hr/add-medication', {
-      reservationId,
-      medicationName: name,
-      quantity: qty
-    }).fail(() => {
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'error',
-        title: 'Save failed',
-        showConfirmButton: false,
-        timer: 1000,
-        width: 200
-      });
+ function persistNewMedication(reservationId, name, qty) {
+   // In POS mode there is no reservation; just keep it client-side
+  if (!reservationId || window.__posMode) return;
+  $.post('/hr/add-medication', { reservationId, medicationName: name, quantity: qty })
+   .fail(() => {
+     Swal.fire({ toast:true, position:'top-end', icon:'error', title:'Save failed', showConfirmButton:false, timer:1000, width:200 });
     });
-  }
+}
 
 $('#receiptMedAddConfirm').click(() => {
   const name = $('#receiptMedProduct').val();
@@ -2056,49 +3351,6 @@ function addRowUnified(name, unit, qty, petLabel) {
   $('#receiptMedSelector').hide();
 }
 
-
-  // Remove row (delegated toast-style)
-  $(document).on('click', '.btn-remove', function() {
-    const $row = $(this).closest('tr');
-    Swal.fire({
-      toast: true,
-      position: 'top-end',
-      icon: 'warning',
-      title: 'Remove this item?',
-      showCancelButton: true,
-      confirmButtonText: 'Yes',
-      cancelButtonText: 'No',
-      width: 200
-    }).then(res => {
-      if (res.isConfirmed) {
-        const name = $row.data('name');
-        const reservationId = $('#btnMarkPaid').data('id');
-        $row.remove();
-        recalcTotals();
-        $.post('/hr/remove-medication', { reservationId, medicationName: name })
-          .fail(() => {
-            Swal.fire({
-              toast: true,
-              position: 'top-end',
-              icon: 'error',
-              title: 'Remove failed',
-              showConfirmButton: false,
-              timer: 1000,
-              width: 200
-            });
-          });
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'success',
-          title: 'Removed',
-          showConfirmButton: false,
-          timer: 800,
-          width: 200
-        });
-      }
-    });
-  });
 
   // ---------- Walk-in modal name swapping ----------
   function swapName($keep, keepName, $drop){
@@ -2386,56 +3638,223 @@ $('#walkinForm').on('submit', function (e) {
 /* --- Live updates from server (SSE) --- */
 try {
   const es = new EventSource('/hr/stream');
-
   es.addEventListener('message', (ev) => {
     let payload;
     try { payload = JSON.parse(ev.data); } catch { return; }
 
-   if (payload?.type === 'reservation:walkin') {
-  if (!document.getElementById('approved-' + payload.reservation?._id)) {
-    appendApprovedRow(payload.reservation);
-  }
-}
+    // ---------- small helpers ----------
+    const toYMD = (d) => {
+      const x = new Date(d);
+      if (!x || isNaN(x)) return '';
+      const y = x.getFullYear();
+      const m = String(x.getMonth() + 1).padStart(2, '0');
+      const dd = String(x.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dd}`;
+    };
 
-   if (payload?.type === 'reservation:approved') {
-  // either update or skip if already there
-  if (!document.getElementById('approved-' + payload.reservation?._id)) {
-    appendApprovedRow(payload.reservation);
-  }
-}
+    function refreshCalendarForDate(dateKey) {
+      if (dateKey) {
+        const anyLeft = $('#appointmentsTableBody tr[data-date="' + dateKey + '"]').length > 0;
+        window.appointmentDates = window.appointmentDates || {};
+        if (anyLeft) window.appointmentDates[dateKey] = true;
+        else delete window.appointmentDates[dateKey];
+      }
+      if (window.fp && typeof window.fp.redraw === 'function') window.fp.redraw();
+      if (typeof window.filterRows === 'function') window.filterRows();
+      if (typeof window.updatePendingCount === 'function') window.updatePendingCount();
+    }
 
-    if (payload?.type === 'reservation:assigned') {
-      const id = payload.reservation?._id;
-      if (id) $('#approved-' + id).remove();
+    // ---------- switch on event type ----------
+    switch (payload?.type) {
+
+      // Customer submitted a reservation -> add to Pending table + refresh
+      case 'reservation:pending': {
+        if (typeof appendPendingRow === 'function' && payload?.reservation) {
+          appendPendingRow(payload.reservation);
+        }
+        return;
+      }
+
+      // Walk-in created by HR -> ensure it appears in Approved
+      case 'reservation:walkin': {
+        const id = payload?.reservation?._id;
+        if (id && !document.getElementById('approved-' + id) && typeof appendApprovedRow === 'function') {
+          appendApprovedRow(payload.reservation);
+        }
+        return;
+      }
+
+      // Approved elsewhere -> add to Approved; remove from Pending; refresh calendar for that day
+      case 'reservation:approved': {
+        const res = payload.reservation || {};
+        const id  = res?._id;
+        if (!id) return;
+
+        const $pendingRow = $('#reservation-' + id);
+        const rowDateKey =
+          ($pendingRow.data && $pendingRow.data('date')) ||
+          res.dateKey ||
+          (res.date && toYMD(res.date)) ||
+          (res.schedule?.scheduleDate && toYMD(res.schedule.scheduleDate)) ||
+          (res.createdAt && toYMD(res.createdAt)) || '';
+
+        // remove from Pending
+        $pendingRow.remove();
+
+        // ensure it’s in Approved
+        if (!document.getElementById('approved-' + id) && typeof appendApprovedRow === 'function') {
+          appendApprovedRow(res);
+        }
+
+        refreshCalendarForDate(rowDateKey);
+        return;
+      }
+
+      // Assigned -> remove from Approved; add to Ongoing (with doctor name)
+      case 'reservation:assigned': {
+        const res = payload.reservation;
+        const id  = res?._id;
+        if (!id) return;
+
+        // remove from Approved list
+        $('#approved-' + id).remove();
+
+        // figure out doctor display name
+        const doctorName =
+          payload.doctorName ||
+          res?.doctor?.username ||
+          (function () {
+            const doc = (window.doctors || []).find(
+              d => String(d._id) === String(res?.doctor?._id || payload.doctorId)
+            );
+            return doc ? (doc.username || doc.name) : 'N/A';
+          })();
+
+        if (!document.getElementById('ongoing-' + id) && typeof appendOngoingRow === 'function') {
+          appendOngoingRow(res, doctorName);
+        }
+        return;
+      }
+
+      // Pending canceled -> remove from all lists; refresh calendar/counts for that day
+      case 'reservation:canceled': {
+        const id = String(payload.id ?? payload.reservation?._id ?? '');
+        if (!id) return;
+
+        const $pendingRow = $('#reservation-' + id);
+        const rowDateKey =
+          ($pendingRow.data && $pendingRow.data('date')) ||
+          payload?.reservation?.dateKey ||
+          (payload?.reservation?.date && toYMD(payload.reservation.date)) ||
+          (payload?.reservation?.schedule?.scheduleDate && toYMD(payload.reservation.schedule.scheduleDate)) ||
+          (payload?.reservation?.createdAt && toYMD(payload.reservation.createdAt)) ||
+          '';
+
+        // Remove from all visible tables defensively
+        $pendingRow.remove();
+        $('#approved-' + id).remove();
+        $('#ongoing-' + id).remove();
+
+        refreshCalendarForDate(rowDateKey);
+        return;
+      }
+
+      // Paid elsewhere -> flip badge + refresh action cell flags (if provided)
+      case 'reservation:paid': {
+        const id = String(payload.id || payload.reservation?._id || '');
+        if (!id) return;
+
+        const $row = $('#ongoing-' + id);
+        if ($row.length) {
+          $row.find('.badge')
+              .removeClass('badge-success badge-secondary')
+              .addClass('badge-primary')
+              .text('Paid');
+
+          setOngoingActionButtons(id, {
+            petExists: !!payload?.reservation?.petExists,
+            isStacked: !!payload?.reservation?.isStacked
+          });
+        }
+        return;
+      }
+
+      // Doctor marked one pet done (may complete the reservation)
+      case 'reservation:pet-done': {
+        if (payload.allDone) {
+          const id = String(payload.reservationId || '');
+          if (id) {
+            const $row = $('#ongoing-' + id);
+            if ($row.length) {
+              $row.find('.badge')
+                  .removeClass('badge-secondary badge-primary')
+                  .addClass('badge-success')
+                  .text('Done');
+              setOngoingActionButtons(id);
+            }
+          }
+        }
+        return;
+      }
+
+      // Entire reservation is Done -> flip badge to Done in Ongoing immediately
+      case 'reservation:done': {
+        const id = String(payload?.reservation?._id || payload.id || '');
+        if (!id) return;
+
+        const $row = $('#ongoing-' + id);
+        if ($row.length) {
+          $row.find('.badge')
+              .removeClass('badge-secondary badge-primary')
+              .addClass('badge-success')
+              .text('Done');
+          setOngoingActionButtons(id);
+        }
+        return;
+      }
+
+      // Doctor added/edited consultation/schedule/meds -> live refresh Payment & Details if open
+      case 'consultation:upserted': {
+        const rid = String(payload.reservationId || '');
+        if (rid && rid === String(window.__activeReservationId)) {
+          if (typeof showPaymentSpinner === 'function') showPaymentSpinner();
+          // viewReceipt hides spinner after rendering
+          if (typeof viewReceipt === 'function') viewReceipt(rid);
+        }
+        return;
+      }
+
+      default:
+        return;
     }
   });
 } catch (e) {
   console.warn('SSE not available', e);
 }
-  // --- Owner search (autocomplete) ---
-  $('#walkinOwnerSearch').autocomplete({
-    minLength: 1,
-    delay: 100,
-    source: function(request, response) {
-      $.get('/hr/search-owners', { q: request.term })
-        .done(function(res) {
-          response((res.items || []).map(x => ({ label: x.label, value: x.label, token: x.token })));
-        })
-        .fail(() => response([]));
-    },
-    select: function(event, ui) {
-      const token = ui.item.token;
-      const $sel = $('#walkinOwnerSelect');
+/* --- Owner search (autocomplete) --- */
+$('#walkinOwnerSearch').autocomplete({
+  minLength: 1,
+  delay: 100,
+  source: function(request, response) {
+    $.get('/hr/search-owners', { q: request.term })
+      .done(function(res) {
+        response((res.items || []).map(x => ({ label: x.label, value: x.label, token: x.token })));
+      })
+      .fail(() => response([]));
+  },
+  select: function(event, ui) {
+    const token = ui.item.token;
+    const $sel = $('#walkinOwnerSelect');
 
-      if (!$sel.find(`option[value="${token}"]`).length) {
-        $sel.append(`<option value="${token}">${ui.item.label}</option>`);
-      }
-      $sel.val(token).trigger('change');
-
-      $(this).val(ui.item.label);
-      return false;
+    if (!$sel.find(`option[value="${token}"]`).length) {
+      $sel.append(`<option value="${token}">${ui.item.label}</option>`);
     }
-  });
+    $sel.val(token).trigger('change');
+
+    $(this).val(ui.item.label);
+    return false;
+  }
+});
 
   // Show suggestions as soon as the first letter is typed
   $('#walkinOwnerSearch').on('input', function () {
