@@ -1,0 +1,274 @@
+<%
+/* ---------- Helpers (local, safe) ---------- */
+function pad2(n){ n = parseInt(n,10); if (isNaN(n)) n = 0; return (n<10?'0':'')+n; }
+
+function formatLocalDate(dateStr){
+  if(!dateStr) return '';
+  var d = new Date(dateStr);
+  if(isNaN(d)) return '';
+  var yyyy = d.getFullYear();
+  var mm = pad2(d.getMonth()+1);
+  var dd = pad2(d.getDate());
+  return yyyy + '-' + mm + '-' + dd;
+}
+
+function safeTimeHHmm(timeStr){
+  if(!timeStr || typeof timeStr!=='string') return '00:00';
+  var m = timeStr.trim().match(/^(\d{1,2}):?(\d{2})?\s*([AaPp][Mm])?$/);
+  if(!m) return '00:00';
+  var h = parseInt(m[1],10) || 0;
+  var min = parseInt(m[2]||'0',10) || 0;
+  var suf = (m[3]||'').toUpperCase();
+  if(suf==='PM' && h<12) h+=12;
+  if(suf==='AM' && h===12) h=0;
+  if(h<0||h>23) h=0;
+  if(min<0||min>59) min=0;
+  return pad2(h)+':'+pad2(min);
+}
+
+function formatTime(timeStr){
+  var hhmm = safeTimeHHmm(timeStr);
+  var parts = hhmm.split(':');
+  var h = parseInt(parts[0],10);
+  var m = parts[1];
+  if (isNaN(h)) return '—';
+  var suffix = h<12 ? 'AM':'PM';
+  var h12 = h%12===0 ? 12 : h%12;
+  return h12 + ':' + m + ' ' + suffix;
+}
+
+function resolveDate(res){
+  if(!res) return null;
+  return res.date || (res.schedule && res.schedule.scheduleDate) || res.createdAt;
+}
+
+/* ---------- Data prep: sort newest → oldest ---------- */
+const list = Array.isArray(historyReservations) ? [...historyReservations] : [];
+list.sort((a,b) => {
+  const da = new Date(resolveDate(a));
+  const db = new Date(resolveDate(b));
+  const ta = safeTimeHHmm(a && a.time);
+  const tb = safeTimeHHmm(b && b.time);
+  // newest first
+  if (db - da !== 0) return db - da;
+  return tb.localeCompare(ta);
+});
+%>
+
+<div class="container-fluid reservation-container">
+  <style>
+    /* Align with your dashboard look */
+    .reservation-container { background:#f8f9fa; min-height:100vh; padding:8px 8px 10px !important; }
+    .reservation-container .row{ margin-left:-8px; margin-right:-8px; }
+    .reservation-container [class^="col-"], .reservation-container [class*=" col-"]{ padding-left:8px; padding-right:8px; }
+    .reservation-container .card{
+      background:#fff; border:1px solid #e9ecef; border-radius:14px;
+      box-shadow:0 3px 12px rgba(30,34,90,.08); padding:1.15rem !important;
+    }
+
+    .filters-row .form-control, .filters-row .custom-select { height: 34px; }
+    .filters-row .form-control::placeholder{ font-size:.9rem; }
+    .filters-row .label-sm { font-size:.8rem; color:#6c757d; margin-bottom:4px; }
+
+    .fixed-table-container{ height: 70vh; overflow: auto; }
+
+    .table thead th { white-space: nowrap; vertical-align: middle; }
+    .table td, .table th { vertical-align: middle; }
+
+    .badge-success { background-color:#28a745; }
+    .badge-danger  { background-color:#dc3545; }
+    .badge-primary { background-color:#007bff; }
+    .text-muted.small { font-size: .85rem; }
+  </style>
+
+  <div class="row">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <!-- Header + Filters -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+          <h5 class="mb-2 mb-md-0">Reservation History</h5>
+
+          <div class="filters-row d-flex flex-wrap align-items-end" style="gap:10px;">
+            <div class="d-flex flex-column">
+              <label class="label-sm">Search</label>
+              <input type="text" id="historySearch" class="form-control form-control-sm" placeholder="Search owner or service">
+            </div>
+
+            <div class="d-flex flex-column">
+              <label class="label-sm">Status</label>
+              <select id="statusFilter" class="custom-select custom-select-sm">
+                <option value="">All</option>
+                <option value="Done">Done</option>
+                <option value="Paid">Paid</option>
+                <option value="Not Attended">Not Attended</option>
+              </select>
+            </div>
+
+            <div class="d-flex flex-column">
+              <label class="label-sm">From</label>
+              <input type="date" id="fromDate" class="form-control form-control-sm">
+            </div>
+
+            <div class="d-flex flex-column">
+              <label class="label-sm">To</label>
+              <input type="date" id="toDate" class="form-control form-control-sm">
+            </div>
+
+            <div class="d-flex">
+              <button id="clearFilters" class="btn btn-sm btn-outline-secondary">Clear</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-responsive fixed-table-container">
+          <table class="table table-hover mb-0" id="historyTable">
+            <thead>
+              <tr>
+                <th style="min-width:110px;">Date</th>
+                <th>Owner</th>
+                <th>Time</th>
+                <th>Service</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <% if (list.length) { %>
+                <% list.forEach(function(res){ 
+                     const dLike = resolveDate(res);
+                     const dISO  = formatLocalDate(dLike);
+                     const status = (res.status || '').trim();
+                %>
+                  <tr
+                    data-date="<%= dISO %>"
+                    data-status="<%= status %>"
+                  >
+                    <td><%= dISO || '—' %></td>
+                    <td class="owner"><%= res.ownerName || '—' %></td>
+                    <td><%= formatTime(res.time) %></td>
+                    <td class="service"><%= res.service || '—' %></td>
+                    <td>
+                      <% if (status === 'Not Attended') { %>
+                        <span class="badge badge-danger">Not Attended</span>
+                      <% } else if (status === 'Paid') { %>
+                        <span class="badge badge-primary">Paid</span>
+                      <% } else { %>
+                        <span class="badge badge-success"><%= status || 'Done' %></span>
+                      <% } %>
+                    </td>
+                  </tr>
+                <% }); %>
+              <% } else { %>
+                <tr><td colspan="5" class="text-center text-muted">No history found.</td></tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Footer note -->
+        <div class="mt-2 text-muted small">
+          Tip: Use the search box to match owner or service; combine with status and date range for precise filtering.
+        </div>
+      </div>
+       <% if (typeof retailSales !== 'undefined' && retailSales.length) { %>
+      <div class="card p-3 shadow-sm mb-4">
+        <h5 class="mb-3">Retail Sales</h5>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Customer</th>
+                <th class="text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% retailSales.forEach(p => { %>
+                <tr>
+                  <td><%= new Date(p.createdAt).toLocaleString() %></td>
+                  <td><%= p.customerName || 'Walk-in' %></td>
+                  <td class="text-right">₱ <%= (p.amount || 0).toFixed(2) %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% } %>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const $q    = $('#historySearch');
+    const $stat = $('#statusFilter');
+    const $from = $('#fromDate');
+    const $to   = $('#toDate');
+    const $rows = $('#historyBody tr');
+
+    function withinRange(dateStr, fromStr, toStr){
+      if (!dateStr) return false;
+      // dateStr, fromStr, toStr are "YYYY-MM-DD"
+      if (fromStr && dateStr < fromStr) return false;
+      if (toStr   && dateStr > toStr)   return false;
+      return true;
+    }
+
+    function applyFilters(){
+      const q = ($q.val() || '').toLowerCase().trim();
+      const s = ($stat.val() || '').trim();
+      const f = $from.val() || '';
+      const t = $to.val()   || '';
+
+      let any = false;
+      $rows.each(function(){
+        const $r = $(this);
+        const owner = ($r.find('.owner').text() || '').toLowerCase();
+        const svc   = ($r.find('.service').text() || '').toLowerCase();
+        const date  = ($r.data('date') || '').trim();
+        const st    = ($r.data('status') || '').trim();
+
+        // search (owner OR service)
+        const searchOk = !q || owner.includes(q) || svc.includes(q);
+        // status
+        const statusOk = !s || st === s;
+        // date range
+        const dateOk   = (!f && !t) || withinRange(date, f, t);
+
+        const show = searchOk && statusOk && dateOk;
+        $r.toggle(show);
+        if (show) any = true;
+      });
+
+      // handle empty state
+      if (!any) {
+        if (!$('#historyBody ._empty').length) {
+          $('#historyBody').append('<tr class="_empty"><td colspan="5" class="text-center text-muted">No matches found.</td></tr>');
+        }
+      } else {
+        $('#historyBody ._empty').remove();
+      }
+    }
+
+    // events
+    $q.on('input', applyFilters);
+    $stat.on('change', applyFilters);
+    $from.on('change', function(){
+      if ($to.val() && $from.val() > $to.val()) $to.val($from.val());
+      applyFilters();
+    });
+    $to.on('change', function(){
+      if ($from.val() && $to.val() < $from.val()) $from.val($to.val());
+      applyFilters();
+    });
+
+    $('#clearFilters').on('click', function(){
+      $q.val('');
+      $stat.val('');
+      $from.val('');
+      $to.val('');
+      applyFilters();
+    });
+  })();
+</script>
