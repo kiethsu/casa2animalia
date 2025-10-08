@@ -8,13 +8,16 @@ const lineItemSchema = new mongoose.Schema({
   lineTotal: { type: Number, required: true }
 });
 
-const paymentSchema = new mongoose.Schema({
-  reservation: { 
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Reservation',
-    required: true
-  },
-
+ const paymentSchema = new mongoose.Schema({
+   // Reservation is optional so we can record retail (walk-in) sales
+   reservation: { 
+     type: mongoose.Schema.Types.ObjectId,
+     ref: 'Reservation',
+     required: false
+   },
+ 
+   // Helpful flag to distinguish POS/retail vs consultation payments
+   isRetail: { type: Boolean, default: false },
   // If the owner has an account, we store the ref here (may be null for walk-ins)
   customer: {
     type: mongoose.Schema.Types.ObjectId,
