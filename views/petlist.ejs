@@ -14,269 +14,470 @@
     return [year, month, day].join('-');
   }
 
- // NEW: “entries” comes from your route:
+  // NEW: “entries” comes from your route:
   //    const entries = await PetList.find(…)…
   //    res.render('hr/petlist', { entries })
   const list = typeof entries !== 'undefined' ? entries : [];
 %>
 <div class="container-fluid petlist-container">
-   <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
-  />
+<style>
+  /* Page shell: match reservation spacing */
+  .petlist-container{
+    background:#f8f9fa;
+    min-height:100vh;
+    padding:8px 8px 10px !important; /* tight like reservation */
+  }
 
-  <style>
-    /* Pet List Content Styles */
-    .petlist-container { background: #f7f7f7; padding: 2rem; min-height: 100vh; }
-    .custom-table { background: #fff; width: 100%; table-layout: fixed; }
-    .custom-table thead tr { background: #4B9CD3; color: #fff; }
-    .custom-table thead th { text-align: center; padding: 12px; font-weight: 600; }
-    .custom-table tbody td { text-align: center; padding: 12px; }
-    .custom-table tbody tr:hover { background: #f9f9f9; }
-    .fixed-table-container { height: 600px; overflow-y: auto; }
-    .search-box { width: 430px; height: 30px; border-radius: 4px; border: 1px solid #ddd; padding-left: 10px; }
+  /* Search bar (same function, nicer look) */
+  .search-wrap{
+    display:flex; justify-content:flex-end; align-items:center; margin-bottom:10px;
+    position:relative;
+  }
+  .search-wrap .search-icon{
+    position:absolute; right:calc(420px + 10px); /* lines up with input on wide screens */
+    display:none;
+  }
+  .search-box{
+    width:clamp(220px, 40%, 420px);
+    height:36px;
+    border-radius:999px;
+    border:1px solid #d1d5db;
+    padding-left:14px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.04);
+  }
+  .search-box:focus{
+    border-color:#93c5fd;
+    box-shadow:0 0 0 .15rem rgba(147,197,253,.35);
+    outline:none;
+  }
 
-    /* History Accordion Styles */
-    .history-item { margin-bottom: 1rem; }
-    .history-header {
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: #f1f1f1;
-      padding: 0.75rem 1rem;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-weight: bold;
-    }
-    .history-header:hover { background: #e9ecef; }
-    .history-header i {
-      transition: transform 0.2s;
-    }
-    .history-header[aria-expanded="true"] i {
-      transform: rotate(180deg);
-    }
-    .history-content {
-      border: 1px solid #ddd;
-      border-top: none;
-      border-radius: 0 0 4px 4px;
-      background: #fff;
-      padding: 1rem;
-    }
-    .history-content p, .history-content ul { margin-bottom: 0.75rem; }
-    .history-content ul { padding-left: 1.25rem; }
-    .history-content li { margin-bottom: 0.5rem; }
-    .history-content .close {
-      position: absolute;
-      top: 0.5rem;
-      right: 1rem;
-      font-size: 1.25rem;
-      line-height: 1;
-    }
-  </style>
+  /* Table wrapper: rounded card w/ shadow; also clips header corners */
+  .fixed-table-container{
+    height:600px;
+    overflow-y:auto;
+    overflow-x:auto;
+    border:1px solid #e9ecef;
+    border-radius:14px;
+    box-shadow:0 3px 12px rgba(30,34,90,0.08);
+    background:#fff;
+  }
 
-  <!-- Content Header -->
-  <div class="content-header mb-4">
-    <h3 class="font-weight-bold text-dark" style="font-size: 18px;">Pet List</h3>
+  /* Table */
+  .custom-table{
+    width:100%;
+    table-layout:fixed;
+    border-collapse:separate;       /* necessary so radius renders cleanly */
+    border-spacing:0;               /* no gaps inside wrapper border */
+    margin:0;
+  }
+  .custom-table thead th{
+    position:sticky; top:0; z-index:1;
+    background:#0D47A1;            /* requested color */
+    color:#fff;
+    text-align:center;
+    padding:12px;
+    font-weight:700;
+    letter-spacing:.02em;
+    text-transform:uppercase;
+    font-size:.75rem;
+  }
+  .custom-table tbody td{
+    text-align:center; padding:12px; color:#0f172a;
+    border-top:1px dashed #e9edf5;
+    word-break:break-word;
+  }
+  .custom-table tbody tr:hover{ background:#f9fbff; }
+
+  /* Utility */
+  .equal-btn{ width:120px; }
+
+  /* Make all Bootstrap modals sit ABOVE topbar/subnav/sidebar and be centered */
+  .modal { z-index: 5001 !important; }
+  .modal-backdrop { z-index: 5000 !important; }
+
+  /* Pet History modal polish */
+  #petDetailsModal .modal-dialog { max-width: 900px; }
+  #petDetailsModal .modal-content {
+    border: 0;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25);
+    overflow: hidden;
+  }
+  #petDetailsModal .modal-header {
+    background: linear-gradient(135deg, #0D47A1, #1E88E5);
+    color: #fff;
+    padding: 14px 18px;
+    border-bottom: 0;
+  }
+  #petDetailsModal .modal-title {
+    font-weight: 700;
+    letter-spacing: .3px;
+    font-size: 1.05rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #petDetailsModal .modal-body {
+    background: #f9fbff;
+    padding: 1rem 1.25rem;
+  }
+  #petDetailsModal .modal-footer {
+    background: #f5f7fb;
+    border-top: 0;
+  }
+
+  /* Keep dialog from jumping while centering */
+  @media (min-width:576px){
+    .modal .modal-dialog { margin-top:0; margin-bottom:0; }
+  }
+
+  /* History items look nice even without color */
+  .history-item { margin-bottom: 10px; }
+  .history-header{
+    cursor: pointer;
+    padding: .6rem .85rem;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    display: flex; align-items: center; justify-content: space-between;
+    transition: filter .15s ease;
+  }
+  .history-header:hover{ filter: brightness(.98); }
+  .history-header i{ transition: transform .2s ease; }
+  .history-header[aria-expanded="true"] i { transform: rotate(180deg); }
+
+  .history-content{
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: .75rem 1rem;
+  }
+
+  /* ===== Spinners ===== */
+
+  /* Global full-page spinner overlay */
+  .page-spinner{
+    position: fixed; inset: 0;
+    background: rgba(255,255,255,.75);
+    backdrop-filter: blur(1px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 6000; /* above modals */
+  }
+  .page-spinner .spin-card{
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.15);
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .page-spinner .spin-label{ font-size:.85rem; color:#334155; }
+
+  /* Section/Block spinner (sits over a specific container) */
+  .block-spinner{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(255,255,255,.70);
+    z-index: 10; border-radius: inherit;
+  }
+
+  /* helpers */
+  .d-none{ display:none !important; }
+  .position-relative{ position:relative !important; }
+</style>
+
+<!-- Search -->
+<div class="search-wrap">
+  <input type="text"
+         class="form-control form-control-sm search-box"
+         id="petSearchInput"
+         placeholder="Search pets or owners">
+</div>
+
+<!-- Table -->
+<div class="table-responsive fixed-table-container position-relative" id="petTableWrap">
+  <!-- Section spinner (covers only this table/card) -->
+  <div class="block-spinner d-none" id="tableSpin">
+    <div class="text-center">
+      <div class="spinner-border text-primary" role="status" aria-label="Loading"></div>
+      <div class="small mt-2 text-muted">Loading…</div>
+    </div>
   </div>
 
-  <!-- Search Bar -->
-  <div class="d-flex justify-content-end align-items-center mb-3">
-    <input type="text" class="form-control form-control-sm search-box" id="petSearchInput" placeholder="Search Pets">
-  </div>
-
-  <!-- Table (no heading above it) -->
-  <div class="table-responsive fixed-table-container">
-    <table class="table custom-table">
-      <thead>
-        <tr>
-          <th>Owner Name</th>
-          <th>Pet Name</th>
-          <th>Details</th>
-        </tr>
-      </thead>
-     <tbody id="petTableBody">
-  <% if (list.length > 0) { %>
-    <% list.forEach(function(e) { %>
-      <tr id="pet-<%= e._id %>">
-        <td class="ownerName"><%= e.owner.username %></td>
-        <td class="petName"    ><%= e.petName %></td>
-        <td class="text-center">
-          <button class="btn btn-info btn-sm equal-btn"
-        onclick="viewPetDetails(null, '<%= e.petName %>', '<%= e.owner._id %>')">
-  View History
-</button>
-        </td>
+  <table class="table custom-table mb-0">
+    <thead>
+      <tr>
+        <th>Owner Name</th>
+        <th>Pet Name</th>
+        <th>Details</th>
       </tr>
-    <% }); %>
-  <% } else { %>
-    <tr><td colspan="3" class="text-center">No pets added.</td></tr>
-  <% } %>
-</tbody>
-    </table>
-  </div>
+    </thead>
+    <tbody id="petTableBody">
+      <% if (Array.isArray(list) && list.length > 0) { %>
+        <% list.forEach(function(e) {
+             var hasOwner   = e && e.owner && (e.owner._id || typeof e.owner === 'object');
+             var ownerIdStr = (hasOwner && e.owner._id) ? String(e.owner._id) : null;
+             var ownerName  = (e && e.owner && e.owner.username) ? e.owner.username : (e.ownerName || '');
+        %>
+          <tr id="pet-<%= e._id %>">
+            <td class="ownerName"><%= ownerName %></td>
+            <td class="petName"><%= e.petName %></td>
+            <td class="text-center">
+              <button
+                class="btn btn-info btn-sm equal-btn"
+                onclick='viewPetDetails(
+                  null,
+                  <%- JSON.stringify(e.petName || "") %>,
+                  <%= ownerIdStr ? `"${ownerIdStr}"` : "null" %>,
+                  <%- JSON.stringify(ownerName) %>
+                )'>
+                View History
+              </button>
+            </td>
+          </tr>
+        <% }); %>
+      <% } else { %>
+        <tr><td colspan="3" class="text-center">No pets added.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
 </div>
 
 <!-- Modal for Viewing Pet Consultation History -->
-<div class="modal fade" id="petDetailsModal" tabindex="-1" role="dialog" aria-labelledby="petDetailsModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg" role="document">
+<div class="modal fade" id="petDetailsModal" tabindex="-1" role="dialog"
+     aria-labelledby="petDetailsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="petDetailsModalLabel">Pet Consultation History</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
+        <h5 class="modal-title" id="petDetailsModalLabel">
+          <i class="fas fa-notes-medical"></i> Pet Consultation History
+        </h5>
+        <!-- Removed the top-right X button -->
       </div>
       <div class="modal-body" id="petDetailsContent">
-        <p>Loading details...</p>
+        <div class="d-flex align-items-center gap-2">
+          <div class="spinner-border text-primary mr-2" role="status" aria-label="Loading"></div>
+          <span>Loading details…</span>
+        </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
 </div>
 
+<!-- Global page spinner (moved to <body> at runtime) -->
+<div id="globalSpinner" class="page-spinner d-none">
+  <div class="spin-card">
+    <div class="spinner-border text-primary" role="status" aria-label="Loading"></div>
+    <div class="spin-label">Loading…</div>
+  </div>
+</div>
+
 <!-- Include jQuery UI and Bootstrap scripts -->
-<link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-
 <script>
-  // Search filtering for pet list based on owner name or pet name
-  $('#petSearchInput').on('keyup', function () {
-    var searchValue = $(this).val().toLowerCase();
-    $('#petTableBody tr').filter(function () {
-      $(this).toggle(
-        $(this).find('.ownerName').text().toLowerCase().indexOf(searchValue) > -1 ||
-        $(this).find('.petName').text().toLowerCase().indexOf(searchValue) > -1
-      );
-    });
-  });
+/* ========= GLOBAL SPINNER UTILITIES ========= */
+function ensureGlobalSpinner() {
+  var $g = $('#globalSpinner');
+  if (!$g.length) {
+    $('body').append(
+      '<div id="globalSpinner" class="page-spinner d-none">' +
+        '<div class="spin-card">' +
+          '<div class="spinner-border text-primary" role="status" aria-label="Loading"></div>' +
+          '<div class="spin-label">Loading…</div>' +
+        '</div>' +
+      '</div>'
+    );
+    $g = $('#globalSpinner');
+  } else if (!$g.parent().is('body')) {
+    $g.appendTo('body'); // keep it top-level above all content
+  }
+  return $g;
+}
+function showPageSpinner(immediate){
+  var $g = ensureGlobalSpinner();
+  if (immediate) { $g.removeClass('d-none'); return; }
+  $g.removeClass('d-none');
+}
+function hidePageSpinner(){
+  $('#globalSpinner').addClass('d-none');
+}
 
-  // Helper to format a date in "Month Day, Year" format
-  function formatDateLong(dateStr) {
-    const d = new Date(dateStr);
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    return d.toLocaleDateString('en-US', options).replace(',', '');
+/* Prefer short delay on slow connections to show spinner ASAP */
+(function setSpinnerDelayStrategy(){
+  var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  window.__NAV_SPINNER_DELAY__ = (conn && (
+    (conn.effectiveType && /(^|-)2g$/.test(conn.effectiveType)) ||
+    conn.saveData === true ||
+    (typeof conn.downlink === 'number' && conn.downlink < 1.2)
+  )) ? 80 : 260;
+})();
+
+/* Show spinner before navigation (menu clicks / normal links / form submits) */
+(function bindPreNavigationSpinner(){
+  var navTimer;
+
+  function preNavSpin(){
+    clearTimeout(navTimer);
+    navTimer = setTimeout(function(){ showPageSpinner(true); }, window.__NAV_SPINNER_DELAY__ || 200);
   }
 
-  /**
- * Fetches and displays a pet's consultation history.
- * @param {String|null} petId    — Mongo ID of the pet (or null to fallback to name+owner)
- * @param {String}      petName  — The pet's name
- * @param {String}      ownerId  — The owner's user ID
- */
-/**
- * Fetches & displays a pet's full consultation history
- * @param {String|null} petId
- * @param {String}      petName
- * @param {String}      ownerId
- */
-function viewPetDetails(petId, petName, ownerId) {
-  $('#petDetailsContent').html('<p>Loading…</p>');
-  $('#petDetailsModal').modal('show');
+  // Any link that actually navigates the browser
+  $(document).on('click', 'a[href]:not([target="_blank"]):not([download]):not([data-toggle]):not([data-bs-toggle])', function(ev){
+    var href = $(this).attr('href') || '';
+    // ignore hashes and JS no-ops
+    if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+    // allow opt-out
+    if ($(this).is('[data-skip-spinner="true"]')) return;
+    preNavSpin();
+  });
 
-  $.get('/admin/get-pet-history', { petId, petName, ownerId })
+  // Forms
+  $(document).on('submit', 'form:not([data-skip-spinner="true"])', function(){
+    preNavSpin();
+  });
+
+  // In case navigation is canceled (rare), hide after a short while
+  window.addEventListener('pageshow', function(){ hidePageSpinner(); });
+})();
+
+/* ========= SECTION (TABLE) SPINNER ========= */
+function showTableSpinner(){ $('#tableSpin').removeClass('d-none'); }
+function hideTableSpinner(){ $('#tableSpin').addClass('d-none'); }
+
+/* Option A: Global AJAX hooks (covers any $.get/$.post on this page) */
+$(document).ajaxStart(function(){ showTableSpinner(); });
+$(document).ajaxStop(function(){ hideTableSpinner(); });
+$(document).ajaxError(function(){ hideTableSpinner(); });
+
+/* ========= MODAL HANDLING (UNCHANGED + small loader tweak) ========= */
+function getPetDetailsModal() {
+  let $modal = $('body > #petDetailsModal').first();
+  if (!$modal.length) {
+    $modal = $('#main-content #petDetailsModal').first();
+    if ($modal.length) { $modal.appendTo('body'); }
+    else {
+      $modal = $(`
+        <div class="modal fade" id="petDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
+          <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-notes-medical"></i> Pet Consultation History</h5>
+              </div>
+              <div class="modal-body" id="petDetailsContent">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="spinner-border text-primary mr-2" role="status" aria-label="Loading"></div>
+                  <span>Loading…</span>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>`);
+      $('body').append($modal);
+    }
+  }
+  $('body > #petDetailsModal').not($modal).remove();
+  $modal.find('.modal-dialog').addClass('modal-dialog-centered modal-dialog-scrollable');
+  return $modal;
+}
+
+function colorForKey(key) {
+  if (!key) return { bg:'#eef2f7', fg:'#1f2937', border:'#cfd8e3' };
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) { hash = ((hash << 5) - hash) + key.charCodeAt(i); hash |= 0; }
+  const hue    = Math.abs(hash) % 360;
+  const bg     = `hsl(${hue}, 85%, 93%)`;
+  const fg     = `hsl(${hue}, 60%, 24%)`;
+  const border = `hsl(${hue}, 45%, 75%)`;
+  return { bg, fg, border };
+}
+
+/* ========= VIEW PET DETAILS (shows modal + internal loader) ========= */
+function viewPetDetails(petId, petName, ownerId, ownerName) {
+  const $modal   = getPetDetailsModal();
+  const $content = $modal.find('#petDetailsContent');
+
+  // Inline loader for modal body
+  $content.html(
+    '<div class="d-flex align-items-center gap-2">' +
+      '<div class="spinner-border text-primary mr-2" role="status" aria-label="Loading"></div>' +
+      '<span>Loading details…</span>' +
+    '</div>'
+  );
+  $modal.modal('show');
+
+  const params = { petId, petName };
+  if (ownerId) params.ownerId = ownerId;
+  if (!ownerId && ownerName) params.ownerName = ownerName;
+
+  $.get('/hr/get-pet-history', params)
     .done(({ success, history }) => {
-      if (!success) return $('#petDetailsContent').html('<p>Error loading details.</p>');
-      if (!history.length) return $('#petDetailsContent').html('<p>No consultations found.</p>');
+      if (!success) return $content.html('<p>Error loading details.</p>');
+      if (!history.length) return $content.html('<p>No consultations found.</p>');
 
       let html = '';
       history.forEach((rec, idx) => {
-        const dateStr = new Date(rec.date).toLocaleDateString('en-US', {
-          month: 'short', day: 'numeric', year: 'numeric'
-        });
-        const doctor = rec.doctor?.username || 'Not Assigned';
+        const dateStr = new Date(rec.date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+        const doctor  = (rec.doctor && rec.doctor.username) ? rec.doctor.username : 'Not Assigned';
 
-        // Notes & Diagnosis
         const notes = rec.notes || '—';
         const diag  = rec.diagnosis || '—';
 
-        // Physical Exam table
         const { weight = '—', temperature = '—', observations = '—' } = rec.physical || {};
         const examHtml = `
           <p><strong>Physical Exam:</strong></p>
           <table class="table table-sm table-bordered mb-3">
-            <thead class="thead-light">
-              <tr>
-                <th>Weight</th><th>Temp</th><th>Observations</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>${weight}</td>
-                <td>${temperature}</td>
-                <td>${observations}</td>
-              </tr>
-            </tbody>
+            <thead class="thead-light"><tr><th>Weight</th><th>Temp</th><th>Observations</th></tr></thead>
+            <tbody><tr><td>${weight}</td><td>${temperature}</td><td>${observations}</td></tr></tbody>
           </table>`;
 
-        // Services table
         let srvHtml = '';
-        if (rec.services?.length) {
+        if (rec.services && rec.services.length) {
           srvHtml = `
             <p><strong>Services:</strong></p>
             <table class="table table-sm table-bordered mb-3">
-              <thead class="thead-light">
-                <tr><th>Category</th><th>Name</th><th>Details</th><th>File</th></tr>
-              </thead>
+              <thead class="thead-light"><tr><th>Category</th><th>Name</th><th>Details</th><th>File</th></tr></thead>
               <tbody>
                 ${rec.services.map(svc => {
-                  const fileLink = svc.file
-                    ? `<a href="${svc.file.replace(/^public/, '')}" download>📎</a>`
-                    : '—';
-                  return `
-                    <tr>
-                      <td>${svc.category || '—'}</td>
-                      <td>${svc.serviceName || '—'}</td>
-                      <td>${svc.details || '—'}</td>
-                      <td class="text-center">${fileLink}</td>
-                    </tr>`;
+                  const fileLink = svc.file ? `<a href="${svc.file.replace(/^public/, '')}" download>📎</a>` : '—';
+                  return `<tr><td>${svc.category || '—'}</td><td>${svc.serviceName || '—'}</td><td>${svc.details || '—'}</td><td class="text-center">${fileLink}</td></tr>`;
                 }).join('')}
               </tbody>
             </table>`;
         }
 
-        // Medications table
         let medHtml = '';
-        if (rec.medications?.length) {
+        if (rec.medications && rec.medications.length) {
           medHtml = `
             <p><strong>Medications:</strong></p>
             <table class="table table-sm table-bordered mb-3">
-              <thead class="thead-light">
-                <tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr>
-              </thead>
+              <thead class="thead-light"><tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr></thead>
               <tbody>
-                ${rec.medications.map(med => `
-                  <tr>
-                    <td>${med.name || med.medicationName || '—'}</td>
-                    <td>${med.quantity || '—'}</td>
-                    <td>${med.dosage || '—'}</td>
-                    <td>${med.remarks || '—'}</td>
-                  </tr>`).join('')}
+                ${rec.medications.map(med => `<tr><td>${med.name || med.medicationName || '—'}</td><td>${med.quantity || '—'}</td><td>${med.dosage || '—'}</td><td>${med.remarks || '—'}</td></tr>`).join('')}
               </tbody>
             </table>`;
         }
 
-        // Confinement & Next follow-up
-        const conf = rec.confinement?.length ? rec.confinement.join(', ') : 'N/A';
+        const conf = (rec.confinement && rec.confinement.length) ? rec.confinement.join(', ') : 'N/A';
         let schedHtml = '<p><strong>Next Follow-Up:</strong> N/A</p>';
         if (rec.nextSchedule) {
           const sd = rec.nextSchedule;
-          const sdate = new Date(sd.date).toLocaleDateString('en-US', {
-            month:'short', day:'numeric', year:'numeric'
-          });
+          const sdate = new Date(sd.date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
           schedHtml = `<p><strong>Next Follow-Up:</strong> ${sdate} — ${sd.details}</p>`;
         }
 
+        const doctorLabel = doctor || 'Not Assigned';
+        const { bg, fg, border } = colorForKey(doctorLabel);
+
         html += `
           <div class="history-item">
-            <div class="history-header d-flex justify-content-between align-items-center"
+            <div class="history-header"
                  data-toggle="collapse" data-target="#historyRecord${idx}"
-                 aria-expanded="false" aria-controls="historyRecord${idx}">
-              <span>${dateStr} — Dr. ${doctor}</span>
+                 aria-expanded="false" aria-controls="historyRecord${idx}"
+                 style="background:${bg}; color:${fg}; border-color:${border};">
+              <span>${dateStr} — Dr. ${doctorLabel}</span>
               <i class="fas fa-chevron-down"></i>
             </div>
             <div class="collapse" id="historyRecord${idx}">
@@ -294,12 +495,26 @@ function viewPetDetails(petId, petName, ownerId) {
           </div>`;
       });
 
-      $('#petDetailsContent').html(html);
+      $content.html(html);
     })
     .fail(() => {
-      $('#petDetailsContent').html('<p>Error loading details.</p>');
+      $content.html('<p>Error loading details.</p>');
     });
 }
 
+/* ========= PAGE INIT ========= */
+$(function(){
+  ensureGlobalSpinner();
 
+  // Simple client-side search
+  $('#petSearchInput').on('input', function(){
+    const q = $(this).val().toLowerCase();
+    $('#petTableBody tr').each(function(){
+      const owner = $(this).find('.ownerName').text().toLowerCase();
+      const pet   = $(this).find('.petName').text().toLowerCase();
+      $(this).toggle(owner.includes(q) || pet.includes(q));
+    });
+  });
+});
 </script>
+</div>
