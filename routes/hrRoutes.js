@@ -443,7 +443,8 @@ const assignDoctorSchema = Joi.object({
   doctorId: Joi.string().required()
 });
 
-router.post('/assign-doctor',
+router.post(
+  '/assign-doctor',
   authMiddleware,
   validateRequest(assignDoctorSchema),
   async (req, res) => {
@@ -453,39 +454,83 @@ router.post('/assign-doctor',
       // 1) Load & validate
       const reservation = await Reservation.findById(reservationId);
       if (!reservation) {
-        return res.status(404).json({ success: false, message: 'Reservation not found.' });
+        return res
+          .status(404)
+          .json({ success: false, message: 'Reservation not found.' });
       }
       if (reservation.doctor && reservation.doctor.toString() === doctorId) {
-        return res.status(400).json({ success: false, message: 'Doctor is already assigned to this reservation.' });
+        return res
+          .status(400)
+          .json({ success: false, message: 'Doctor is already assigned to this reservation.' });
       }
 
       // 2) Assign & save
       reservation.doctor = doctorId;
       await reservation.save();
-      await reservation.populate('doctor', 'username');
 
-      // 3) Broadcast to HR dashboards (SSE)
-     broadcast({
-        type: 'reservation:assigned',
-        id: String(reservation._id),
-        reservation: {
-          _id: String(reservation._id),
-          ownerName: reservation.ownerName,
-          service: reservation.service,
-          time: reservation.time,
-          date: reservation.date || reservation.createdAt,
-          doctor: reservation.doctor // { _id, username }
+      // Populate what we need for both the HR payload and the doctor rows
+      await reservation.populate([
+        { path: 'doctor', select: 'username' },
+        { path: 'pets.petId', select: 'petName' }
+      ]);
+
+      // Convert to plain object for safe spreading/serialization
+      const updated = reservation.toObject();
+
+      // 3) Build doctor-targeted "rows" (one per pet) so d-patient.ejs can insert without reload
+      const reqs = Array.isArray(updated.petRequests) ? updated.petRequests : [];
+
+      // Map requested service per pet (by ObjectId first, then by petName; fallback to reservation.service)
+      const getServiceForPet = (pet) => {
+        if (pet?.petId) {
+          const r = reqs.find(x => String(x.petId) === String(pet.petId));
+          if (r?.service) return r.service;
         }
+        if (pet?.petName) {
+          const r = reqs.find(x => x.petName === pet.petName);
+          if (r?.service) return r.service;
+        }
+        return updated.service || '';
+      };
+
+      const rows = (updated.pets || []).map(p => ({
+        reservationId: String(updated._id),
+        ownerName: updated.ownerName || '',
+        petId: p?.petId?._id ? String(p.petId._id) : '',
+        petName: p?.petId?.petName || p?.petName || '—',
+        service: getServiceForPet(p) || '—',
+        petSchedule: p?.schedule || null,
+        hasConsultation: false
+      }));
+
+      // 4) Broadcast (HR dashboards can ignore the extra fields; doctors filter by doctorId)
+      broadcast({
+        type: 'reservation:assigned',
+        id: String(updated._id),                             // keeps your existing HR shape working
+        doctorId: String(updated.doctor?._id || doctorId),   // lets doctors filter events for themselves
+        reservation: {
+          _id: String(updated._id),
+          ownerName: updated.ownerName,
+          service: updated.service,
+          time: updated.time,
+          date: updated.date || updated.createdAt,
+          doctor: updated.doctor && {
+            _id: String(updated.doctor._id),
+            username: updated.doctor.username
+          }
+        },
+        rows                                                // used by d-patient.ejs to prepend table rows
       });
 
-      // 4) Respond
-      return res.json({ success: true, reservation });
+      // 5) Respond
+      return res.json({ success: true, reservation: updated });
     } catch (error) {
-      console.error("Error assigning doctor:", error);
+      console.error('Error assigning doctor:', error);
       return res.status(500).json({ success: false, message: 'Server error' });
     }
   }
 );
+
 
 // GET limit-per-hour route (no validation required)
 router.get('/limit-per-hour', authMiddleware, async (req, res) => {
