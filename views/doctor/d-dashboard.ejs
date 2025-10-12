@@ -1,341 +1,365 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Doctor Dashboard</title>
-  <!-- Bootstrap CSS -->
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
-  <!-- Flatpickr CSS for modern calendar -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-  <style>
-    /* General Reset/Body */
-    body {
-      background-color: #f8f9fa;
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      color: #333;
-    }
-    /* Left Sidebar & Right Sidebar Layout */
-    .dashboard-container {
-      display: flex;
-      flex-wrap: wrap;
-      padding: 2rem;
-    }
-    .left-panel {
-      flex: 1 1 65%;
-      margin-right: 1.5rem;
-    }
-    .right-panel {
-      flex: 1 1 30%;
-    }
-    /* Greeting Section */
-    .greeting-card {
-      background: #fff;
-      border: none;
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    .greeting-card h2 {
-      font-weight: 600;
-      margin-bottom: 0.5rem;
-    }
-    .greeting-card p {
-      margin: 0;
-      color: #777;
-    }
-    /* Stats Section */
-    .stats-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
-    .stat-card {
-      background: #fff;
-      border: none;
-      border-radius: 12px;
-      flex: 1;
-      padding: 1rem;
-      text-align: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    .stat-card h4 {
-      margin-top: 0.5rem;
-      margin-bottom: 0.5rem;
-      font-size: 1.1rem;
-    }
-    .stat-number {
-      font-size: 1.8rem;
-      font-weight: bold;
-      color: #007bff;
-    }
-    /* Chart/Card */
-    .chart-card {
-      background: #fff;
-      border: none;
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    /* Limit chart canvas height */
-    .chart-card canvas {
-      max-height: 300px;
-      width: 100% !important;
-    }
-    /* Calendar and Appointment List */
-    .calendar-card,
-    .appointments-card {
-      background: #fff;
-      border: none;
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    .calendar-card h4,
-    .appointments-card h4 {
-      margin-bottom: 1rem;
-      font-weight: 600;
-    }
-    /* Flatpickr Calendar Container */
-    #followUpCalendar {
-      width: 100%;
-      margin: 0;
-      padding: 0;
-    }
-    /* Force flatpickr calendar to fill the container */
-    .flatpickr-calendar {
-      width: 100% !important;
-      max-width: none;
-      box-shadow: none;
-      border: none;
-    }
-    /* Custom box styling for day cells */
-    .flatpickr-day {
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      margin: 2px;
-      width: calc(100% / 7 - 4px);
-      height: 2.5em;
-      line-height: 2.5em;
-      text-align: center;
-      transition: background 0.2s, color 0.2s;
-    }
-    .flatpickr-day:hover {
-      background: #007bff;
-      color: #fff;
-    }
-    /* Override flatpickr header for minimalism */
-    .flatpickr-month {
-      background: #f8f9fa;
-      padding: 0.5rem;
-      border-bottom: 1px solid #eee;
-    }
-    .flatpickr-current-month {
-      font-size: 1rem;
-      font-weight: 600;
-      color: #333;
-      text-align: center;
-    }
-    .flatpickr-weekdays {
-      background: #fff;
-      border-bottom: 1px solid #eee;
-    }
-    .flatpickr-weekday {
-      color: #555;
-      font-size: 0.85rem;
-      padding: 0.5rem 0;
-    }
-    /* Highlight only follow-up dates */
-    .flatpickr-day.green-highlight {
-      background: #28a745;
-      color: #fff;
-    }
-    /* Appointments List */
-    .appointment-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid #f1f1f1;
-      padding: 0.5rem 0;
-    }
-    .appointment-item:last-child {
-      border-bottom: none;
-    }
-    .appointment-info {
-      display: flex;
-      flex-direction: column;
-    }
-    .appointment-title {
-      font-weight: 600;
-      margin: 0;
-    }
-    .appointment-date {
-      font-size: 0.85rem;
-      color: #777;
-    }
-    /* Responsive adjustments */
-    @media screen and (max-width: 991px) {
-      .dashboard-container {
-        flex-direction: column;
-      }
-      .left-panel,
-      .right-panel {
-        flex: 1 1 100%;
-        margin-right: 0;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="dashboard-container">
-    <!-- LEFT PANEL -->
-    <div class="left-panel">
-      <!-- Greeting Card -->
-      <div class="greeting-card">
-        <h2>Hello, Dr. <%= doctor.username %>!</h2>
-        <p>Your progress is awesome today. Keep up the great work!</p>
+<style>
+  /* ==== Tight page shell (match petlist.ejs spacing) ==== */
+  #ddash{
+    background-color:#f8f9fa;
+    font-family:'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color:#333;
+  }
+
+  /* Main container beside the sidebar */
+  .dashboard-container{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:flex-start;
+    gap:12px;                           /* spacing between left/right columns */
+    padding:8px 8px 10px !important;    /* same tight padding as petlist.ejs */
+    box-sizing:border-box;
+  }
+
+  /* Columns become vertical stacks with their own gaps */
+  .left-panel{
+    flex:1 1 65%;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    gap:12px;                           /* spacing between greeting, stats, upcoming */
+  }
+  .right-panel{
+    flex:1 1 30%;
+    min-width:280px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  /* ===== Cards (unified look, tighter spacing) ===== */
+  .greeting-card,
+  .stat-card,
+  .calendar-card,
+  .appointments-card{
+    background:#fff;
+    border:0;
+    border-radius:14px;
+    padding:12px;
+    margin:0;                           /* gaps handle spacing */
+    box-shadow:0 3px 12px rgba(30,34,90,0.08);
+    box-sizing:border-box;
+  }
+
+  /* Remove inner padding for calendar so it occupies the whole card */
+  .calendar-card{
+    padding:0;
+    overflow:hidden;                    /* keep calendar corners clean inside radius */
+  }
+
+  /* Greeting */
+  .greeting-card h2{
+    font-weight:600;
+    margin:0 0 .4rem 0;
+  }
+  .greeting-card p{ margin:0; color:#777; }
+
+  /* Stats row (left column) */
+  .stats-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;                           /* spacing between stat cards */
+  }
+  .stat-card{
+    flex:1 1 180px;
+    text-align:center;
+  }
+  .stat-card h4{
+    margin:.5rem 0 .35rem 0;
+    font-size:1.05rem;
+  }
+  .stat-number{
+    font-size:1.6rem;
+    font-weight:700;
+    color:#0D47A1;
+  }
+
+  /* Upcoming Appointments */
+  .appointments-card .card-title{
+    background:#0D47A1;
+    color:#fff;
+    padding:10px 12px;
+    border-radius:10px;
+    margin:-12px -12px 12px -12px;      /* stretch to card edges */
+    font-weight:600;
+  }
+
+  .upcoming-table{
+    width:100%;
+    border-collapse:separate;
+    border-spacing:0;
+  }
+  .upcoming-table thead th{
+    position:sticky; top:0; z-index:1;
+    background:#EEF3FF;
+    color:#0D47A1;
+    text-transform:uppercase;
+    font-size:.75rem;
+    letter-spacing:.02em;
+    padding:10px;
+    border:none;
+  }
+  .upcoming-table tbody td{
+    padding:10px;
+    border-top:1px dashed #e9ecef !important;
+  }
+  .upcoming-empty{
+    padding:8px;
+    color:#777;
+    font-size:.95rem;
+  }
+
+  /* Flatpickr calendar should fill the card */
+  #followUpCalendar{ width:100%; margin:0; padding:0; display:block; }
+  .flatpickr-calendar{
+    width:100% !important;
+    max-width:none;
+    box-shadow:none;
+    border:none;
+    margin:0;                           /* remove any default outer gaps */
+  }
+  .flatpickr-month{
+    background:#f8f9fa; padding:.5rem; border-bottom:1px solid #eee;
+  }
+  .flatpickr-current-month{
+    font-size:1rem; font-weight:600; color:#333; text-align:center;
+  }
+  .flatpickr-weekdays{ background:#fff; border-bottom:1px solid #eee; }
+  .flatpickr-weekday{ color:#555; font-size:.85rem; padding:.5rem 0; }
+  .flatpickr-day{
+    border:1px solid #ddd;
+    border-radius:4px;
+    margin:2px;
+    width:calc(100%/7 - 4px);
+    height:2.5em; line-height:2.5em; text-align:center;
+    transition:background .2s, color .2s;
+  }
+  .flatpickr-day:hover{ background:#007bff; color:#fff; }
+  .flatpickr-day.green-highlight{ background:#28a745; color:#fff; }
+
+  /* Responsive */
+  @media (max-width: 991px){
+    .dashboard-container{ flex-direction:column; }
+    .left-panel, .right-panel{ flex-basis:100%; }
+  }
+</style>
+
+<div id="ddash" class="dashboard-container">
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+    <!-- Greeting Card -->
+    <div class="greeting-card">
+      <h2>Hello, Dr. <%= doctor.username %>!</h2>
+      <p>Your progress is awesome today. Keep up the great work!</p>
+    </div>
+
+    <!-- Stats Row (Total + Follow-ups) -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-number"><%= totalAppointments %></div>
+        <h4>Total Appointments</h4>
       </div>
-      <!-- Stats Row -->
-      <div class="stats-row mb-3">
-        <div class="stat-card">
-          <div class="stat-number"><%= totalAppointments %></div>
-          <h4>Total Appointments</h4>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number"><%= doneAppointments %></div>
-          <h4>Completed</h4>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number"><%= followUps.length %></div>
-          <h4>Follow-ups</h4>
-        </div>
-      </div>
-      <!-- Chart Card (Appointments Over Time) -->
-      <div class="chart-card">
-        <h4>Appointments Trend</h4>
-        <canvas id="appointmentsChart"></canvas>
+      <div class="stat-card">
+        <div class="stat-number"><%= followUps.length %></div>
+        <h4>Follow-ups</h4>
       </div>
     </div>
-    <!-- RIGHT PANEL -->
-    <div class="right-panel">
-      <!-- Calendar -->
-      <div class="calendar-card">
-        <h4>Calendar</h4>
-        <div id="followUpCalendar"></div>
-      </div>
-      <!-- Upcoming Appointments -->
-      <div class="appointments-card">
-        <h4>Upcoming Appointments</h4>
-        <div id="appointmentDetails">
-          <p>No upcoming appointments.</p>
-        </div>
+
+    <!-- Upcoming Appointments (below stats) -->
+    <div class="appointments-card">
+      <div class="card-title">Upcoming Appointments</div>
+
+      <!-- Table -->
+      <div class="table-responsive">
+        <table class="upcoming-table">
+          <thead>
+            <tr>
+              <th>Owner Name</th>
+              <th>Pet Name</th>
+              <th>Service</th>
+            </tr>
+          </thead>
+          <tbody id="upcomingTableBody">
+            <tr><td colspan="3" class="upcoming-empty">No upcoming appointments.</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
-  <!-- jQuery and Bootstrap JS -->
-  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-  <!-- Flatpickr JS -->
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script>
-    // Helper function to return a local date string in YYYY-MM-DD format
-    function getLocalDateString(dateObj) {
-      const year = dateObj.getFullYear();
-      const month = ('0' + (dateObj.getMonth() + 1)).slice(-2);
-      const day = ('0' + dateObj.getDate()).slice(-2);
-      return `${year}-${month}-${day}`;
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <!-- Calendar (title removed; calendar fills card) -->
+    <div class="calendar-card">
+      <div id="followUpCalendar"></div>
+    </div>
+  </div>
+</div>
+<script>
+  // Helper: local date string YYYY-MM-DD
+  function getLocalDateString(dateObj) {
+    const year = dateObj.getFullYear();
+    const month = ('0' + (dateObj.getMonth() + 1)).slice(-2);
+    const day = ('0' + dateObj.getDate()).slice(-2);
+    return `${year}-${month}-${day}`;
+  }
+
+  $(document).ready(function () {
+    const followUps = <%- JSON.stringify(followUps) %>;
+// ----- unified helpers for extracting service names -----
+function pickServiceName(x){
+  if (!x) return '';
+  if (typeof x === 'string') return x.trim();
+  return (x.serviceName || x.name || x.title || '').toString().trim();
+}
+
+function getServiceFromSchedule(sched){
+  if (!sched) return '';
+  // prefer sched.service (object/string), fallback to sched.scheduleDetails
+  const fromObj = pickServiceName(sched.service);
+  return fromObj || (sched.scheduleDetails || '').toString().trim();
+}
+
+function serviceFromConsultationArray(appt){
+  const arr = Array.isArray(appt.services) ? appt.services : [];
+  const names = arr.map(pickServiceName).filter(Boolean);
+  return names.length ? [...new Set(names)].join(', ') : '';
+}
+
+function serviceFromRequested(appt, matchedPet){
+  const prs = Array.isArray(appt.petRequests) ? appt.petRequests : [];
+  if (!prs.length) return '';
+
+  // match by petId, else by petName
+  const pidStr =
+    (matchedPet?.petId && typeof matchedPet.petId === 'object' && matchedPet.petId._id)
+      ? String(matchedPet.petId._id)
+      : (typeof matchedPet?.petId === 'string' ? matchedPet.petId : '');
+  const pname = (matchedPet?.petName || '').toLowerCase();
+
+  let pr = null;
+  if (pidStr) pr = prs.find(x => String(x.petId) === pidStr);
+  if (!pr && pname) pr = prs.find(x => (x.petName || '').toLowerCase() === pname);
+
+  return pr ? pickServiceName(pr.service) : '';
+}
+
+    // Build local YYYY-MM-DD dates from followUps (using top-level reservation.schedule)
+    const followUpDates = followUps
+      .filter(fu => fu.schedule && fu.schedule.scheduleDate)
+      .map(fu => getLocalDateString(new Date(fu.schedule.scheduleDate)));
+
+    // helper: read service names from reservation.services (mirrored by add-consultation)
+    function serviceFromConsultationArray(appt){
+      if (!Array.isArray(appt.services) || !appt.services.length) return '—';
+      const names = appt.services
+        .map(s => (s.serviceName || s.name || s?.service?.name || s?.service?.serviceName || '').trim())
+        .filter(Boolean);
+      return names.length ? [...new Set(names)].join(', ') : '—';
     }
 
-    $(document).ready(function() {
-      // Data passed from the backend
-      const followUps = <%- JSON.stringify(followUps) %>;
-      const chartData = <%- JSON.stringify(appointmentsOverTime) %> || [];
-      
-      // Map chart data to labels and values
-      const chartLabels = chartData.map(item => item.label);
-      const chartValues = chartData.map(item => item.count);
+    // Renders the table for a specific date
+  function renderUpcomingFor(dateStr){
+  const $tbody = $("#upcomingTableBody");
 
-      // -------------------------
-      // Chart Initialization
-      // -------------------------
-      const ctx = document.getElementById('appointmentsChart').getContext('2d');
-      new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: chartLabels,
-          datasets: [{
-            label: 'Appointments',
-            data: chartValues,
-            borderColor: '#007bff',
-            backgroundColor: 'rgba(0, 123, 255, 0.1)',
-            fill: true,
-            tension: 0.1
-          }]
-        },
-        options: {
-          scales: {
-            y: { beginAtZero: true }
-          },
-          responsive: true,
-          maintainAspectRatio: false
-        }
-      });
+  // only reservations whose top-level schedule matches the selected date
+  const matches = followUps.filter(appt => {
+    if (!appt.schedule || !appt.schedule.scheduleDate) return false;
+    const apptDate = getLocalDateString(new Date(appt.schedule.scheduleDate));
+    return apptDate === dateStr;
+  });
 
-      // -------------------------
-      // Calendar Initialization with Flatpickr
-      // -------------------------
-      // Build an array of follow-up dates in local "YYYY-MM-DD" format
-      const followUpDates = followUps
-        .filter(fu => fu.schedule && fu.schedule.scheduleDate)
-        .map(fu => {
-          const d = new Date(fu.schedule.scheduleDate);
-          return getLocalDateString(d);
+  if (!matches.length){
+    $tbody.html(`<tr><td colspan="3" class="upcoming-empty">No upcoming appointments.</td></tr>`);
+    return;
+  }
+
+  let rowsHtml = "";
+  matches.forEach(appt => {
+    // Try to find which pet is scheduled on this date (pet-level schedule)
+    let petName = '—';
+    let svcName = '';
+
+    let matchedPet = null;
+    if (Array.isArray(appt.pets)) {
+      matchedPet = appt.pets.find(p => {
+        if (!p || !p.schedule || !p.schedule.scheduleDate) return false;
+        return getLocalDateString(new Date(p.schedule.scheduleDate)) === dateStr;
+      }) || null;
+
+      if (matchedPet) {
+        // pet name (works whether petId is populated or not)
+        petName =
+          (matchedPet.petId && typeof matchedPet.petId === 'object' && matchedPet.petId.petName) ||
+          matchedPet.petName || '—';
+
+        // 1) best: per-pet schedule
+        svcName = getServiceFromSchedule(matchedPet.schedule);
+      }
+    }
+
+    // 2) fallback: reservation-level schedule
+    if (!svcName) {
+      svcName = getServiceFromSchedule(appt.schedule);
+    }
+
+    // 3) fallback: mirrored services from Consultation (reservation.services[])
+    if (!svcName) {
+      svcName = serviceFromConsultationArray(appt);
+    }
+
+    // 4) fallback: original requested service (petRequests[].service)
+    if (!svcName && matchedPet) {
+      svcName = serviceFromRequested(appt, matchedPet);
+    }
+
+    // finalize
+    if (!svcName) svcName = '—';
+
+    rowsHtml += `
+      <tr>
+        <td>${appt.ownerName || '—'}</td>
+        <td>${petName}</td>
+        <td>${svcName}</td>
+      </tr>
+    `;
+  });
+
+  $tbody.html(rowsHtml);
+}
+
+
+    // Calendar init
+    flatpickr("#followUpCalendar", {
+      inline: true,
+      dateFormat: "Y-m-d",
+      defaultDate: new Date(),
+      onReady: function(selectedDates, dateStr, instance){
+        // mark highlighted days
+        instance.days.childNodes.forEach(function(dayElem){
+          if (!dayElem.dateObj) return;
+          const d = getLocalDateString(dayElem.dateObj);
+          if (followUpDates.includes(d)) dayElem.classList.add("green-highlight");
         });
-
-      flatpickr("#followUpCalendar", {
-        inline: true,
-        dateFormat: "Y-m-d",
-        onDayCreate: function(dObj, dStr, fp, dayElem) {
-          // Build local date string for the current day cell
-          const dateString = getLocalDateString(dayElem.dateObj);
-          // Add green-highlight only if the date is in followUpDates
-          if (followUpDates.includes(dateString)) {
-            dayElem.classList.add("green-highlight");
-          }
-        },
-        onChange: function(selectedDates, dateStr, instance) {
-          // When a date is selected, filter followUps for matching local date
-          let detailsContainer = document.getElementById('appointmentDetails');
-          let appointments = followUps.filter(function(appt) {
-            let apptDate = getLocalDateString(new Date(appt.schedule.scheduleDate));
-            return apptDate === dateStr;
-          });
-          if (appointments.length > 0) {
-            let html = "";
-            appointments.forEach(function(appt) {
-              html += `<div class="appointment-item">
-                <div class="appointment-info">
-                  <p class="appointment-title">${appt.ownerName}</p>
-                  <p class="appointment-date">
-                    ${new Date(appt.schedule.scheduleDate).toLocaleDateString()} – ${appt.schedule.scheduleDetails}
-                  </p>
-                </div>
-              </div>`;
-            });
-            detailsContainer.innerHTML = html;
-          } else {
-            detailsContainer.innerHTML = "<p>No upcoming appointments.</p>";
-          }
+        // initial table load (today)
+        renderUpcomingFor(getLocalDateString(selectedDates[0] || new Date()));
+      },
+      onDayCreate: function (dObj, dStr, fp, dayElem) {
+        const dateString = getLocalDateString(dayElem.dateObj);
+        if (followUpDates.includes(dateString)) {
+          dayElem.classList.add("green-highlight");
         }
-      });
+      },
+      onChange: function (selectedDates, dateStr) {
+        renderUpcomingFor(dateStr);
+      }
     });
-    
-  </script>
-</body>
-</html>
+  });
+</script>
+
