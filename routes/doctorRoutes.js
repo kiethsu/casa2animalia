@@ -12,7 +12,7 @@ const Inventory = require('../models/inventory');  // NEW: Inventory model
 const Consultation = require('../models/consultation');
 const mongoose = require('mongoose');
 const PetDetailsSetting = require('../models/petDetailsSetting');
-const { broadcast } = require('../utils/hrSse');
+const { broadcast, addClient, removeClient } = require('../utils/hrSse');
 // ----------------- Multer Setup -----------------
 // Updated storage: files will be stored in public/consultation/
 const multer = require('multer');
@@ -136,47 +136,137 @@ async function buildAppointmentsOverTimeData(doctorId) {
   }
   return data;
 }
+// doctors subscribe here for real-time updates
+router.get('/stream', authMiddleware, (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no' // if behind nginx
+  });
+
+  // some Node/Express versions expose flushHeaders; call if present
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+  // let EventSource know to retry after 1s if disconnected
+  res.write('retry: 1000\n\n');
+
+  // register this open connection in hrSse.js
+  addClient(res);
+
+  // clean up on disconnect
+  req.on('close', () => removeClient(res));
+});
 
 // GET /doctor/d-patient
 // GET /doctor/d-patient  (REPLACED)
 // GET /doctor/d-patient
+// GET /doctor/d-patient  (UPDATED: show services from Consultation in table)
+// GET /doctor/d-patient  (SHOW service from Consultation; fallback to per-pet schedule; then to requested service)
 router.get("/d-patient", authMiddleware, async (req, res) => {
   try {
     const reservations = await Reservation.find({
       doctor: req.user.userId,
-      status: { $ne: 'Done' }
+      status: { $ne: "Done" }
     })
-      .populate('pets.petId', 'petName birthday')
+      .populate("pets.petId", "petName birthday")
       .lean();
 
     const reservationIds = reservations.map(r => r._id);
 
+    // Load consultations (include services so we can display them)
     const consults = await Consultation.find({
       reservation: { $in: reservationIds }
-    }).select('targetPetId targetPetName').lean();
+    })
+      .select("reservation targetPetId targetPetName services")
+      .lean();
 
-    const consultedById   = new Set(consults.filter(c => c.targetPetId).map(c => String(c.targetPetId)));
-    const consultedByName = new Set(consults.filter(c => c.targetPetName).map(c => String(c.targetPetName).toLowerCase()));
+    // Build lookup keyed by reservation+pet
+    // Keys: `${resId}::id::${petId}` or `${resId}::name::${petNameLower}`
+    const serviceByKey = new Map();
+    const consultedKey = new Set();
+
+    const extractNames = (arr) => {
+      if (!Array.isArray(arr)) return [];
+      return arr
+        .map(s =>
+          (s?.serviceName ||
+           s?.name ||
+           s?.service?.name ||
+           s?.service?.serviceName ||
+           "").trim()
+        )
+        .filter(Boolean);
+    };
+
+    for (const c of consults) {
+      const resId = String(c.reservation);
+      const names = extractNames(c.services);
+      const label = [...new Set(names)].join(", ");
+      if (c.targetPetId) {
+        const k = `${resId}::id::${String(c.targetPetId)}`;
+        consultedKey.add(k);
+        if (label) serviceByKey.set(k, label);
+      }
+      if (c.targetPetName) {
+        const k = `${resId}::name::${String(c.targetPetName).toLowerCase()}`;
+        consultedKey.add(k);
+        if (label) serviceByKey.set(k, label);
+      }
+    }
 
     const rows = [];
     for (const r of reservations) {
       for (const p of (r.pets || [])) {
         if (p?.done) continue;
+
         const petObj  = p.petId || p;
-        const pid     = petObj && petObj._id ? String(petObj._id) : '';
-        const nameRaw = (petObj && petObj.petName) || p.petName || '';
+        const pid     = petObj?._id ? String(petObj._id) : "";
+        const nameRaw = petObj?.petName || p.petName || "";
         const nameKey = nameRaw.toLowerCase();
+
+        const keyById   = `${String(r._id)}::id::${pid}`;
+        const keyByName = `${String(r._id)}::name::${nameKey}`;
+
+        // 1) Prefer services from the consultation
+        const consultedServices =
+          serviceByKey.get(keyById) || serviceByKey.get(keyByName) || null;
+
+        // 2) Then fallback to the pet's scheduled service (if any)
+        const scheduledService =
+          (p?.schedule?.service?.name) ||
+          (p?.schedule?.scheduleDetails) ||
+          "";
+
+        // 3) Finally, fallback to requested service
+        const requestedService = (function findServiceForPet(res, pet) {
+          if (Array.isArray(res.petRequests) && res.petRequests.length) {
+            const pidStr = pet?.petId ? String(pet.petId) : null;
+            let pr = null;
+            if (pidStr) pr = res.petRequests.find(x => String(x.petId) === pidStr);
+            if (!pr)    pr = res.petRequests.find(x => x.petName === pet.petName);
+            if (pr && pr.service) return pr.service;
+          }
+          return res.service || "—";
+        })(r, p);
+
+        const finalService =
+          consultedServices ||
+          scheduledService ||
+          requestedService ||
+          "—";
+
         const hasConsultation =
-          (p.hasConsult === true) ||
-          (pid && consultedById.has(pid)) ||
-          (nameKey && consultedByName.has(nameKey));
+          p.hasConsult === true ||
+          consultedKey.has(keyById) ||
+          consultedKey.has(keyByName);
 
         rows.push({
           reservationId: String(r._id),
-          ownerName: r.ownerName || '',
+          ownerName: r.ownerName || "",
           petId: pid,
-          petName: nameRaw || '—',
-          service: findServiceForPet(r, p) || '—',
+          petName: nameRaw || "—",
+          service: finalService,         // ✅ now resolves from consult → schedule → requested
           petSchedule: p.schedule || null,
           hasConsultation
         });
@@ -185,33 +275,39 @@ router.get("/d-patient", authMiddleware, async (req, res) => {
 
     const serviceCategories = await ServiceCategory.find({}).lean();
 
-    // ✅ Pull the same services list customers see (PetDetailsSetting.services)
+    // Simple services for schedule modal (from settings; fallback to distinct services)
     const rawPetDetails = await PetDetailsSetting.findOne().lean();
     let simpleServices = [];
     if (Array.isArray(rawPetDetails?.services) && rawPetDetails.services.length) {
       simpleServices = rawPetDetails.services
         .map(s => {
-          if (typeof s === 'string') return s.trim();
-          if (s && typeof s === 'object') {
-            return (s.name || s.serviceName || s.title || s.label || s.value || '').toString().trim();
+          if (typeof s === "string") return s.trim();
+          if (s && typeof s === "object") {
+            return (
+              s.name || s.serviceName || s.title || s.label || s.value || ""
+            ).toString().trim();
           }
-          return '';
+          return "";
         })
         .filter(Boolean)
         .sort((a, b) => a.localeCompare(b));
     } else {
-      // Fallback: de-dup from Service collection if settings are empty
-      simpleServices = (await Service.distinct('serviceName'))
+      simpleServices = (await Service.distinct("serviceName"))
         .filter(Boolean)
         .sort((a, b) => a.localeCompare(b));
     }
-
-    res.render("doctor/d-patient", { rows, serviceCategories, simpleServices });
-  } catch (error) {
-    console.error("Error fetching assigned patients:", error);
-    res.status(500).send("Server error");
-  }
+res.render("doctor/d-patient", {
+  rows,
+  serviceCategories,
+  simpleServices,
+  doctor: { userId: req.user.userId, username: req.user.username }
 });
+} catch (error) {
+  console.error("Error fetching assigned patients:", error);
+  res.status(500).send("Server error");
+}
+});
+
 
 
 
@@ -517,32 +613,7 @@ return res.json({ success: true, consultation: updatedConsult });
     }
   }
 );
-// POST /doctor/save-consult-flag  (OPTIONAL - instant flip button)
-router.post('/save-consult-flag', authMiddleware, async (req, res) => {
-  try {
-    const { reservationId, petId, petName } = req.body;
-    if (!reservationId || (!petId && !petName)) {
-      return res.status(400).json({ success: false, message: 'reservationId + (petId or petName) are required' });
-    }
 
-    const isValid = (s) => mongoose.Types.ObjectId.isValid(String(s));
-    let selector;
-    if (petId && isValid(petId)) {
-      selector = { _id: reservationId, 'pets.petId': new mongoose.Types.ObjectId(petId) };
-    } else {
-      selector = { _id: reservationId, 'pets.petName': petName };
-    }
-
-    const result = await Reservation.updateOne(selector, { $set: { 'pets.$.hasConsult': true } });
-    if ((result.matchedCount ?? result.n) === 0) {
-      return res.status(404).json({ success: false, message: 'Reservation or pet not found' });
-    }
-    res.json({ success: true });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error saving consult flag.' });
-  }
-});
 
 
 
@@ -751,6 +822,214 @@ router.get('/consultation/one', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error('consultation/one error:', e);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// --- Utilities ---
+// --- Utilities ---
+function escapeRegExp(s = '') { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+// GET /doctor/get-pet-history?petId=... OR ?petName=...&ownerName=...
+router.get('/get-pet-history', authMiddleware, async (req, res) => {
+  try {
+    const { petId, petName, ownerName, reservationId } = req.query;
+
+
+    if (!petId && !petName) {
+      return res.status(400).json({ success: false, message: 'petId or petName required' });
+    }
+
+    const isOid = s => mongoose.Types.ObjectId.isValid(String(s));
+    const asOid = s => new mongoose.Types.ObjectId(String(s));
+    const nameRx = petName ? new RegExp('^' + escapeRegExp(petName) + '$', 'i') : null;
+function pickConcerns(resv, consultDoc){
+  try{
+    if (Array.isArray(resv?.petRequests) && resv.petRequests.length){
+      const pid   = consultDoc?.targetPetId || consultDoc?.petId;
+      const pname = String(consultDoc?.targetPetName || consultDoc?.petName || '')
+                      .trim().toLowerCase();
+
+      let pr = null;
+      if (pid)   pr = resv.petRequests.find(x => String(x.petId) === String(pid));
+      if (!pr && pname) pr = resv.petRequests.find(
+        x => String(x.petName || '').trim().toLowerCase() === pname
+      );
+      return pr?.concerns || '';
+    }
+    return resv?.concerns || '';
+  }catch(_){ 
+    return resv?.concerns || ''; 
+  }
+}
+
+    let consults = [];
+
+    // ---------- CASE A: lookup by petId (supports legacy + new fields) ----------
+    if (petId && isOid(petId)) {
+      const oid = asOid(petId);
+      consults = await Consultation.find({
+        $or: [
+          { targetPetId: oid }, // new field
+          { petId: oid }        // legacy field
+        ]
+      })
+      .sort({ updatedAt: -1, _id: -1 })
+      .lean();
+    } else {
+      // ---------- CASE B: lookup by petName ----------
+      // 1) Find reservations that contain this pet name (and match ownerName if provided)
+      const resvs = await Reservation.find({
+        ...(ownerName ? { ownerName } : {}),
+        'pets.petName': nameRx
+      })
+      .select('_id pets')
+      .lean();
+
+      if (!resvs.length) {
+        return res.json({ success: true, history: [] });
+      }
+
+      const resvIds = resvs.map(r => r._id);
+
+      // 2) Collect the ObjectIds of pets whose name matches, for id-based consult docs
+      const matchingPetIds = [];
+      for (const r of resvs) {
+        for (const p of (r.pets || [])) {
+          const n = (p.petId?.petName || p.petName || '');
+          if (nameRx.test(n) && p.petId && isOid(p.petId)) {
+            matchingPetIds.push(asOid(p.petId));
+          }
+        }
+      }
+
+      // 3) Pull consultations for those reservations, matching by:
+      //    - targetPetName (new)
+      //    - petName (legacy)
+      //    - targetPetId (new) in the matched ids
+      //    - petId (legacy) in the matched ids
+      const orParts = [{ targetPetName: nameRx }, { petName: nameRx }];
+      if (matchingPetIds.length) {
+        orParts.push({ targetPetId: { $in: matchingPetIds } });
+        orParts.push({ petId: { $in: matchingPetIds } });
+      }
+
+      consults = await Consultation.find({
+        reservation: { $in: resvIds },
+        $or: orParts
+      })
+      .sort({ updatedAt: -1, _id: -1 })
+      .lean();
+    }
+
+    // ---------- Build response records (+doctor + per-pet next schedule) ----------
+    const resCache = new Map();
+    async function loadReservation(id) {
+      const key = String(id);
+      if (resCache.has(key)) return resCache.get(key);
+      const r = await Reservation.findById(id)
+        .populate('doctor', 'username')
+        .lean();
+      resCache.set(key, r);
+      return r;
+    }
+
+    const history = [];
+    for (const c of consults) {
+      const r = await loadReservation(c.reservation);
+
+    const record = {
+  date: c.updatedAt || c.createdAt,
+  doctor: r?.doctor || null,
+  notes: c.notes || c.consultationNotes || '',
+  physical: {
+    weight:       c.physicalExam?.weight || '',
+    temperature:  c.physicalExam?.temperature || '',
+    observations: c.physicalExam?.observations || ''
+  },
+  diagnosis: c.diagnosis || '',
+  services: (Array.isArray(c.services) ? c.services : []).map(s => ({
+    category:    s.category || 'Uncategorized',
+    serviceName: s.serviceName || '',
+    details:     s.details || '',
+    file:        s.file || null
+  })),
+  medications: (Array.isArray(c.medications) ? c.medications : []).map(m => ({
+    name:     m.name || m.medicationName || '',
+    quantity: typeof m.quantity === 'undefined' ? '' : m.quantity,
+    dosage:   m.dosage || '',
+    remarks:  m.remarks || ''
+  })),
+  confinement: Array.isArray(c.confinementStatus) ? c.confinementStatus : [],
+  nextSchedule: null,
+
+  // ⬇️ new fields
+  reservationId: r?._id || null,
+  concerns: pickConcerns(r, c)
+};
+
+      // Match per-pet schedule by id or (when not present) by name
+      if (r && Array.isArray(r.pets)) {
+        const match = r.pets.find(p =>
+          (c.targetPetId && String(p.petId) === String(c.targetPetId)) ||
+          (!c.targetPetId && (
+            // name from consult
+            (c.targetPetName && (p.petName || p.petId?.petName || '').toLowerCase() === String(c.targetPetName).toLowerCase()) ||
+            // or name filter if we came via petName
+            (nameRx && nameRx.test(p.petId?.petName || p.petName || ''))
+          ))
+        );
+        if (match && match.schedule) {
+          record.nextSchedule = {
+            date:    match.schedule.scheduleDate,
+            details: (match.schedule.service && match.schedule.service.name) ||
+                     match.schedule.scheduleDetails || ''
+          };
+        }
+      }
+
+      history.push(record);
+    }
+
+ // newest first
+history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+// pick a header concern for THIS visit (if reservationId was provided)
+// pick a header concern for THIS visit (if reservationId was provided)
+let headerConcerns = '';
+if (reservationId) {
+  const h = history.find(h => String(h.reservationId) === String(reservationId));
+  if (h && h.concerns) headerConcerns = h.concerns;
+
+  // Fallback: no history yet → derive concern from this reservation's petRequests
+  if (!headerConcerns) {
+    try {
+      const resv = await Reservation.findById(reservationId).lean();
+      if (resv) {
+        const isOid = s => mongoose.Types.ObjectId.isValid(String(s));
+        const asOid = s => new mongoose.Types.ObjectId(String(s));
+        const qPetId   = req.query.petId && isOid(req.query.petId) ? String(asOid(req.query.petId)) : null;
+        const qPetName = (req.query.petName || '').trim().toLowerCase();
+
+        let pr = null;
+        if (Array.isArray(resv.petRequests)) {
+          if (qPetId) {
+            pr = resv.petRequests.find(x => String(x.petId) === qPetId);
+          }
+          if (!pr && qPetName) {
+            pr = resv.petRequests.find(x => String((x.petName || '')).trim().toLowerCase() === qPetName);
+          }
+        }
+
+        headerConcerns = (pr?.concerns || resv.concerns || '').trim();
+      }
+    } catch (_e) { /* noop, keep empty */ }
+  }
+}
+
+return res.json({ success: true, history, headerConcerns });
+
+  } catch (err) {
+    console.error('get-pet-history error:', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
