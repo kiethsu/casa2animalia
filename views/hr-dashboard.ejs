@@ -36,8 +36,9 @@ const pic = typeof profilePic !== 'undefined'
     rel="stylesheet"
     href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"
   />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/airbnb.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/airbnb.css">
+
   <style>
   :root {
     --primary:       #1E88E5;
@@ -48,7 +49,6 @@ const pic = typeof profilePic !== 'undefined'
     --bg-dark:       #0D1B2A;
     --card-bg:       #ffffff;
     --border-color:  rgba(0,0,0,0.08);
-    
   }
 
   /* —— Top bar —— */
@@ -60,7 +60,7 @@ const pic = typeof profilePic !== 'undefined'
     box-shadow: 0 2px 4px rgba(0,0,0,0.25);
     gap: 12px;
   }
-  #topbar .menu-toggle { display: none; } /* same as customer */
+  #topbar .menu-toggle { display: none; }
   #topbar .topbar-paw,
   #topbar .menu-toggle {
     color: var(--white); font-size: 1.5em;
@@ -105,7 +105,7 @@ const pic = typeof profilePic !== 'undefined'
   }
   .sidebar-logo {
     font-size: 1.8rem;
-    color: var(--accent);   /* light-blue paw */
+    color: var(--accent);
   }
   .sidebar-title {
     font-size: 1.2rem; font-weight: 700;
@@ -129,18 +129,13 @@ const pic = typeof profilePic !== 'undefined'
     width: 24px; text-align: center; margin-right: 12px;
   }
 
-  /* —— Hover & Active (same light-blue) —— */
   .sidebar-menu a:hover,
   .sidebar-menu a:focus,
   .sidebar-menu a.active {
     background: var(--accent);
     color: var(--primary-dark);
   }
-
-  /* remove the little ::before bar */
-  .sidebar-menu a.active::before {
-    display: none;
-  }
+  .sidebar-menu a.active::before { display: none; }
 
   /* —— Bottom profile —— */
   .sidebar-bottom-profile {
@@ -205,7 +200,12 @@ const pic = typeof profilePic !== 'undefined'
     #sidebar { width: 70vw; left: -70vw; }
     #sidebar.active { left: 0; }
   }
-</style>
+
+  .swal2-container { z-index: 6000 !important; }
+  .swal2-container.swal2-top,
+  .swal2-container.swal2-top-end,
+  .swal2-container.swal2-top-start { padding-top: 8px; }
+  </style>
 
 </head>
 
@@ -257,10 +257,10 @@ const pic = typeof profilePic !== 'undefined'
           </a>
         </li>
         <li>
-  <a href="#" class="menu-item" data-content="history">
-    <i class="fas fa-clock-rotate-left"></i> History
-  </a>
-</li>
+          <a href="#" class="menu-item" data-content="history">
+            <i class="fas fa-clock-rotate-left"></i> History
+          </a>
+        </li>
 
         <li class="logout mt-3">
           <a href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
@@ -275,43 +275,32 @@ const pic = typeof profilePic !== 'undefined'
       </div>
     </nav>
 
-    <!-- Main Content -->
     <div id="content">
+      <div id="contentLoading" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(255,255,255,.65);z-index:10">
+        <div style="width:28px;height:28px;border:3px solid rgba(13,71,161,.2);border-top-color:#0D47A1;border-radius:50%;animation:spin .8s linear infinite"></div>
+      </div>
       <div id="main-content"><!-- AJAX HR views --></div>
     </div>
+
+    <style>
+      @keyframes spin { to { transform: rotate(360deg) } }
+      #content { position: relative; }
+      #contentLoading.show { display:flex !important; }
+    </style>
   </div>
 
- <!-- JS dependencies -->
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <!-- JS dependencies -->
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
-<script>
-  $(document).ready(function(){
+  <script>
+  $(function () {
+    // --- helpers ---
     const isMobile = () => $(window).width() < 992;
-
-    function showSidebar() {
-      $('#sidebar').addClass('active');
-      $('#sidebarOverlay').addClass('show');
-      $('body').addClass('sidebar-open');
-    }
-    function hideSidebar() {
-      $('#sidebar').removeClass('active');
-      $('#sidebarOverlay').removeClass('show');
-      $('body').removeClass('sidebar-open');
-    }
-
-    // mobile toggle
-    $('#menu-toggle').click(() => {
-      if (!isMobile()) return;
-      $('#sidebar').hasClass('active') ? hideSidebar() : showSidebar();
-    });
-    $('#sidebarOverlay').click(hideSidebar);
-
-    // 🔗 Map logical page keys to routes + titles (includes History)
     const PATH_MAP = {
       reservation: '/hr/reservation',
       petlist: '/hr/petlist',
@@ -325,27 +314,191 @@ const pic = typeof profilePic !== 'undefined'
       history: 'History'
     };
 
-    // load & switch HR views
-    const loadContent = page => {
-      const path = PATH_MAP[page] || `/hr/${page}`;
-      $('#main-content').load(path);
-      $('#subnav-title').text(TITLE_MAP[page] || 'SmartVet');
-    };
+    // Make sure jQuery doesn't cache partials
+    $.ajaxSetup({ cache: false });
 
-    // initial load
+    /* PATCH #1: HARDEN THE PAGE LOADER (prevents stuck overlay on rapid nav) */
+    let __ajaxInFlight = 0;
+    $(document)
+      .on('ajaxSend.dashboard', function (_e, _jq, opts) {
+        const url = (opts && opts.url) || '';
+        if (/^\/(hr|api)\//.test(url)) __ajaxInFlight++;
+      })
+      .on('ajaxComplete.dashboard', function (_e, _jq, opts) {
+        const url = (opts && opts.url) || '';
+        if (/^\/(hr|api)\//.test(url)) {
+          __ajaxInFlight = Math.max(0, __ajaxInFlight - 1);
+          if (__ajaxInFlight === 0) $('#contentLoading').removeClass('show');
+        }
+      });
+
+    // Sidebar show/hide
+    function showSidebar() {
+      $('#sidebar').addClass('active');
+      $('#sidebarOverlay').addClass('show');
+      $('body').addClass('sidebar-open');
+    }
+    function hideSidebar() {
+      $('#sidebar').removeClass('active');
+      $('#sidebarOverlay').removeClass('show');
+      $('body').removeClass('sidebar-open');
+    }
+
+    // Keep all modals above layout & centered (even from AJAX)
+    $(document)
+      .on('show.bs.modal', '.modal', function () {
+        $(this).appendTo('body');
+      })
+      .on('shown.bs.modal', '.modal', function () {
+        $(this).find('.modal-dialog').addClass('modal-dialog-centered');
+      });
+
+    // Clean up UI fragments before swapping views
+    function cleanupBeforeSwap() {
+      try { $('.modal.show').modal('hide'); } catch (e) {}
+      $('.modal-backdrop').remove();
+      $('body').removeClass('modal-open').css('padding-right', '');
+      $('[data-toggle="tooltip"]').tooltip('dispose');
+      $('[data-toggle="popover"]').popover('dispose');
+      $('.flatpickr-calendar').remove();
+    }
+
+    function showLoading() { $('#contentLoading').addClass('show'); }
+    function hideLoading() { $('#contentLoading').removeClass('show'); }
+
+    // --- loader state & busy guard ---
+    let currentXHR = null;
+    let currentLoadId = 0;
+    let currentPageKey = null;   // track where we are
+    let navBusy = false;         // lock during load
+    let loadFailsafeTimer = null;
+
+    function startFailsafe(id) {
+      clearTimeout(loadFailsafeTimer);
+      // if a load truly gets stuck, unlock after 12s
+      loadFailsafeTimer = setTimeout(() => {
+        if (id === currentLoadId) {
+          navBusy = false;
+          hideLoading();
+        }
+      }, 12000);
+    }
+    function stopFailsafe() { clearTimeout(loadFailsafeTimer); }
+
+    function loadContent(pageKey, opts) {
+      const { force = false } = opts || {};
+      const path = PATH_MAP[pageKey] || `/hr/${pageKey}`;
+
+      // Tell current page to unmount (reservation.ejs listens to this)
+      window.dispatchEvent(new CustomEvent('app:beforeNavigate', { detail: { to: path, pageKey } }));
+
+      // If already on this page and not forcing a refresh → no-op
+      if (!force && currentPageKey === pageKey) return;
+
+      // Prevent concurrent loads
+      if (navBusy) return;
+      navBusy = true;
+
+      /* PATCH #2.1: reset overlay before a brand-new load (belt & suspenders) */
+      $('#contentLoading').removeClass('show');
+
+      const loadId = ++currentLoadId;
+
+      // Abort previous inflight request (if any)
+      if (currentXHR && currentXHR.readyState !== 4) {
+        try { currentXHR.abort(); } catch (e) {}
+      }
+
+      cleanupBeforeSwap();
+      showLoading();
+      $('#subnav-title').text(TITLE_MAP[pageKey] || 'SmartVet');
+      startFailsafe(loadId);
+
+      currentXHR = $.ajax({
+        url: path,
+        method: 'GET',
+        dataType: 'html'
+      });
+
+      currentXHR.done(function (html) {
+        // Ignore stale responses
+        if (loadId !== currentLoadId) return;
+
+        $('#main-content').empty().html(html);
+
+        // If a partial ships a modal you want to keep global, give it data-global-modal="true"
+        $('#main-content .modal[data-global-modal="true"]').appendTo('body');
+
+        // Mark current page
+        currentPageKey = pageKey;
+      });
+
+      currentXHR.fail(function (xhr, status) {
+        if (status === 'abort') return;           // aborted by newer navigation
+        if (loadId !== currentLoadId) return;     // stale
+        $('#main-content').html(
+          '<div class="p-4 text-center text-muted">Failed to load. Please try again.</div>'
+        );
+      });
+
+      /* PATCH #2.2: stale-safe always() that never leaves the overlay stuck */
+      currentXHR.always(function () {
+        if (loadId !== currentLoadId) {
+          // A stale/aborted completion — ensure overlay isn't left on
+          if (!currentXHR || currentXHR.readyState === 4) {
+            $('#contentLoading').removeClass('show');
+          }
+          return;
+        }
+        stopFailsafe();
+        hideLoading();
+        currentXHR = null;
+        navBusy = false;
+      });
+    }
+
+    // --- UI wiring ---
+    // initial route
     loadContent('reservation');
 
-    // toggle active class on <a>, not <li>
-    $('.menu-item').click(function(e){
+    // debounce super-fast clicks
+    let navTimer = null;
+    $('.menu-item').on('click', function (e) {
       e.preventDefault();
-      $('.menu-item').removeClass('active');
-      $(this).addClass('active');
-      loadContent($(this).data('content'));
-      if (isMobile()) hideSidebar();
+      const $link = $(this);
+      const page = $link.data('content');
+      if (!page) return;
+
+      // If already active and already on the same page, no-op (but close sidebar on mobile)
+      if ($link.hasClass('active') && currentPageKey === page) {
+        if (isMobile()) hideSidebar();
+        return;
+      }
+
+      clearTimeout(navTimer);
+      navTimer = setTimeout(() => {
+        if (navBusy) return; // do not queue another load while busy
+        $('.menu-item').removeClass('active');
+        $link.addClass('active');
+        loadContent(page);   // guarded: won’t reload same page
+        if (isMobile()) hideSidebar();
+      }, 150); // PATCH: slightly slower debounce to reduce thrash
+    });
+
+    // mobile sidebar
+    $('#menu-toggle').on('click', () => {
+      if (!isMobile()) return;
+      $('#sidebar').hasClass('active') ? hideSidebar() : showSidebar();
+    });
+    $('#sidebarOverlay').on('click', hideSidebar);
+
+    // keep sidebar responsive on resize
+    $(window).on('resize', () => {
+      isMobile() ? hideSidebar() : showSidebar();
     });
 
     // messages popup
-    $('#messageButton').click(() => {
+    $('#messageButton').on('click', () => {
       Swal.fire({
         title: 'Messages',
         text: 'You have new messages.',
@@ -354,21 +507,12 @@ const pic = typeof profilePic !== 'undefined'
       });
     });
 
-    // keep sidebar responsive on resize
-    $(window).resize(() => {
-      isMobile() ? hideSidebar() : showSidebar();
-    });
-
     // keep session alive
     setInterval(() => {
-      $.ajax({
-        url: '/refresh-token',
-        type: 'POST',
-        xhrFields: { withCredentials: true }
-      });
+      $.ajax({ url: '/refresh-token', type: 'POST', xhrFields: { withCredentials: true } });
     }, 50 * 60 * 1000);
   });
-</script>
+  </script>
 
 </body>
 </html>
