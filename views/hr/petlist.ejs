@@ -506,7 +506,7 @@ function viewPetDetails(petId, petName, ownerId, ownerName) {
 $(function(){
   ensureGlobalSpinner();
 
-  // Simple client-side search (unchanged behavior)
+  // Simple client-side search
   $('#petSearchInput').on('input', function(){
     const q = $(this).val().toLowerCase();
     $('#petTableBody tr').each(function(){
