@@ -42,19 +42,24 @@ const walkinSchema = Joi.object({
   ownerId: Joi.string().optional().allow(''),
   ownerName: Joi.string().optional().allow(''),
 
+  // NEW OPTIONAL CONTACTS
+  contactEmail: Joi.string().email({ tlds: { allow: false } }).optional().allow(''),
+  contactMobile: Joi.string()
+    .pattern(/^(\+?63|0)9\d{9}$/)
+    .message('Mobile must be PH format (09XXXXXXXXX or +639XXXXXXXXXX)')
+    .optional()
+    .allow(''),
+
   petName: Joi.string().required().label('Pet Name'),
 
-  // NEW: this flag is sent by the form and toggled by your front-end code
   isExistingPet: Joi.boolean()
     .truthy('true').falsy('false')
     .default(true),
 
-  // Pet meta is required ONLY when adding a brand new pet
   species: Joi.string().trim().when('isExistingPet', { is: false, then: Joi.required(), otherwise: Joi.strip() }).label('Species'),
   breed:   Joi.string().trim().when('isExistingPet', { is: false, then: Joi.required(), otherwise: Joi.strip() }).label('Breed'),
   sex:     Joi.string().valid('Male','Female').when('isExistingPet', { is: false, then: Joi.required(), otherwise: Joi.strip() }).label('Sex'),
 
-  // Disease is split into 2 inputs in the form; normalize later
   existingDisease: Joi.string().optional().allow('').label('Existing Disease'),
   otherDisease: Joi.when('existingDisease', {
     is: 'Other',
@@ -71,8 +76,8 @@ const walkinSchema = Joi.object({
   observations: Joi.string().optional().allow(''),
   concerns:     Joi.string().optional().allow('')
 })
-  .or('ownerId', 'ownerName')   // must provide one of these
-  .unknown(false);              // reject fields we didn’t declare
+  .or('ownerId', 'ownerName')
+  .unknown(false);
 
 function validateWalkin(req, res, next) {
   const { error, value } = walkinSchema.validate(req.body, { abortEarly: false });
@@ -193,8 +198,8 @@ router.get('/stream', authMiddleware, async (req, res) => {
 // NEW: load from your PetList model
 router.get('/petlist', authMiddleware, async (req, res) => {
   try {
-    const entries = await PetList.find()
-      .populate('owner', 'username')
+   const entries = await PetList.find()
+   .populate('owner', 'username email cellphone')
       .populate({
         path: 'consultationHistory.consultation',
         select: 'createdAt',    // or any fields you want
@@ -247,22 +252,25 @@ router.post(
   validateWalkin,
   async (req, res) => {
     try {
-      const {
-        ownerId,
-        ownerName,
-        petName,
-        isExistingPet,        // <-- NEW from schema
-        species,
-        breed,
-        sex,
-        existingDisease,
-        otherDisease,
-        service,
-        date,
-        time,
-        // weight, temperature, observations,
-        concerns
-      } = req.walkinData;
+    const {
+  ownerId,
+  ownerName,
+  contactEmail,   // NEW
+  contactMobile,  // NEW
+  petName,
+  isExistingPet,
+  species,
+  breed,
+  sex,
+  existingDisease,
+  otherDisease,
+  service,
+  date,
+  time,
+  // weight, temperature, observations,
+  concerns
+} = req.walkinData;
+
 // --- NORMALIZE UI TOKENS COMING FROM THE <select> ---
 // The Owner <select> uses "ID::<ObjectId>" for accounts and "NAME::<text>" for walk-ins.
 // Strip those prefixes so we never save tokens into the DB.
@@ -306,7 +314,10 @@ if (ownerIdNorm) {
         date,
         time,
         status:        'Approved',
-        isExistingPet: !!isExistingPet    // <-- store the flag
+        isExistingPet: !!isExistingPet ,   // <-- store the flag
+          // NEW
+  contactEmail:  (contactEmail && contactEmail.trim()) || undefined,
+  contactMobile: (contactMobile && contactMobile.trim()) || undefined
       };
 
       // If it's a NEW pet, keep the quick meta on the reservation so you can later
@@ -382,46 +393,34 @@ router.post('/approve-reservation',
 
       // 4) Notify customer (email) — non-blocking
       try {
-        const customer = await User.findById(reservation.owner);
-        if (customer && customer.email) {
-          const transporter = nodemailer.createTransport({
-            host: "smtp-relay.brevo.com",
-            port: 587,
-            secure: false,
-            auth: { user: process.env.SMTP_EMAIL, pass: process.env.SMTP_PASS },
-            logger: true,
-            debug: true
-          });
+      const customer = reservation.owner ? await User.findById(reservation.owner) : null;
+const toEmail = (customer && customer.email) || reservation.contactEmail;
 
-          // optional connectivity check (non-blocking log)
-          transporter.verify((error) => {
-            if (error) console.error("SMTP connection error:", error);
-          });
+if (toEmail) {
+  const displayName = (customer && (customer.username || customer.name)) || reservation.ownerName || 'Customer';
 
-          const mailOptions = {
-            from: `"SmartVet Clinic" <dehe.marquez.au@phinmaed.com>`,
-            to: customer.email,
-            subject: "Your Consultation is Approved!",
-            text:
-`Hello ${customer.username || 'Customer'},
+  const mailOptions = {
+    from: `"SmartVet Clinic" <dehe.marquez.au@phinmaed.com>`,
+    to: toEmail,
+    subject: "Your Consultation is Approved!",
+    text:
+`Hello ${displayName},
 
 Your consultation has been approved by our HR team.
 You can now visit the vet clinic at your earliest convenience.
 
 Thank you,
 SmartVet Clinic`
-          };
+  };
 
-          transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-              console.error("Error sending approval email:", error);
-            } else {
-              console.log("Approval email sent:", info.response);
-            }
-          });
-        } else {
-          console.warn("Customer email not found for reservation:", reservation._id);
-        }
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) console.error("Error sending approval email:", error);
+    else console.log("Approval email sent:", info.response);
+  });
+} else {
+  console.warn("No email available for reservation:", reservation._id);
+}
+
       } catch (mailErr) {
         console.error("Email notification failed:", mailErr);
         // do not fail the main request on email issues
@@ -436,6 +435,87 @@ SmartVet Clinic`
   }
 );
 
+// --- Update PetList contact (walk-ins only) ---
+const updatePetListContactSchema = Joi.object({
+  id:            Joi.string().required(),
+  contactEmail:  Joi.string().email({ tlds: { allow: false } }).allow('', null),
+  contactMobile: Joi.string()
+                      .pattern(/^(\+?63|0)9\d{9}$/)
+                      .message('Mobile must be PH format (09XXXXXXXXX or +639XXXXXXXXXX)')
+                      .allow('', null),
+  applyToAllSameWalkin: Joi.boolean().truthy('true').falsy('false').default(false)
+});
+
+router.post(
+  '/petlist/update-contact',
+  authMiddleware,
+  validateRequest(updatePetListContactSchema),
+  async (req, res) => {
+    try {
+      const { id, contactEmail, contactMobile, applyToAllSameWalkin } = req.body;
+
+      // Guard: valid ObjectId
+      if (!isValidObjectId(id)) {
+        return res.status(400).json({ success: false, message: 'Invalid PetList id.' });
+      }
+
+      const entry = await PetList.findById(id).populate('owner', '_id').lean();
+      if (!entry) {
+        return res.status(404).json({ success:false, message:'PetList entry not found.' });
+      }
+
+      // If this row belongs to an account owner, block edits here.
+      if (entry.owner && entry.owner._id) {
+        return res.status(400).json({
+          success: false,
+          message: 'This owner has an account. Update their email/mobile in the User profile. Pet List will reflect it automatically.'
+        });
+      }
+
+      // Build updates safely (no empty $set)
+      const $set = {};
+      const $unset = {};
+
+      if (typeof contactEmail === 'string' || contactEmail === null) {
+        const v = (contactEmail || '').trim();
+        if (v) $set.contactEmail = v; else $unset.contactEmail = '';
+      }
+      if (typeof contactMobile === 'string' || contactMobile === null) {
+        const v = (contactMobile || '').trim();
+        if (v) $set.contactMobile = v; else $unset.contactMobile = '';
+      }
+
+      // If no changes, short-circuit
+      const hasSet = Object.keys($set).length > 0;
+      const hasUnset = Object.keys($unset).length > 0;
+      if (!hasSet && !hasUnset) {
+        return res.json({ success: true, message: 'No changes.' });
+      }
+
+      const updateDoc = {};
+      if (hasSet) updateDoc.$set = $set;
+      if (hasUnset) updateDoc.$unset = $unset;
+
+      if (applyToAllSameWalkin) {
+        // Match walk-ins robustly: owner missing OR null, and same ownerName
+        await PetList.updateMany(
+          {
+            ownerName: entry.ownerName,
+            $or: [{ owner: { $exists: false } }, { owner: null }]
+          },
+          updateDoc
+        );
+      } else {
+        await PetList.updateOne({ _id: id }, updateDoc);
+      }
+
+      return res.json({ success: true });
+    } catch (err) {
+      console.error('petlist/update-contact failed:', err);
+      return res.status(500).json({ success:false, message:'Server error' });
+    }
+  }
+);
 
 // ===================== ASSIGN DOCTOR (updated) =====================
 const assignDoctorSchema = Joi.object({
@@ -589,6 +669,7 @@ router.get('/get-medication', authMiddleware, validateRequest(reservationIdSchem
 // Add pet from reservation (validate reservationId)
 // 1) Add to PetList (on “Add” button)
 // Add to PetList (on “Add” button)
+// Add to PetList (on “Add” button)
 router.post('/add-to-petlist', authMiddleware, validateRequest(reservationIdSchema), async (req, res) => {
   try {
     const { reservationId } = req.body;
@@ -598,6 +679,20 @@ router.post('/add-to-petlist', authMiddleware, validateRequest(reservationIdSche
 
     const consults = await Consultation.find({ reservation: reservationId }).lean();
     if (!consults.length) return res.status(404).json({ success: false, message: 'No consult found.' });
+
+    // ---------- 1) Decide the BEST contact info ONCE ----------
+    // Prefer the reservation’s contact (walk-ins), otherwise fall back to the User record (accounts).
+    let contactEmail  = reservation.contactEmail  || null;
+    let contactMobile = reservation.contactMobile || null;
+
+    if (reservation.owner) {
+      const ownerDoc = await User.findById(reservation.owner).lean();
+      if (ownerDoc) {
+        if (!contactEmail)  contactEmail  = ownerDoc.email || null;
+        if (!contactMobile) contactMobile = ownerDoc.cellphone || null;
+      }
+    }
+    // ----------------------------------------------------------
 
     // helper to resolve pet name for a consultation
     const petsArr = reservation.pets || [];
@@ -621,39 +716,62 @@ router.post('/add-to-petlist', authMiddleware, validateRequest(reservationIdSche
       return '—';
     };
 
+    // ---------- 2) For each consult, create/update the PetList row ----------
     for (const c of consults) {
       const petName = resolvePetName(c);
       if (!petName || petName === '—') continue;
 
-// build a safe lookup (owner when present, else ownerName)
-const baseLookup = reservation.owner
-  ? { owner: reservation.owner, petName }
-  : { ownerName: reservation.ownerName, petName };
+      // look up by owner (if account) OR ownerName (walk-in) + petName
+      const baseLookup = reservation.owner
+        ? { owner: reservation.owner, petName }
+        : { ownerName: reservation.ownerName, petName };
 
-let entry = await PetList.findOne(baseLookup).lean();
+      let entry = await PetList.findOne(baseLookup).lean();
 
-if (!entry) {
-  // create new entry for this pet (include ownerName always)
-  entry = await PetList.create({
-    owner: reservation.owner ?? undefined,
-    ownerName: reservation.ownerName,
-    petName,
-    reservation: reservationId,
-    consultationHistory: [{ reservation: reservationId, consultation: c._id }]
-  });
-} else {
-  // push only if this reservation not present yet
-  const hasThis = (entry.consultationHistory || [])
-    .some(ch => String(ch.reservation) === String(reservationId));
-  if (!hasThis) {
-    await PetList.updateOne(
-      { _id: entry._id },
-      { $push: { consultationHistory: { reservation: reservationId, consultation: c._id } } }
-    );
-  }
-}
+      if (!entry) {
+        // Create NEW PetList entry and store the contact info immediately
+        entry = await PetList.create({
+          owner: reservation.owner ?? undefined,
+          ownerName: reservation.ownerName,
+          petName,
+          reservation: reservationId,
+          contactEmail,              // <<<<<<<<<< NEW
+          contactMobile,             // <<<<<<<<<< NEW
+          consultationHistory: [{ reservation: reservationId, consultation: c._id }]
+        });
+      } else {
+        // Update existing row:
+        //  - push this reservation into consultationHistory if missing
+        //  - fill in contact fields if they are currently empty
+        const hasThis = (entry.consultationHistory || [])
+          .some(ch => String(ch.reservation) === String(reservationId));
 
+        const setPayload = {};
+        if (!entry.contactEmail && contactEmail)   setPayload.contactEmail  = contactEmail;
+        if (!entry.contactMobile && contactMobile) setPayload.contactMobile = contactMobile;
+
+        if (!hasThis && Object.keys(setPayload).length) {
+          await PetList.updateOne(
+            { _id: entry._id },
+            { 
+              $set: setPayload,
+              $push: { consultationHistory: { reservation: reservationId, consultation: c._id } }
+            }
+          );
+        } else if (!hasThis) {
+          await PetList.updateOne(
+            { _id: entry._id },
+            { $push: { consultationHistory: { reservation: reservationId, consultation: c._id } } }
+          );
+        } else if (Object.keys(setPayload).length) {
+          await PetList.updateOne(
+            { _id: entry._id },
+            { $set: setPayload }
+          );
+        }
+      }
     }
+    // -----------------------------------------------------------------------
 
     await Reservation.findByIdAndUpdate(reservationId, { status: 'Done' });
     return res.json({ success: true });
@@ -662,8 +780,6 @@ if (!entry) {
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
-
-
 
 // 2) Update PetList (on “Update” button)
 // 2) Update PetList (on “Update” button)
@@ -676,6 +792,19 @@ router.post('/update-petlist', authMiddleware, validateRequest(reservationIdSche
 
     const consults = await Consultation.find({ reservation: reservationId }).lean();
     if (!consults.length) return res.status(404).json({ success: false, message: 'No consult found.' });
+
+    // ---------- 1) Decide the BEST contact info ONCE ----------
+    let contactEmail  = reservation.contactEmail  || null;
+    let contactMobile = reservation.contactMobile || null;
+
+    if (reservation.owner) {
+      const ownerDoc = await User.findById(reservation.owner).lean();
+      if (ownerDoc) {
+        if (!contactEmail)  contactEmail  = ownerDoc.email || null;
+        if (!contactMobile) contactMobile = ownerDoc.cellphone || null;
+      }
+    }
+    // ----------------------------------------------------------
 
     const petsArr = reservation.pets || [];
     const resolvePetName = (c) => {
@@ -699,33 +828,50 @@ router.post('/update-petlist', authMiddleware, validateRequest(reservationIdSche
       const petName = resolvePetName(c);
       if (!petName || petName === '—') continue;
 
-    // safe lookup
-const baseLookup = reservation.owner
-  ? { owner: reservation.owner, petName }
-  : { ownerName: reservation.ownerName, petName };
+      const baseLookup = reservation.owner
+        ? { owner: reservation.owner, petName }
+        : { ownerName: reservation.ownerName, petName };
 
-let entry = await PetList.findOne(baseLookup).lean();
+      let entry = await PetList.findOne(baseLookup).lean();
 
-if (!entry) {
-  // if missing, create it (works even if Add was skipped)
-  entry = await PetList.create({
-    owner: reservation.owner ?? undefined,
-    ownerName: reservation.ownerName,
-    petName,
-    reservation: reservationId,
-    consultationHistory: [{ reservation: reservationId, consultation: c._id }]
-  });
-} else {
-  const hasThis = (entry.consultationHistory || [])
-    .some(ch => String(ch.reservation) === String(reservationId));
-  if (!hasThis) {
-    await PetList.updateOne(
-      { _id: entry._id },
-      { $push: { consultationHistory: { reservation: reservationId, consultation: c._id } } }
-    );
-  }
-}
+      if (!entry) {
+        entry = await PetList.create({
+          owner: reservation.owner ?? undefined,
+          ownerName: reservation.ownerName,
+          petName,
+          reservation: reservationId,
+          contactEmail,              // <<<<<<<<<< NEW
+          contactMobile,             // <<<<<<<<<< NEW
+          consultationHistory: [{ reservation: reservationId, consultation: c._id }]
+        });
+      } else {
+        const hasThis = (entry.consultationHistory || [])
+          .some(ch => String(ch.reservation) === String(reservationId));
 
+        const setPayload = {};
+        if (!entry.contactEmail && contactEmail)   setPayload.contactEmail  = contactEmail;
+        if (!entry.contactMobile && contactMobile) setPayload.contactMobile = contactMobile;
+
+        if (!hasThis && Object.keys(setPayload).length) {
+          await PetList.updateOne(
+            { _id: entry._id },
+            { 
+              $set: setPayload,
+              $push: { consultationHistory: { reservation: reservationId, consultation: c._id } }
+            }
+          );
+        } else if (!hasThis) {
+          await PetList.updateOne(
+            { _id: entry._id },
+            { $push: { consultationHistory: { reservation: reservationId, consultation: c._id } } }
+          );
+        } else if (Object.keys(setPayload).length) {
+          await PetList.updateOne(
+            { _id: entry._id },
+            { $set: setPayload }
+          );
+        }
+      }
     }
 
     await Reservation.findByIdAndUpdate(reservationId, { status: 'Done' });
@@ -735,7 +881,6 @@ if (!entry) {
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
-
 
 
 // GET /hr/get-pet-history
@@ -782,40 +927,89 @@ router.get('/get-pet-history', authMiddleware, async (req, res) => {
     if (!entry) {
       return res.json({ success: false, message: 'PetList entry not found.' });
     }
+// Build pet meta (name + species/breed/sex)
+// 1) If account owner, pull from Pet collection.
+// 2) If walk-in, try newest related Reservation (where you may have saved quick meta for new pets).
+let petMeta = { name: entry.petName, species: '', breed: '', sex: '' };
+
+try {
+  if (entry.owner) {
+    const petDoc = await Pet.findOne(
+      { owner: entry.owner, petName: entry.petName },
+      'species breed sex'
+    ).lean();
+    if (petDoc) {
+      petMeta.species = petDoc.species || '';
+      petMeta.breed   = petDoc.breed   || '';
+      petMeta.sex     = petDoc.sex     || '';
+    }
+  } else {
+    const latestCh = (entry.consultationHistory || [])
+      .slice()
+      .sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt))[0];
+
+    if (latestCh && latestCh.reservation) {
+      // Pull quick meta stored on reservation for NEW pets
+      const r = await Reservation.findById(latestCh.reservation, 'species breed sex').lean();
+      if (r) {
+        petMeta.species = r.species || '';
+        petMeta.breed   = r.breed   || '';
+        petMeta.sex     = r.sex     || '';
+      }
+    }
+  }
+} catch (_) { /* best effort only */ }
 
     // map out history with nextSchedule
-    const history = (entry.consultationHistory || [])
-      .map(ch => {
-        const c = ch.consultation || {};
-        const resv = c.reservation || {};
-        return {
-          id:         c._id,
-          date:       c.createdAt || ch.addedAt,
-          doctor:     resv.doctor || null,
-          notes:      c.notes || c.consultationNotes || '',
-          physical:   c.physicalExam || { weight: '', temperature: '', observations: '' },
-          diagnosis:  c.diagnosis || '',
-          services:   (c.services || []).map(s => ({
-                        category:    s.category    || 'Uncategorized',
-                        serviceName: s.serviceName || '',
-                        details:     s.details     || '',
-                        file:        s.file        || null
-                      })),
-          medications:(c.medications || []).map(m => ({
-                        name:     m.name     || m.medicationName || '',
-                        dosage:   m.dosage   || '',
-                        remarks:  m.remarks  || '',
-                        quantity: m.quantity || 0
-                      })),
-          confinement:c.confinementStatus || [],
-          nextSchedule: resv.schedule
-            ? { date: resv.schedule.scheduleDate, details: resv.schedule.scheduleDetails }
-            : null
-        };
-      })
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
+const history = (entry.consultationHistory || [])
+  .map(ch => {
+    const c    = ch.consultation || {};
+    const resv = c.reservation   || {};
 
-    return res.json({ success: true, history });
+    // --- NEW: normalize diseases based on possible schema keys ---
+    const diseaseRaw =
+          Array.isArray(c.diseases)         ? c.diseases
+        : c.disease                         ? [c.disease]
+        : Array.isArray(c.existingDiseases) ? c.existingDiseases
+        : c.existingDisease                 ? [c.existingDisease]
+        : resv.disease                      ? [resv.disease]      // fallback from reservation
+        : [];
+
+    const diseases = diseaseRaw
+      .map(x => String(x || '').trim())
+      .filter(Boolean)
+      .filter((v, i, a) => a.findIndex(z => z.toLowerCase() === v.toLowerCase()) === i) // de-dupe (case-insensitive)
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+    return {
+      id:         c._id,
+      date:       c.createdAt || ch.addedAt,
+      doctor:     resv.doctor || null,
+      notes:      c.notes || c.consultationNotes || '',
+      physical:   c.physicalExam || { weight: '', temperature: '', observations: '' },
+      diagnosis:  c.diagnosis || '',
+      diseases, // <-- NEW FIELD in the payload
+      services:   (c.services || []).map(s => ({
+                    category:    s.category    || 'Uncategorized',
+                    serviceName: s.serviceName || '',
+                    details:     s.details     || '',
+                    file:        s.file        || null
+                  })),
+      medications:(c.medications || []).map(m => ({
+                    name:     m.name     || m.medicationName || '',
+                    dosage:   m.dosage   || '',
+                    remarks:  m.remarks  || '',
+                    quantity: m.quantity || 0
+                  })),
+      confinement:c.confinementStatus || [],
+      nextSchedule: resv.schedule
+        ? { date: resv.schedule.scheduleDate, details: resv.schedule.scheduleDetails }
+        : null
+    };
+  })
+  .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+return res.json({ success: true, pet: petMeta, history });
   } catch (err) {
     console.error('get-pet-history failed:', err);
     return res.status(500).json({ success: false, message: 'Server error' });
@@ -959,12 +1153,18 @@ router.get('/get-consultation-details', authMiddleware, async (req, res) => {
         let inv = null;
         if (medName) inv = await Inventory.findOne({ name: medName }).lean();
 
-        const unitPrice =
-          (typeof m.unitPrice === 'number')
-            ? m.unitPrice
-            : (typeof inv?.basePrice === 'number'
-                ? inv.basePrice
-                : (typeof inv?.price === 'number' ? inv.price : 0));
+        // Prefer the selling price (basePrice + markup). Fallbacks included.
+const unitPrice = (() => {
+  if (typeof m.unitPrice === 'number') return m.unitPrice;    // keep explicit override
+  if (inv) {
+    if (typeof inv.price === 'number') return inv.price;       // already computed (pre hooks)
+    const b  = Number(inv.basePrice || 0);
+    const mk = Number(inv.markup || 0);
+    return b + mk;                                             // legacy docs w/o .price
+  }
+  return 0;
+})();
+
 
         // heuristic for "Added" label on manual rows
         const hasConsultTarget = !!(c.targetPetId || c.targetPetName || c.petId || c.petName);
@@ -1107,88 +1307,131 @@ router.get('/inventory/categories', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /hr/inventory/listByCategory?category=…
 router.get('/inventory/listByCategory', authMiddleware, async (req, res) => {
   try {
     const { category } = req.query;
-  const products = await Inventory.find({ category }, 'name basePrice').lean();
-res.json({
-  success: true,
-  products: products.map(p => ({ name: p.name, price: p.basePrice }))
-});
+    const products = await Inventory
+      .find({ category }, 'name price basePrice markup')
+      .lean();
 
+    res.json({
+      success: true,
+      products: products.map(p => ({
+        name: p.name,
+        // selling price = basePrice + markup (prefer the stored .price if present)
+        price: (typeof p.price === 'number')
+          ? p.price
+          : (Number(p.basePrice || 0) + Number(p.markup || 0))
+      }))
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// Your /mark-paid route
+
+// Your /mark-paid route (REPLACE the whole block)
 router.post(
   '/mark-paid',
   authMiddleware,
   validateRequest(markPaidSchema),
   async (req, res) => {
     try {
-      const { reservationId, amount, products, services } = req.body;
-// keep only the fields we actually store
-const cleanProducts = (products || []).map(p => ({
-  name:      p.name,
-  quantity:  Number(p.quantity)  || 0,
-  unitPrice: Number(p.unitPrice) || 0,
-  lineTotal: Number(p.lineTotal) || 0
-}));
-
-const cleanServices = (services || []).map(s => ({
-  name:      s.name,
-  quantity:  Number(s.quantity)  || 0,
-  unitPrice: Number(s.unitPrice) || 0,
-  lineTotal: Number(s.lineTotal) || 0
-}));
+      const { reservationId } = req.body;
+      const products = Array.isArray(req.body.products) ? req.body.products : [];
+      const services = Array.isArray(req.body.services) ? req.body.services : [];
 
       // 1) Find & mark reservation paid
       const reservation = await Reservation.findById(reservationId);
       if (!reservation) {
         return res.status(404).json({ success: false, message: 'Reservation not found.' });
       }
+
+      // --- Build an Inventory lookup to get selling prices (base + markup) ---
+      const names = [...new Set(products.map(p => p.name).filter(Boolean))];
+      const invDocs = names.length
+        ? await Inventory.find(
+            { name: { $in: names } },
+            'name price basePrice markup quantity'
+          ).lean()
+        : [];
+      const invByName = new Map(invDocs.map(d => [d.name, d]));
+
+      // 2) Clean + normalize Products — compute unitPrice from Inventory
+      const cleanProducts = products.map(p => {
+        const inv = invByName.get(p.name);
+        const unit = inv
+          ? (typeof inv.price === 'number'
+              ? inv.price
+              : (Number(inv.basePrice || 0) + Number(inv.markup || 0)))
+          : Number(p.unitPrice || 0); // fallback if not found in inventory
+        const qty = Number(p.quantity || 0);
+        const lineTotal = parseFloat((unit * qty).toFixed(2));
+        return {
+          name:      p.name,
+          quantity:  qty,
+          unitPrice: unit,
+          lineTotal
+        };
+      });
+
+      // 3) Clean Services (keep incoming price unless you also want to force-load from Service model)
+      const cleanServices = services.map(s => {
+        const qty = Number(s.quantity || 0);
+        const unit = Number(s.unitPrice || 0);
+        const lineTotal = parseFloat((unit * qty).toFixed(2));
+        return {
+          name:      s.name,
+          quantity:  qty,
+          unitPrice: unit,
+          lineTotal
+        };
+      });
+
+      // 4) Compute authoritative amount on the server
+      const computedAmount =
+        cleanProducts.reduce((sum, i) => sum + i.lineTotal, 0) +
+        cleanServices.reduce((sum, i) => sum + i.lineTotal, 0);
+
+      // Mark reservation paid
       reservation.status = 'Paid';
       await reservation.save();
 
-// 2) Decrement each product’s inventory (skip full-doc validation)
-for (const { name, quantity } of cleanProducts) {
-  const invDoc = await Inventory.findOne({ name }).lean();
-  if (!invDoc) continue;
+      // 5) Decrement each product’s inventory (use the lookup; fallback query if missing)
+      for (const { name, quantity } of cleanProducts) {
+        const inv = invByName.get(name) || await Inventory.findOne({ name }).lean();
+        if (!inv) continue;
 
-  const newQty = Math.max((invDoc.quantity || 0) - Number(quantity || 0), 0);
+        const newQty = Math.max(Number(inv.quantity || 0) - Number(quantity || 0), 0);
 
-  // Only update the quantity field; this won't trigger required validators on other fields
-  await Inventory.updateOne(
-    { _id: invDoc._id },
-    { $set: { quantity: newQty } }
-  );
-}
+        // Only update the quantity field; this won't trigger other validators
+        await Inventory.updateOne(
+          { _id: inv._id },
+          { $set: { quantity: newQty } }
+        );
+      }
 
-      // 3) Save the payment record — now with customer & by
-// inside router.post('/mark-paid', ...)
-const payment = new Payment({
-  reservation:  reservation._id,
-  customer:     reservation.owner || undefined, // <-- only if there is a real user
-  customerName: reservation.ownerName || '',    // <-- always capture the name
-  by:           req.user.userId,
-  products:     cleanProducts,
-  services:     cleanServices,
-  amount
-});
-await payment.save();
+      // 6) Save the payment record — always store computed selling prices and totals
+      const payment = new Payment({
+        reservation:  reservation._id,
+        customer:     reservation.owner || undefined, // if there is a real user
+        customerName: reservation.ownerName || '',
+        by:           req.user.userId,
+        products:     cleanProducts,
+        services:     cleanServices,
+        amount:       parseFloat(computedAmount.toFixed(2))
+      });
+      await payment.save();
 
-
-      return res.json({ success: true, reservation });
+      return res.json({ success: true, reservation, paymentId: String(payment._id) });
     } catch (err) {
       console.error('Error marking paid and updating inventory:', err);
       return res.status(500).json({ success: false, message: 'Server error' });
     }
   }
 );
+
  // === POS / Retail: mark paid without reservation ===
  const retailPaidSchema = Joi.object({
    customerName: Joi.string().optional().allow(''),
