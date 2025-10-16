@@ -991,78 +991,65 @@ function safe(str){ return (typeof escapeHtml === 'function') ? escapeHtml(str) 
               `;
             }
 
-            // Diagnosis
-            if (pp.diagnosis) {
-              html += `
-                <div style="margin-bottom:10px;">
-                  <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-dna"></i> Diagnosis</div>
-                  <div class="rv-note">${pp.diagnosis}</div>
-                </div>
-              `;
-            }
+          // Disease(s)
+const diseases = Array.isArray(pp.diseases)
+  ? pp.diseases.map(s => safe(s)).filter(Boolean)
+  : [];
+if (diseases.length) {
+  html += `
+    <div style="margin-bottom:10px;">
+      <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-virus"></i> Disease(s)</div>
+      <div class="rv-note">${diseases.join(', ')}</div>
+    </div>
+  `;
+}
 
-            // Services table
-            if (Array.isArray(pp.services) && pp.services.length) {
-              html += `
-                <div style="margin-bottom:10px;">
-                  <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-briefcase-medical"></i> Services Rendered</div>
-                  <div class="table-responsive">
-                    <table class="rv-table">
-                      <thead><tr><th>Service</th><th>Details</th><th>File</th></tr></thead>
-                      <tbody>
-              `;
-              pp.services.forEach(s => {
-                let fileUrl = s.file || '';
-                if (fileUrl) {
-                  fileUrl = fileUrl.replace(/^public/, '');
-                  if (!fileUrl.startsWith('/')) fileUrl = '/' + fileUrl;
-                  if (!/^https?:\/\//.test(fileUrl)) fileUrl = window.location.origin + fileUrl;
-                }
-                html += `
-                  <tr>
-                    <td><span class="rv-chip">${safe(s.serviceName || '—')}</span></td>
-                    <td>${safe(s.details || '—')}</td>
-                    <td>${fileUrl ? `<a href="${fileUrl}" download>Download</a>` : '—'}</td>
-                  </tr>
-                `;
-              });
-              html += `</tbody></table></div></div>`;
-            }
 
-            // Medications table
-            if (Array.isArray(pp.medications) && pp.medications.length) {
-              html += `
-                <div style="margin-bottom:10px;">
-                  <div class="rv-header" style="margin-bottom:6px;">
-                    <div class="rv-label" style="margin:0;"><i class="fa-solid fa-pills"></i> Medications</div>
-                  </div>
-                  <div class="table-responsive">
-                    <table class="rv-table">
-                      <thead><tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr></thead>
-                      <tbody>
-              `;
-              pp.medications.forEach(m => {
-                html += `
-                  <tr>
-                    <td>${safe(m.name || m.medicationName || '—')}</td>
-                    <td>${safe(m.quantity || '—')}</td>
-                    <td>${safe(m.dosage || '—')}</td>
-                    <td>${safe(m.remarks || '—')}</td>
-                  </tr>
-                `;
-              });
-              html += `</tbody></table></div></div>`;
-            }
+           // Services table (Service only)
+if (Array.isArray(pp.services) && pp.services.length) {
+  html += `
+    <div style="margin-bottom:10px;">
+      <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-briefcase-medical"></i> Services Rendered</div>
+      <div class="table-responsive">
+        <table class="rv-table">
+          <thead><tr><th>Service</th></tr></thead>
+          <tbody>
+  `;
+  pp.services.forEach(s => {
+    html += `
+      <tr>
+        <td><span class="rv-chip">${safe(s.serviceName || '—')}</span></td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table></div></div>`;
+}
 
-            // Confinement / Notes
-            if (Array.isArray(pp.confinementStatus) && pp.confinementStatus.length) {
-              html += `
-                <div style="margin-bottom:10px;">
-                  <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-hospital"></i> Confinement</div>
-                  <div class="rv-note">${safe(pp.confinementStatus.join(', '))}</div>
-                </div>
-              `;
-            }
+
+           // Medications table (Name & Qty only)
+if (Array.isArray(pp.medications) && pp.medications.length) {
+  html += `
+    <div style="margin-bottom:10px;">
+      <div class="rv-header" style="margin-bottom:6px;">
+        <div class="rv-label" style="margin:0;"><i class="fa-solid fa-pills"></i> Medications</div>
+      </div>
+      <div class="table-responsive">
+        <table class="rv-table">
+          <thead><tr><th>Name</th><th>Qty</th></tr></thead>
+          <tbody>
+  `;
+  pp.medications.forEach(m => {
+    html += `
+      <tr>
+        <td>${safe(m.name || m.medicationName || '—')}</td>
+        <td>${safe(typeof m.quantity === 'undefined' ? '—' : m.quantity)}</td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table></div></div>`;
+}
+
+         
             if (pp.notes) {
               html += `
                 <div>
