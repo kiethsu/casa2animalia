@@ -209,7 +209,7 @@
   letter-spacing: 0.5px;
 }
 
-/* Color‐code each KPI by position */
+/* Color‐code each KPI by position (now 5 cards) */
 #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(1) {
   /* Current Year Sales → light blue */
   background: #e3f2fd;
@@ -219,7 +219,7 @@
 }
 
 #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(2) {
-  /* Total Transactions → light green */
+  /* Current Year Total Transaction → light green */
   background: #e8f5e9;
 }
 #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(2) i {
@@ -235,12 +235,21 @@
 }
 
 #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(4) {
+  /* Past Year Total Transaction → light purple */
+  background: #f3e5f5;
+}
+#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(4) i {
+  color: #6f42c1;
+}
+
+#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(5) {
   /* Sales Growth → light orange */
   background: #fff3e0;
 }
-#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(4) i {
+#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(5) i {
   color: #fd7e14;
 }
+
 
   /* ─── New Color‐coding for “Current” vs “Previous” KPI Headers ───────── */
   .period-header {
@@ -889,6 +898,90 @@
   max-height: calc(5 * 2.2rem);
   overflow-y: auto; /* will only show a slim scroll when needed */
 }
+/* Color coding like Sales Trend table */
+#diseaseTable tbody tr:nth-child(1) td { background: rgba(0,143,251,0.05); } /* blue */
+#diseaseTable tbody tr:nth-child(2) td { background: rgba(254,176,25,0.05); } /* yellow */
+#diseaseTable tbody tr:nth-child(3) td { background: rgba(40,167,69,0.05); }  /* green */
+#diseaseTable tbody tr:nth-child(odd) td { background: rgba(0,143,251,0.03); }
+#diseaseTable tbody tr:nth-child(even) td { background: rgba(254,176,25,0.03); }
+#diseaseTable tbody tr:hover td { background: rgba(0,0,0,0.03); }
+
+/* Make the table body scroll when 5+ rows */
+#diseaseTable.scrollable-table thead,
+#diseaseTable.scrollable-table tbody tr {
+  display: table; width: 100%; table-layout: fixed;
+}
+#diseaseTable.scrollable-table thead { background: #fff; z-index: 1; }
+#diseaseTable.scrollable-table tbody {
+  display: block;
+  max-height: calc(5 * 2.2rem); /* ~5 rows */
+  overflow-y: auto;
+}
+/* Hide vertical scrollbar only in Top Conditions table */
+#diseaseTable.scrollable-table tbody{
+  /* you already set max-height; keep it */
+  -ms-overflow-style: none;   /* IE/Edge */
+  scrollbar-width: none;      /* Firefox */
+}
+#diseaseTable.scrollable-table tbody::-webkit-scrollbar{
+  width: 0;
+  height: 0;                  /* Chrome/Safari */
+}
+
+/* (optional) keep right-aligned numbers from hugging the edge when scrollbar is hidden */
+#diseaseTable tbody td.text-right { padding-right: 6px; }
+
+/* Rank badge shown before disease name */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem; height: 1.25rem;
+  border-radius: 999px;
+  font-size: 0.72rem; font-weight: 700; color: #fff;
+  margin-right: 0.5rem;
+}
+.rank-1 { background:#008FFB; } /* blue */
+.rank-2 { background:#FEB019; } /* yellow */
+.rank-3 { background:#28A745; } /* green */
+.rank-n { background:#6c757d; } /* gray for the rest */
+/* Top Conditions card rounding like Sales Trend */
+.top-conditions-card{
+  border-radius: 14px !important;
+  overflow: hidden;                 /* clip chart/table corners */
+  border: 1px solid #e9ecef;
+  box-shadow: 0 3px 12px rgba(30,34,90,0.08);
+}
+.top-conditions-card .card-header{
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+}
+.top-conditions-card .card-body{
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
+}
+/* Peak Day-of-Week card rounding/clip */
+.peak-day-card{
+  border-radius: 14px !important;
+  overflow: hidden;                 /* clip canvas/table corners */
+  border: 1px solid #e9ecef;
+  box-shadow: 0 3px 12px rgba(30,34,90,0.08);
+}
+.peak-day-card .card-header{
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+}
+.peak-day-card .card-body{
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
+}
+/* Peak Day table uses the same rank color coding as Top Conditions */
+#peakDayTable tbody tr:nth-child(1) td { background: rgba(0,143,251,0.05); } /* blue */
+#peakDayTable tbody tr:nth-child(2) td { background: rgba(254,176,25,0.05); } /* yellow */
+#peakDayTable tbody tr:nth-child(3) td { background: rgba(40,167,69,0.05); }  /* green */
+#peakDayTable tbody tr:nth-child(odd)  td { background: rgba(0,143,251,0.03); }
+#peakDayTable tbody tr:nth-child(even) td { background: rgba(254,176,25,0.03); }
+#peakDayTable tbody tr:hover td { background: rgba(0,0,0,0.03); }
 
 </style>
 
@@ -937,7 +1030,7 @@
             aria-controls="appointmentTrends"
             aria-selected="false"
           >
-            Appointment Trends
+             Clinic Analytics
           </a>
         </li>
       </ul>
@@ -954,56 +1047,71 @@
       >
         <section class="section-pad">
           <!-- KPI Row -->
-          <div class="d-flex flex-wrap mb-4">
-            <div class="kpi-card mr-3 mb-3">
-              <i class="fas fa-chart-line"></i>
-              <h4 id="kpiRevenue">₱0</h4>
-              <small>Current Year Sales</small>
-            </div>
-            <div class="kpi-card mr-3 mb-3">
-              <i class="fas fa-receipt"></i>
-              <h4 id="kpiTxns">0</h4>
-              <small>Total Transactions</small>
-            </div>
-            <div class="kpi-card mr-3 mb-3">
-              <i class="fas fa-calendar-alt"></i>
-              <h4 id="kpiAov">₱0</h4>
-              <small>Past Year Sales</small>
-            </div>
-            <div class="kpi-card mb-3">
-              <i id="growthIcon" class="fas fa-percentage"></i>
-              <h4 id="kpiConv">0.0% <span class="arrow">&#8594;</span></h4>
-              <small>Sales Growth</small>
-            </div>
-          </div>
+       <div class="d-flex flex-wrap mb-4">
+  <!-- 1) Current Year Sales -->
+  <div class="kpi-card mr-3 mb-3">
+    <i class="fas fa-chart-line"></i>
+    <h4 id="kpiRevenue">₱0</h4>
+    <small>Current Year Sales</small>
+  </div>
+
+  <!-- 2) Current Year Total Transaction (renamed label only) -->
+  <div class="kpi-card mr-3 mb-3">
+    <i class="fas fa-receipt"></i>
+    <h4 id="kpiTxns">0</h4>
+    <small>Current Year Total Transaction</small>
+  </div>
+
+  <!-- 3) Past Year Sales -->
+  <div class="kpi-card mr-3 mb-3">
+    <i class="fas fa-calendar-alt"></i>
+    <h4 id="kpiAov">₱0</h4>
+    <small>Past Year Sales</small>
+  </div>
+
+  <!-- 4) NEW: Past Year Total Transaction -->
+  <div class="kpi-card mr-3 mb-3">
+    <i class="fas fa-receipt"></i>
+    <h4 id="kpiTxnsPrev">0</h4>
+    <small>Past Year Total Transaction</small>
+  </div>
+
+  <!-- 5) Sales Growth -->
+  <div class="kpi-card mb-3">
+    <i id="growthIcon" class="fas fa-percentage"></i>
+    <h4 id="kpiConv">0.0% <span class="arrow">&#8594;</span></h4>
+    <small>Sales Growth</small>
+  </div>
+</div>
+
 
           <div class="row">
             <!-- Left column: Sales Trend + Sales by Service -->
             <div class="col-lg-6 mb-4 d-flex flex-column">
               <!-- Sales Trend -->
               <div class="card sales-trend-card mb-4">
-                <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
-                  <h6 class="mb-0">Sales Trend</h6>
-                  <div class="header-controls d-flex align-items-center">
-                    <select id="salesTrendPreset" class="form-control form-control-sm mr-2">
-                      <option value="today">Today</option>
-                      <option value="7d" selected>Last 7 Days</option>
-                      <option value="30d">Last 30 Days</option>
-                      <option value="custom">Custom Range</option>
-                    </select>
-                    <input
-                      type="text"
-                      id="salesTrendCustom"
-                      class="form-control form-control-sm mr-2"
-                      style="display: none; cursor: pointer;"
-                      placeholder="Select date range"
-                      readonly
-                    />
-                    <select id="salesTrendYOY" class="form-control form-control-sm" style="min-width: 120px;">
-                      <!-- JS populates -->
-                    </select>
-                  </div>
-                </div>
+             <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+  <h6 class="mb-0">Sales Trend</h6>
+  <div class="header-controls d-flex align-items-center">
+    <!-- Presets (kept) -->
+    <select id="salesTrendPreset" class="form-control form-control-sm mr-2">
+      <option value="today">Today</option>
+      <option value="7d" selected>Last 7 Days</option>
+      <option value="30d">Last 30 Days</option>
+      <option value="monthpick">By Month</option>
+    </select>
+
+    <!-- NEW: Month + Year pickers (hidden until 'By Month' is chosen) -->
+    <select id="trendMonth" class="form-control form-control-sm mr-2" style="display:none; min-width: 130px;"></select>
+    <select id="trendYear"  class="form-control form-control-sm mr-2" style="display:none; min-width: 110px;"></select>
+
+    <!-- (Optional) YoY whole-year toggle still supported -->
+    <select id="salesTrendYOY" class="form-control form-control-sm" style="min-width: 120px;">
+      <!-- JS populates -->
+    </select>
+  </div>
+</div>
+
                 <div class="card-body p-3 d-flex flex-column">
                   <div id="salesTrendChart" class="chart flex-grow-1 mb-3"></div>
                   <div class="kpi-table-wrapper">
@@ -1275,65 +1383,82 @@
 >
   <section class="section-pad">
     <div class="row">
-      <div class="col-lg-4 col-md-4 mb-4">
-        <div class="card h-100 shadow-sm">
-          <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0">Appointments Trend</h6>
-            <select id="appointmentTrendRange" class="form-control form-control-sm" style="width: auto;">
-              <option value="7d" selected>Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
-              <option value="month">Month</option>
-              <option value="year">Year</option>
-            </select>
-          </div>
-          <div class="card-body p-2">
-            <div class="chart">
-              <div id="appointmentsTrendChart"></div>
-            </div>
-          </div>
-        </div>
+  <!-- Peak Day-of-Week (kept, just widened to col-6) -->
+<div class="col-lg-6 col-md-6 mb-4">
+  <div class="card peak-day-card h-100 shadow-sm">
+    <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Peak Day-of-Week</h6>
+        <select id="peakDayRange" class="form-control form-control-sm" style="width: auto;">
+          <option value="7d">Last 7 Days</option>
+          <option value="30d" selected>Last 30 Days</option>
+          <option value="month">Month</option>
+          <option value="year">Year</option>
+        </select>
+      </div>
+      <div class="card-body p-2">
+     <div id="peakDayChartWrapper" style="width: 100%; height: 200px; margin-bottom: 12px;">
+  <div id="peakDayChart"></div>
+</div>
+
+        <table class="table table-sm table-borderless mb-0" id="peakDayTable" style="font-size: 0.7rem;">
+          <thead>
+            <tr>
+              <th>Day</th>
+              <th class="text-right">Appointments</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<!-- NEW: Top Conditions (Most Common Diseases) -->
+<div class="col-lg-6 col-md-6 mb-4">
+  <div class="card top-conditions-card h-100 shadow-sm">
+    <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+      <h6 class="mb-0">Top Conditions</h6>
+      <div class="header-controls d-flex align-items-center">
+        <select id="diseaseRange" class="form-control form-control-sm" style="width:auto; min-width:140px;">
+          <option value="day">Today</option>
+          <option value="week">Last 7 Days</option>
+          <option value="month" selected>This Month</option>
+          <option value="year">This Year</option>
+        </select>
+
+        <!-- NEW: Year + Month (populated and toggled by JS) -->
+        <select id="diseaseYear"
+                class="form-control form-control-sm ml-2"
+                style="width:auto; min-width:110px;"></select>
+        <select id="diseaseMonth"
+                class="form-control form-control-sm ml-2"
+                style="width:auto; min-width:130px;"></select>
+      </div>
+    </div>
+
+    <div class="card-body p-2">
+      <div style="width: 100%; height: 220px; margin-bottom: 12px;">
+        <div id="diseaseChart"></div>
       </div>
 
-      <div class="col-lg-4 col-md-4 mb-4">
-        <div class="card h-100 shadow-sm">
-          <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0">Peak Day-of-Week</h6>
-            <select id="peakDayRange" class="form-control form-control-sm" style="width: auto;">
-              <option value="7d">Last 7 Days</option>
-              <option value="30d" selected>Last 30 Days</option>
-              <option value="month">Month</option>
-              <option value="year">Year</option>
-            </select>
-          </div>
-          <div class="card-body p-2">
-            <div id="peakDayChartWrapper" style="width: 100%; height: 200px; margin-bottom: 12px;">
-              <canvas id="peakDayChart"></canvas>
-            </div>
-            <table class="table table-sm table-borderless mb-0" id="peakDayTable" style="font-size: 0.7rem;">
-              <thead>
-                <tr>
-                  <th>Day</th>
-                  <th class="text-right">Appointments</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      <table class="table table-sm table-borderless mb-0 scrollable-table max5"
+             id="diseaseTable" style="font-size: 0.8rem;">
+        <thead>
+          <tr>
+            <th>Condition</th>
+            <th class="text-right">Cases</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
 
-      <div class="col-lg-4 col-md-4 mb-4">
-        <div class="card h-100 shadow-sm">
-          <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0">Appointments Forecast</h6>
-            <span class="badge badge-info" style="font-size: 0.7rem;">Next 3 Days</span>
-          </div>
-          <div class="card-body p-2">
-            <div id="predictionChart" style="width: 100%; height: 120px; margin-bottom: 8px;"></div>
-            <div id="forecastValues" class="d-flex justify-content-between"></div>
-          </div>
-        </div>
+      <div id="diseaseEmpty" class="text-center text-muted" style="display:none;">
+        No diagnoses found for the selected period.
       </div>
+    </div>
+  </div>
+</div>
+
     </div> <!-- /.row -->
   </section>
 </div> <!-- /#appointmentTrends -->
