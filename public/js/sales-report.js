@@ -1,7 +1,6 @@
 /* global window, document */
 (() => {
-  if (window.__SALES_REPORT_ACTIVE__) return;
-  window.__SALES_REPORT_ACTIVE__ = true;
+
 
   const DEFAULT_ENDPOINTS = {
     stats:        '/admin/get-dashboard-stats',
@@ -25,7 +24,8 @@
   let EP = DEFAULT_ENDPOINTS;
 
   // DOM refs
-  let startEl, endEl, btnApply, presetSelect;
+let startEl, endEl, btnApply, btnApplySpinner, presetSelect;
+
   let bdProducts, bdServices, bdBoth;
   let categoryWrap, categoryLabel, categorySelect;
 
@@ -99,54 +99,61 @@
     if (rowCount >= 5) table.classList.add('scrollable-table');
     else table.classList.remove('scrollable-table');
   }
-
-  // ----------------- KPI setters -----------------
-  function setSalesAndProfitKPIs(
-    sales,
-    { mode='products', serviceCount=0, totalLoss=0 } = {}
-  ){
-    const amount = toNum(sales.totalRevenue ?? sales.revenue ?? sales.totalSales ?? 0);
-    kpiSalesAmount.textContent = peso(amount);
-
-    if (sales.comparison){
-      const rchg = toNum(sales.comparison.revenueChangePercent ?? 0);
-      kpiSalesChange.textContent = `${rchg>=0?'▲':'▼'} ${pctStr(Math.abs(rchg))} vs prev period`;
-    } else {
-      kpiSalesChange.textContent = '—';
-    }
-
-    if (mode === 'services') {
-      kpiProfitCol?.classList.add('d-none');
-      kpiProfitChange.textContent = '—';
-      kpiProfit.textContent = '—';
-
-      kpiLossLabel.textContent = 'Services Count';
-      kpiLossSub.textContent   = 'Number of services in range';
-      kpiLoss.textContent      = toNum(serviceCount).toLocaleString();
-      return;
-    }
-
-    kpiProfitCol?.classList.remove('d-none');
-
-    const profitRaw =
-      sales.profit ?? sales.netProfit ?? sales.grossProfit ?? sales.totalProfit ?? 0;
-    kpiProfit.textContent = peso(profitRaw);
-
-    if (sales.comparison){
-      const curP = toNum(
-        sales.comparison.currentProfit ?? sales.comparison.profit ?? sales.comparison.currentNetProfit ?? profitRaw
-      );
-      const prevP = toNum(sales.comparison.prevProfit ?? sales.comparison.previousProfit ?? 0);
-      const pchg = prevP !== 0 ? ((curP - prevP) / Math.abs(prevP)) * 100 : 0;
-      kpiProfitChange.textContent = `${pchg>=0?'▲':'▼'} ${pctStr(Math.abs(pchg))} vs prev period`;
-    } else {
-      kpiProfitChange.textContent = '—';
-    }
-
-    kpiLossLabel.textContent = 'Loss';
-    kpiLossSub.textContent   = 'Expired / write-off loss';
-    kpiLoss.textContent      = peso(totalLoss);
+function setApplyLoading(isLoading){
+  if (!btnApply) return;
+  btnApply.disabled = !!isLoading;
+  if (btnApplySpinner){
+    btnApplySpinner.classList.toggle('d-none', !isLoading);
   }
+  const label = btnApply.querySelector('.btn-label');
+  if (label) label.textContent = isLoading ? 'Applying...' : 'Apply Filters';
+}
+
+function setSalesAndProfitKPIs(
+  sales,
+  { mode='products', serviceCount=0, totalLoss=0 } = {}
+){
+  const amount = toNum(sales.totalRevenue ?? sales.revenue ?? sales.totalSales ?? 0);
+  if (kpiSalesAmount) kpiSalesAmount.textContent = peso(amount);
+
+  if (sales.comparison && kpiSalesChange){
+    const rchg = toNum(sales.comparison.revenueChangePercent ?? 0);
+    kpiSalesChange.textContent = `${rchg>=0?'▲':'▼'} ${pctStr(Math.abs(rchg))} vs prev period`;
+  } else if (kpiSalesChange){
+    kpiSalesChange.textContent = '—';
+  }
+
+  if (mode === 'services') {
+    if (kpiProfitCol) kpiProfitCol.classList.add('d-none');
+    if (kpiProfitChange) kpiProfitChange.textContent = '—';
+    if (kpiProfit) kpiProfit.textContent = '—';
+
+    if (kpiLossLabel) kpiLossLabel.textContent = 'Services Count';
+    if (kpiLossSub)   kpiLossSub.textContent   = 'Number of services in range';
+    if (kpiLoss)      kpiLoss.textContent      = toNum(serviceCount).toLocaleString();
+    return;
+  }
+
+  if (kpiProfitCol) kpiProfitCol.classList.remove('d-none');
+
+  const profitRaw = toNum(
+    sales.profit ?? sales.netProfit ?? sales.grossProfit ?? sales.totalProfit ?? 0
+  );
+  if (kpiProfit) kpiProfit.textContent = peso(profitRaw);
+
+  if (sales.comparison && kpiProfitChange){
+    const curP  = toNum(sales.comparison.currentProfit ?? profitRaw);
+    const prevP = toNum(sales.comparison.prevProfit ?? 0);
+    const pchg  = prevP !== 0 ? ((curP - prevP) / Math.abs(prevP)) * 100 : 0;
+    kpiProfitChange.textContent = `${pchg>=0?'▲':'▼'} ${pctStr(Math.abs(pchg))} vs prev period`;
+  } else if (kpiProfitChange){
+    kpiProfitChange.textContent = '—';
+  }
+
+  if (kpiLossLabel) kpiLossLabel.textContent = 'Loss';
+  if (kpiLossSub)   kpiLossSub.textContent   = 'Expired / write-off loss';
+  if (kpiLoss)      kpiLoss.textContent      = peso(totalLoss);
+}
 
   // ----------------- Top Profit Drivers (render) -----------------
   function setTableHeader(mode){
@@ -429,6 +436,8 @@ function exportWithDates(base){
     startEl = document.getElementById('startDate');
     endEl   = document.getElementById('endDate');
     btnApply= document.getElementById('btnApply');
+    btnApplySpinner = document.getElementById('btnApplySpinner');
+
     presetSelect = document.getElementById('presetSelect');
 
     bdProducts = document.getElementById('bdProducts');
@@ -548,9 +557,13 @@ function exportWithDates(base){
   }
 
   // ----------------- Orchestration -----------------
-  async function applyAll(){
-    const s = startEl.value, e = endEl.value;
-    if (!s || !e) return;
+// ----------------- Orchestration -----------------
+async function applyAll(){
+  const s = startEl.value, e = endEl.value;
+  if (!s || !e) return;
+
+  setApplyLoading(true);
+  try {
     const mode = currentBreakdown();
 
     setTableHeader(mode);
@@ -562,31 +575,44 @@ function exportWithDates(base){
       loadTopProfitItems(mode, s, e),
       loadSlowMovers(mode, s, e)
     ]);
+  } finally {
+    setApplyLoading(false);
   }
+}
 
-  // ----------------- Init -----------------
-  function init(){
-    EP = (window.SALES_REPORT_CONFIG && window.SALES_REPORT_CONFIG.endpoints) || DEFAULT_ENDPOINTS;
+// ----------------- Init -----------------
+function init(){
+  EP = (window.SALES_REPORT_CONFIG && window.SALES_REPORT_CONFIG.endpoints) || DEFAULT_ENDPOINTS;
 
-    bindDOMRefs();
-    if (!startEl || !endEl || !categorySelect) return;
+  bindDOMRefs();
+  if (!startEl || !endEl || !categorySelect) return;
 
-    const now = new Date(); now.setHours(0,0,0,0);
-    startEl.value = fmtDate(now);
-    endEl.value   = fmtDate(now);
-    if (presetSelect) presetSelect.value = 'today';
+  const now = new Date(); now.setHours(0,0,0,0);
+  startEl.value = fmtDate(now);
+  endEl.value   = fmtDate(now);
+  if (presetSelect) presetSelect.value = 'today';
 
-    loadCategories().then(() => {
-      updateCategoryUI();
-      applyAll();
-    });
+  loadCategories().then(() => {
+    updateCategoryUI();
+    applyAll();
+  });
 
-    attachEvents();
-  }
+  attachEvents();
+}
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+/* expose a module the shell can call */
+window.SalesReport = {
+  init,
+  destroy: () => { /* no-op; DOM is replaced on nav */ }
+};
+
+/* If this file is used on a standalone page (not via the shell),
+   auto-init only if the controls already exist. */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('startDate')) init();
+  });
+} else {
+  if (document.getElementById('startDate')) init();
+}
 })();
