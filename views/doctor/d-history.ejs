@@ -1,100 +1,222 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Patient History</title>
-  <!-- You can include Bootstrap if needed -->
-  <!-- <link rel="stylesheet" href="/path/to/bootstrap.css"> -->
+<%
+/* ---------- Helpers (local, safe) ---------- */
+function pad2(n){ n = parseInt(n,10); if (isNaN(n)) n = 0; return (n<10?'0':'')+n; }
+function formatLocalISO(dateStr){
+  if(!dateStr) return '';
+  const d = new Date(dateStr);
+  if(isNaN(d)) return '';
+  const yyyy = d.getFullYear();
+  const mm = pad2(d.getMonth()+1);
+  const dd = pad2(d.getDate());
+  return `${yyyy}-${mm}-${dd}`;
+}
+// "January 17 2002"
+function formatDateLong(dateStr){
+  if(!dateStr) return 'N/A';
+  const d = new Date(dateStr);
+  if(isNaN(d)) return 'N/A';
+  const options = { year: 'numeric', month: 'long', day: 'numeric' };
+  return d.toLocaleDateString('en-US', options).replace(',', '');
+}
+// Try multiple known paths for follow-up schedule
+function resolveFollowUp(r){
+  let date=null, details='';
+  if (r && r.schedule && r.schedule.scheduleDate){
+    date = r.schedule.scheduleDate;
+    details = r.schedule.scheduleDetails || (r.schedule.service && r.schedule.service.name) || '';
+  } else if (r && r.petSchedule && r.petSchedule.scheduleDate){
+    date = r.petSchedule.scheduleDate;
+    details = r.petSchedule.scheduleDetails || (r.petSchedule.service && r.petSchedule.service.name) || '';
+  } else if (r && r.followUp && r.followUp.scheduleDate){
+    date = r.followUp.scheduleDate;
+    details = r.followUp.scheduleDetails || '';
+  }
+  return {
+    dateISO: formatLocalISO(date),
+    dateLong: date ? formatDateLong(date) : '',
+    details: details || ''
+  };
+}
+%>
 
-  <!-- Inline CSS to mirror the .custom-table style from dashboard.ejs -->
+<div class="container-fluid history-container">
   <style>
-    /* Custom Table Styling (same as dashboard.ejs) */
-    .custom-table {
-      table-layout: fixed;
-      width: 100%;
-      background-color: #ffffff; /* Table background white */
+    .history-container{
+      background:#f8f9fa; min-height:100vh;
+      padding:8px 8px 10px !important;
     }
-    .custom-table thead tr {
-      background-color: #4B9CD3; /* Carolina blue header background */
-      color: #ffffff;            /* White text */
+
+    /* ===== Card + full-bleed table ===== */
+    .card-shell{
+      border:1px solid #e9ecef; border-radius:16px;
+      background:#fff; box-shadow:0 3px 12px rgba(30,34,90,0.08);
+      overflow:hidden; /* keeps the header corners clean */
     }
-    .custom-table thead th {
-      text-align: center;
-      padding: 12px;
-      font-weight: 600;
-      border: none;
+    .table-wrap{ padding:0; }            /* full-bleed */
+    .fixed-table-container{ overflow:auto; }
+    table.table{ margin:0; table-layout: fixed; width:100%; }
+
+    /* Match reservationhistory header */
+    table thead th{
+      position:sticky; top:0; z-index:1;
+      background: linear-gradient(135deg, #0D47A1, #1E88E5);
+      color:#fff;
+      border-bottom:1px solid #0D47A1;
+      text-transform:uppercase; font-size:.75rem; letter-spacing:.03em;
+      white-space:nowrap; padding:12px; text-align:center;
     }
-    .custom-table tbody tr {
-      border-bottom: 1px solid #dee2e6;
+    table tbody td{
+      vertical-align: middle; padding:12px; text-align:center;
+      word-wrap:break-word; word-break:break-word;
     }
-    .custom-table tbody td {
-      text-align: center;
-      padding: 12px;
+    .fu-cell small{ display:block; color:#6b7280; }
+
+    .empty-row td{ color:#94a3b8; }
+
+    /* Pagination */
+    .pagination-bar{
+      display:flex; align-items:center; gap:6px;
+      justify-content:flex-end;
+      padding:10px 12px;
+      background:#fff;
+      border-left:1px solid #e9ecef; border-right:1px solid #e9ecef; border-bottom:1px solid #e9ecef;
+      border-radius:0 0 16px 16px;
     }
-    /* Optional: hover effect on rows */
-    .custom-table tbody tr:hover {
-      background-color: #f9f9f9;
+    .page-btn{
+      border:1px solid #d1d5db; background:#fff; padding:6px 10px;
+      border-radius:999px; cursor:pointer; font-size:.9rem; line-height:1;
+    }
+    .page-btn[disabled]{ opacity:.5; cursor:not-allowed; }
+    .page-btn.active{
+      background:#1E88E5; color:#fff; border-color:#1E88E5;
+    }
+
+    @media (max-width: 576px){
+      table thead th, table tbody td { padding:10px; font-size:.9rem; }
     }
   </style>
-</head>
-<body>
-  <% 
-    // Helper function to format a date in "January 17 2002" format
-    function formatDateLong(dateStr) {
-      const d = new Date(dateStr);
-      const options = { year: 'numeric', month: 'long', day: 'numeric' };
-      let formatted = d.toLocaleDateString('en-US', options);
-      // Remove any trailing comma (e.g. "January 17, 2002" -> "January 17 2002")
-      return formatted.replace(',', '');
-    }
-  %>
 
-  <div class="container-fluid">
-    <h2>Patient History</h2>
-
-    <% if (history && history.length > 0) { %>
-      <!-- Apply the .custom-table class -->
-      <table class="table custom-table">
-        <thead>
-          <tr>
-            <th>Pet Name</th>
-            <th>Doctor</th>
-            <th>Consultation Notes</th>
-            <th>Follow-Up Schedule</th>
-            <th>Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% history.forEach(function(reservation) { %>
+  <!-- ===== TABLE CARD ===== -->
+  <div class="card-shell">
+    <div class="table-wrap">
+      <div class="table-responsive fixed-table-container">
+        <table class="table table-hover mb-0" id="dhistoryTable">
+          <thead>
             <tr>
-              <td><%= reservation.pets.map(p => p.petName).join(', ') %></td>
-              <td>
-                <%= reservation.doctor 
-                      ? (typeof reservation.doctor === 'object' ? reservation.doctor.username : reservation.doctor)
-                      : 'N/A' %>
-              </td>
-              <td><%= reservation.consultationNotes || 'N/A' %></td>
-              <td>
-                <% if (reservation.schedule && reservation.schedule.scheduleDate) { %>
-                  <strong><%= formatDateLong(reservation.schedule.scheduleDate) %></strong><br>
-                  <small><%= reservation.schedule.scheduleDetails %></small>
-                <% } else { %>
-                  N/A
-                <% } %>
-              </td>
-              <td><%= formatDateLong(reservation.createdAt) %></td>
+              <th style="min-width:160px;">Owner</th>
+              <th>Pet Name(s)</th>
+              <th style="min-width:220px;">Follow-Up Schedule</th>
+              <th style="min-width:140px;">Date</th>
             </tr>
-          <% }); %>
-        </tbody>
-      </table>
-    <% } else { %>
-      <p>No history records found.</p>
-    <% } %>
-  </div>
+          </thead>
+          <tbody id="dhistoryBody">
+            <% if (history && history.length > 0) { %>
+              <% history.forEach(function(reservation, idx){
+                   const ownerTxt = reservation.ownerName || '—';
+                   const petNames = (reservation.pets || []).map(p => (p.petId?.petName || p.petName || '')).filter(Boolean).join(', ');
+                   const fu = resolveFollowUp(reservation);
+                   const createdLong = reservation.createdAt ? formatDateLong(reservation.createdAt) : 'N/A';
+              %>
+                <tr data-idx="<%= idx %>">
+                  <td><%= ownerTxt %></td>
+                  <td><%= petNames || '—' %></td>
+                  <td class="fu-cell">
+                    <% if (fu.dateISO) { %>
+                      <strong><%= fu.dateLong %></strong>
+                      <% if (fu.details) { %><small><%= fu.details %></small><% } %>
+                    <% } else { %>
+                      N/A
+                    <% } %>
+                  </td>
+                  <td><%= createdLong %></td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr class="empty-row"><td colspan="4" class="text-center">No history records found.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
 
-  <!-- Include Bootstrap JS or other scripts here if needed -->
-  <!-- <script src="/path/to/jquery.js"></script> -->
-  <!-- <script src="/path/to/popper.js"></script> -->
-  <!-- <script src="/path/to/bootstrap.js"></script> -->
-</body>
-</html>
+      <!-- Pagination -->
+      <div class="pagination-bar" id="dhistoryPager" style="display:none;">
+        <button class="page-btn" id="pgPrev">Prev</button>
+        <span id="pgNumbers"></span>
+        <button class="page-btn" id="pgNext">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const ROWS_PER_PAGE = 10;
+
+  const tbody = document.getElementById('dhistoryBody');
+  const pager = document.getElementById('dhistoryPager');
+  const prev  = document.getElementById('pgPrev');
+  const next  = document.getElementById('pgNext');
+  const nums  = document.getElementById('pgNumbers');
+
+  if (!tbody) return;
+
+  const allRows = Array.from(tbody.querySelectorAll('tr'))
+    .filter(tr => !tr.classList.contains('empty-row'));
+  const total = allRows.length;
+  const totalPages = Math.ceil(total / ROWS_PER_PAGE);
+
+  function renderNumbers(current){
+    nums.innerHTML = '';
+    for(let p=1; p<=totalPages; p++){
+      const btn = document.createElement('button');
+      btn.className = 'page-btn' + (p===current ? ' active' : '');
+      btn.textContent = p;
+      btn.addEventListener('click', () => showPage(p));
+      nums.appendChild(btn);
+    }
+  }
+
+  function showPage(page){
+    // clamp
+    if (page < 1) page = 1;
+    if (page > totalPages) page = totalPages;
+
+    const start = (page - 1) * ROWS_PER_PAGE;
+    const end   = start + ROWS_PER_PAGE;
+
+    allRows.forEach((tr, i) => {
+      tr.style.display = (i >= start && i < end) ? '' : 'none';
+    });
+
+    // controls
+    prev.disabled = (page === 1);
+    next.disabled = (page === totalPages);
+
+    // update active
+    Array.from(nums.children).forEach((b, i) => {
+      b.classList.toggle('active', (i+1) === page);
+    });
+
+    // store
+    pager.dataset.page = String(page);
+  }
+
+  if (totalPages <= 1){
+    // <=10 rows → no pagination; show all
+    pager.style.display = 'none';
+  } else {
+    pager.style.display = '';
+    renderNumbers(1);
+    showPage(1);
+
+    prev.addEventListener('click', () => {
+      const cur = parseInt(pager.dataset.page || '1', 10);
+      showPage(cur - 1);
+    });
+    next.addEventListener('click', () => {
+      const cur = parseInt(pager.dataset.page || '1', 10);
+      showPage(cur + 1);
+    });
+  }
+})();
+</script>
