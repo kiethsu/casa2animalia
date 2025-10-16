@@ -6,124 +6,414 @@
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <style>
-    body { background: #f7faff; font-family: 'Segoe UI', Arial, sans-serif; }
+    body { background:#f7faff; font-family:'Segoe UI', Arial, sans-serif; }
 
-    /* Top actions (buttons only, title removed) */
-    .top-actions { margin-top: 24px; margin-bottom: 8px; }
-
-    /* KPI cards: full-width responsive grid */
-    .analytics-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 0.9rem;
-      margin-bottom: 1.2rem;
-      align-items: stretch;
-    }
-    .analytic-card {
-      background: #fff;
-      border-radius: 14px;
-      box-shadow: 0 2px 10px rgba(22,105,187,0.06);
-      padding: 1rem 1.2rem;
-      color: #1669bb;
-      text-align: left;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      border: 1px solid #e8f0fb;
-    }
-    .analytic-card > div:first-child {
-      font-weight: 600;
-      font-size: .98rem;
-      color: #2a5298;
-      opacity: .9;
-      margin-bottom: .35rem;
-    }
-    .analytic-card > span {
-      font-size: 1.75rem;
-      line-height: 1.2;
-      font-weight: 800;
-      color: #1b4e8e;
+    /* ===== Match d-history spacing ===== */
+    .inventory-container{
+      background:#f8f9fa; min-height:100vh;
+      padding:8px 8px 10px !important; /* tight like d-history */
     }
 
-    /* Filters row */
+    /* ===== Card shell (wraps table) – mirrors d-history ===== */
+    .card-shell{
+      border:1px solid #e9ecef; border-radius:16px;
+      background:#fff; box-shadow:0 3px 12px rgba(30,34,90,0.08);
+      overflow:hidden;
+    }
+    .table-wrap{ padding:0; }
+    .fixed-table-container{ overflow:auto; }
+    table.table{ margin:0; width:100%; table-layout:fixed; }
+
+    /* Top actions + filters: tighter vertical rhythm */
+    .top-actions { margin-top: 8px; margin-bottom: 6px; }
     .filter-container {
-      display: flex;
-      gap: .6rem;
-      align-items: center;
-      margin-bottom: 14px;
-      justify-content: flex-end;
-      flex-wrap: wrap;
+      display:flex; gap:.6rem; align-items:center; margin-bottom:10px;
+      justify-content:flex-end; flex-wrap:wrap;
     }
     .filter-container .form-control { max-width: 210px; }
 
-    /* Table */
-    .table-wrap {
-      background: #fff;
-      border-radius: 14px;
-      box-shadow: 0 2px 8px rgba(22,105,187,0.07);
-      border: 1px solid #e8f0fb;
-      overflow: hidden;
+    /* KPI cards grid (slightly tighter) */
+    .analytics-cards{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+      gap:.6rem;
+      margin-bottom:.8rem;
+      align-items:stretch;
     }
-    .table-inventory { margin-bottom: 0; }
-    .table-inventory th, .table-inventory td { vertical-align: middle !important; text-align: center; }
-    .table-inventory thead th {
-      background: #eaf3fd;
-      color: #1669bb;
-      border-bottom: 2px solid #1669bb;
-      font-weight: 600;
-      font-size: .95rem;
+    .analytic-card{
+      background:#fff; border-radius:14px;
+      box-shadow:0 2px 10px rgba(22,105,187,0.06);
+      padding:1rem 1.1rem; color:#1669bb; border:1px solid #e8f0fb;
+      display:flex; flex-direction:column; justify-content:space-between;
     }
-    .table-inventory tbody tr { transition: background .15s ease; }
-    .table-inventory tbody tr:hover { background: #f3f8fe; }
-    .table-inventory .btn-info { background: #1669bb; border: none; }
-    .table-inventory .btn-info:hover { background: #155a9c; }
-    .table-inventory .btn-danger { background: #3570af; border: none; }
-    .table-inventory .btn-danger:hover { background: #285a88; }
-
-    .badge-low { background: #3570af; color: #fff; }
-    .badge-instock { background: #1669bb; color: #fff; }
-    .badge-expiry { background: #a4caef; color: #1669bb; }
-
-    /* Modal Redesign */
-    .modal-content.inventory-modal { border-radius: 18px; box-shadow: 0 4px 24px rgba(22,105,187,0.16); background: #fafdff; border: 1.5px solid #e5f1fb; }
-    .inventory-modal .modal-header { border-bottom: none; background: #e5f1fb; border-top-left-radius: 18px; border-top-right-radius: 18px; padding-bottom: 0.6rem; }
-    .inventory-modal .modal-title { color: #1669bb; font-weight: 600; font-size: 1.35rem; letter-spacing: 0.3px; }
-    .inventory-modal .modal-body { padding: 1.6rem 1.2rem 1.2rem 1.2rem; }
-    .inventory-modal .form-row { margin-bottom: 1.1rem; display: flex; flex-wrap: wrap; gap: 16px 0; }
-    .inventory-modal .form-group { margin-bottom: 0; padding: 0 8px; }
-    .inventory-modal label { font-weight: 600; color: #1669bb; font-size: .98rem; margin-bottom: 0.35rem; }
-    .inventory-modal .form-control { border-radius: 10px; border: 1.2px solid #b2cbe9; font-size: 1.03rem; background: #f6faff; color: #194673; }
-    .inventory-modal .form-control:focus { border-color: #1669bb; box-shadow: 0 0 0 0.15rem rgba(22,105,187,0.14); background: #fafdff; }
-    .inventory-modal .section-title { color: #2a5298; font-size: 1rem; font-weight: 700; letter-spacing: .02rem; margin-bottom: .8rem; margin-top: .1rem; }
-    .inventory-modal .modal-footer { border-top: none; background: #e5f1fb; border-bottom-left-radius: 18px; border-bottom-right-radius: 18px; padding-top: .9rem; }
-    .inventory-modal .btn-primary { background: #1669bb; border: none; border-radius: 8px; padding: .48rem 2.1rem; font-weight: 600; font-size: 1.02rem; }
-    .inventory-modal .btn-outline-secondary { border-radius: 8px; font-weight: 500; }
-    .expiration-inputs { background: #f3f7fc; border-radius: 8px; padding: 0.8rem; margin-top: 0.25rem; min-height: 46px; }
-
-    @media (max-width: 990px) {
-      .filter-container { justify-content: stretch; }
-      .filter-container .form-control { max-width: 100%; }
+    .analytic-card > div:first-child{
+      font-weight:600; font-size:.98rem; color:#2a5298; opacity:.9; margin-bottom:.35rem;
     }
+    .analytic-card > span{ font-size:1.65rem; line-height:1.2; font-weight:800; color:#1b4e8e; }
+
+    /* Inventory table styles (kept your palette) */
+    .table-inventory th, .table-inventory td { vertical-align:middle !important; text-align:center; }
+    .table-inventory thead th{
+      background:#eaf3fd; color:#1669bb; border-bottom:2px solid #1669bb;
+      font-weight:600; font-size:.95rem; position:sticky; top:0; z-index:1;
+      white-space:nowrap;
+    }
+    .table-inventory tbody tr{ transition:background .15s ease; }
+    .table-inventory tbody tr:hover{ background:#f3f8fe; }
+    .table-inventory .btn-info{ background:#1669bb; border:none; }
+    .table-inventory .btn-info:hover{ background:#155a9c; }
+    .table-inventory .btn-danger{ background:#3570af; border:none; }
+    .table-inventory .btn-danger:hover{ background:#285a88; }
+
+    .badge-low{ background:#3570af; color:#fff; }
+    .badge-instock{ background:#1669bb; color:#fff; }
+    .badge-expiry{ background:#a4caef; color:#1669bb; }
+
+    /* Pagination bar inside the card (like d-history) */
+    .pagination-bar{
+      display:flex; align-items:center; justify-content:center;
+      padding:10px 12px; background:#fff; border-top:1px solid #e9ecef;
+    }
+    .pagination{ margin-bottom:0; }
+
+    /* Modal Redesign (unchanged) */
+    .modal-content.inventory-modal { border-radius:18px; box-shadow:0 4px 24px rgba(22,105,187,0.16); background:#fafdff; border:1.5px solid #e5f1fb; }
+    .inventory-modal .modal-header { border-bottom:none; background:#e5f1fb; border-top-left-radius:18px; border-top-right-radius:18px; padding-bottom:.6rem; }
+    .inventory-modal .modal-title { color:#1669bb; font-weight:600; font-size:1.35rem; letter-spacing:0.3px; }
+    .inventory-modal .modal-body { padding:1.6rem 1.2rem 1.2rem 1.2rem; }
+    .inventory-modal .form-row { margin-bottom:1.1rem; display:flex; flex-wrap:wrap; gap:16px 0; }
+    .inventory-modal .form-group { margin-bottom:0; padding:0 8px; }
+    .inventory-modal label { font-weight:600; color:#1669bb; font-size:.98rem; margin-bottom:.35rem; }
+    .inventory-modal .form-control { border-radius:10px; border:1.2px solid #b2cbe9; font-size:1.03rem; background:#f6faff; color:#194673; }
+    .inventory-modal .form-control:focus { border-color:#1669bb; box-shadow:0 0 0 0.15rem rgba(22,105,187,0.14); background:#fafdff; }
+    .inventory-modal .section-title { color:#2a5298; font-size:1rem; font-weight:700; letter-spacing:.02rem; margin-bottom:.8rem; margin-top:.1rem; }
+    .inventory-modal .modal-footer { border-top:none; background:#e5f1fb; border-bottom-left-radius:18px; border-bottom-right-radius:18px; padding-top:.9rem; }
+    .inventory-modal .btn-primary { background:#1669bb; border:none; border-radius:8px; padding:.48rem 2.1rem; font-weight:600; font-size:1.02rem; }
+    .inventory-modal .btn-outline-secondary { border-radius:8px; font-weight:500; }
+    .expiration-inputs { background:#f3f7fc; border-radius:8px; padding:.8rem; margin-top:.25rem; min-height:46px; }
+
+    @media (max-width: 990px){
+      .filter-container{ justify-content:stretch; }
+      .filter-container .form-control{ max-width:100%; }
+    }
+    /* === Expired view styling === */
+.expired-text { color:#c62828; font-weight:700; }
+.modal-expired .modal-header { background:#fdecea !important; }
+.modal-expired .modal-title  { color:#c62828 !important; }
+/* Make Bootstrap modal/backdrop sit above your shell */
+.modal-backdrop { z-index: 5000 !important; }
+.modal          { z-index: 5100 !important; }
+
+/* While a modal is open, don't allow interacting with the sidebar */
+body.modal-open #sidebar,
+body.modal-open #sidebarOverlay {
+  pointer-events: none !important;
+}
+/* === Make inventory table match petlist table (like petlist.ejs) === */
+.fixed-table-container{
+  /* keep your overflow but ensure the card body is white like petlist */
+  background:#fff;
+}
+
+/* Petlist-like table polish */
+.table-inventory{
+  width:100%;
+  table-layout:fixed;
+  border-collapse:separate;
+  border-spacing:0;
+  margin:0;
+}
+
+/* Header: dark blue, white text, sticky */
+.table-inventory thead th{
+  position:sticky; top:0; z-index:2;
+  background:#0D47A1 !important;  /* same as petlist */
+  color:#fff !important;
+  text-align:center;
+  padding:12px;
+  font-weight:700;
+  letter-spacing:.02em;
+  text-transform:uppercase;
+  font-size:.75rem;
+  border-bottom:0;                 /* remove the old blue border */
+  white-space:nowrap;
+}
+
+/* Body cells: dashed separators + hover like petlist */
+.table-inventory tbody td{
+  text-align:center;
+  padding:12px;
+  color:#0f172a;
+  border-top:1px dashed #e9edf5;
+  word-break:break-word;
+}
+
+.table-inventory tbody tr:hover{
+  background:#f9fbff;              /* subtle hover like petlist */
+}
+
+/* Keep your button colors */
+.table-inventory .btn-info{ background:#1669bb; border:none; }
+.table-inventory .btn-info:hover{ background:#155a9c; }
+.table-inventory .btn-danger{ background:#3570af; border:none; }
+.table-inventory .btn-danger:hover{ background:#285a88; }
+/* ====== Make ALL inventory modals match the table header style ====== */
+/* Core look (applies to Add, Edit, Manage Categories) */
+.inventory-modal .modal-content{
+  border:0;
+  border-radius:16px;
+  box-shadow:0 20px 60px rgba(13,71,161,.25);
+  overflow:hidden;
+  background:#fafdff;
+}
+.inventory-modal .modal-header{
+  background:#0D47A1;           /* same blue as table header */
+  color:#fff;
+  border:0;
+  padding:12px 16px;
+}
+.inventory-modal .modal-title{
+  color:#fff;
+  text-transform:uppercase;      /* same vibe as table head */
+  letter-spacing:.02em;
+  font-weight:700;
+  font-size:.95rem;
+  margin:0;
+}
+.inventory-modal .close{
+  text-shadow:none;
+  opacity:1;
+  outline:none;
+}
+.inventory-modal .close span{ color:#fff; }
+
+/* Footer + body polish (optional, matches petlist modals) */
+.inventory-modal .modal-body{ background:#f9fbff; }
+.inventory-modal .modal-footer{
+  background:#f5f7fb;
+  border:0;
+  padding:.7rem 1rem;
+}
+
+/* ====== View Dates modal needs an inline-style override ======
+   Use :not(.modal-expired) so the expired theme still wins.  */
+#viewDatesModal .modal-content{ 
+  border:0; border-radius:16px; box-shadow:0 20px 60px rgba(13,71,161,.25); overflow:hidden;
+}
+#viewDatesModal .modal-content:not(.modal-expired) .modal-header{
+  background:#0D47A1 !important;   /* beats inline style */
+  color:#fff !important;
+  border:0;
+  padding:12px 16px;
+}
+#viewDatesModal .modal-content:not(.modal-expired) .modal-title{
+  color:#fff !important;
+  text-transform:uppercase;
+  letter-spacing:.02em;
+  font-weight:700;
+  font-size:.95rem;
+}
+#viewDatesModal .modal-content:not(.modal-expired) .close span{ color:#fff; }
+
+/* ====== Keep your special Expired look intact ====== */
+.modal-expired .modal-header{ background:#fdecea !important; }
+.modal-expired .modal-title{ color:#c62828 !important; text-transform:uppercase; letter-spacing:.02em; }
+
+/* (Already present) elevate Bootstrap modals over the shell */
+.modal-backdrop { z-index: 5000 !important; }
+.modal          { z-index: 5100 !important; }
+/* Remove the X button from ALL modal headers on this page */
+.modal .modal-header .close{ display:none !important; }
+
+/* Optional: even out header spacing now that the X is gone */
+.modal .modal-header{ padding-right:16px !important; }
+/* ========== Better KPI cards (4 cards) ========== */
+.analytics-cards{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+  gap:12px;
+  margin-bottom:12px;
+  align-items:stretch;
+}
+.analytic-card{
+  position:relative;
+  background:#fff;
+  border-radius:16px;
+  border:1px solid #e6eef9;
+  padding:14px 16px;
+  box-shadow:0 8px 24px rgba(13,71,161,.06);
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.analytic-card:hover{
+  transform:translateY(-2px);
+  box-shadow:0 14px 36px rgba(13,71,161,.10);
+}
+.analytic-card::before{
+  content:"";
+  position:absolute; left:0; top:0; right:0; height:4px;
+  background:var(--accent, #0D47A1);
+  border-top-left-radius:16px; border-top-right-radius:16px;
+}
+.analytic-card > div:first-child{
+  font-weight:700; font-size:.78rem; color:#0D47A1; opacity:.9;
+  letter-spacing:.04em; text-transform:uppercase; margin-bottom:.35rem;
+}
+.analytic-card > span{
+  font-size:1.9rem; line-height:1.1; font-weight:800; color:#0f172a;
+}
+
+/* Accents per card (order from your render) */
+.analytics-cards .analytic-card:nth-child(1){ --accent:#0D47A1; } /* Total */
+.analytics-cards .analytic-card:nth-child(2){ --accent:#F59E0B; } /* Low stock */
+.analytics-cards .analytic-card:nth-child(3){ --accent:#1E88E5; } /* Near expiry */
+.analytics-cards .analytic-card:nth-child(4){ --accent:#E53935; } /* Expired */
+
+/* ========== Filter toolbar ========== */
+.filters-toolbar{
+  margin:8px 0 12px;
+  background:#fff;
+  border:1px solid #e6eef9;
+  border-radius:16px;
+  box-shadow:0 8px 24px rgba(13,71,161,.06);
+  padding:10px 12px;
+  display:flex; align-items:center;
+  justify-content:flex-start;   /* was space-between */
+  gap:12px; flex-wrap:wrap;
+}
+.filters-left{
+  display:grid; gap:10px;
+  grid-template-columns:repeat(12, minmax(0,1fr));
+  flex:1;
+}
+.filter-block{ grid-column:span 4; min-width:220px; }
+.filter-block label{
+  display:block; margin:0 0 4px;
+  font-size:.72rem; font-weight:800; letter-spacing:.06em;
+  text-transform:uppercase; color:#0D47A1;
+}
+.input-with-icon{ position:relative; }
+.input-with-icon .icon{
+  position:absolute; left:10px; top:50%; transform:translateY(-50%);
+  width:18px; height:18px; color:#5b7bb5; opacity:.85; pointer-events:none;
+}
+.input-with-icon input.form-control,
+.input-with-icon select.form-control{
+  padding-left:36px; height:38px; border-radius:10px;
+  border:1.2px solid #cfe0ff; background:#f6f9ff;
+}
+.input-with-icon input.form-control:focus,
+.input-with-icon select.form-control:focus{
+  border-color:#0D47A1; box-shadow:0 0 0 .15rem rgba(13,71,161,.12); background:#fff;
+}
+
+
+/* Responsive: stack filters nicely */
+@media (max-width: 1200px){ .filter-block{ grid-column:span 6; } }
+@media (max-width: 768px){ .filter-block{ grid-column:span 12; } }
+
+/* (Keep your existing table + modal styles as-is) */
+/* Inline filters (no card) */
+.filters-inline{
+  margin:8px 0 12px;
+  display:flex; align-items:center; justify-content:flex-end;
+  gap:10px; flex-wrap:wrap;
+}
+
+/* Input-with-icon shells */
+.input-with-icon{ position:relative; min-width:220px; }
+.input-with-icon .icon{
+  position:absolute; left:10px; top:50%; transform:translateY(-50%);
+  width:18px; height:18px; color:#5b7bb5; opacity:.85; pointer-events:none;
+}
+.input-with-icon .form-control{
+  height:38px; border-radius:8px;
+  border:1px solid #cfe0ff; background:#fff;
+  padding-left:36px;
+}
+.input-with-icon .form-control:focus{
+  border-color:#0D47A1; box-shadow:0 0 0 .15rem rgba(13,71,161,.12);
+}
+
+/* Responsive */
+@media (max-width: 576px){
+  .input-with-icon{ min-width:100%; }
+}
+/* Make SweetAlert2 appear above Bootstrap modals/backdrops */
+.swal2-container {
+  z-index: 9999 !important; /* higher than .modal (5100) & .modal-backdrop (5000) */
+}
+/* Button spinner sizing/alignment */
+.btn .spinner-border {
+  width: 1rem; height: 1rem;
+  vertical-align: text-bottom;
+  margin-right: .4rem;
+}
+/* === Make Inventory KPI cards match Sales Report KPI typography === */
+#analytics-cards .analytic-card > div:first-child{
+  /* label: like .small-label in sales-report */
+  font-weight: 400;
+  font-size: .82rem;
+  color: #6b7280;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-bottom: .35rem; /* keep your spacing */
+}
+
+#analytics-cards .analytic-card > span{
+  /* value: like .kpi-value in sales-report */
+  font-weight: 700;
+  font-size: 1.6rem;
+  line-height: 1.2;
+  color: inherit; /* keeps your existing color */
+}
+
   </style>
 </head>
 <body>
-<div class="container-fluid px-3 px-md-4">
+<div class="container-fluid inventory-container">
 
   <!-- Actions -->
   <div class="d-flex justify-content-end align-items-center top-actions">
-    <button class="btn btn-outline-primary mr-2" data-toggle="modal" data-target="#manageCategoriesModal">Manage Categories</button>
-    <button class="btn btn-primary" data-toggle="modal" data-target="#addModal" style="background:#1669bb;border:none;">+ Add Item</button>
+<button id="btnManageCategories" class="btn btn-outline-primary mr-2" data-toggle="modal" data-target="#manageCategoriesModal">Manage Categories</button>
+<button id="btnOpenAddModal" class="btn btn-primary" data-toggle="modal" data-target="#addModal" style="background:#1669bb;border:none;">+ Add Item</button>
+
   </div>
 
   <!-- KPI Cards -->
   <div class="analytics-cards" id="analytics-cards"></div>
-
-  <!-- Filters -->
-  <div class="filter-container">
+<!-- Filters (no reset button) -->
+<!-- Filters (minimal: no card, no labels) -->
+<div class="filters-inline">
+  <!-- Search -->
+  <div class="input-with-icon">
+    <span class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z"/></svg>
+    </span>
     <input type="text" id="searchBar" class="form-control" placeholder="Search by name">
-    <select id="categoryFilter" class="form-control">
+  </div>
+
+  <!-- Category (auto-scroll when >10 options) -->
+  <div class="input-with-icon">
+    <span class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h6z"/></svg>
+    </span>
+    <select
+      id="categoryFilter"
+      class="form-control"
+      size="1"
+      onfocus="if(this.options.length>10){this.size=10}"
+      onblur="this.size=1"
+      onchange="this.size=1; this.blur();"
+    >
       <option value="">All Categories</option>
     </select>
+  </div>
+
+  <!-- Status -->
+  <div class="input-with-icon">
+    <span class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18l-7 8v5l-4 2v-7L3 5z"/></svg>
+    </span>
     <select id="statusFilter" class="form-control">
       <option value="">All Status</option>
       <option value="lowstock">Low Stock (≤10)</option>
@@ -131,30 +421,38 @@
       <option value="expired">Expired</option>
     </select>
   </div>
+</div>
 
-  <!-- Inventory Table -->
-  <div class="table-wrap">
-    <div style="overflow-x:auto;">
-      <table class="table table-inventory table-hover">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Category</th>
-            <th>Price</th>
-            <th>Quantity</th>
-            <th>Status</th>
-            <th>Expiration</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="inventoryTableBody"></tbody>
-      </table>
+
+
+
+  <!-- ===== TABLE CARD (full-bleed like d-history) ===== -->
+  <div class="card-shell">
+    <div class="table-wrap">
+      <div class="table-responsive fixed-table-container">
+        <table class="table table-inventory table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Category</th>
+              <th>Price</th>
+              <th>Markup</th> 
+              <th>Quantity</th>
+              <th>Status</th>
+              <th>Expiration</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="inventoryTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pagination inside the card footer -->
+    <div class="pagination-bar">
+      <ul class="pagination justify-content-center" id="paginationControls"></ul>
     </div>
   </div>
-
-  <nav class="mt-3">
-    <ul class="pagination justify-content-center" id="paginationControls"></ul>
-  </nav>
 </div>
 
 <!-- ADD MODAL -->
@@ -319,7 +617,7 @@
     <div class="modal-content inventory-modal">
       <div class="modal-header">
         <h5 class="modal-title" id="manageCategoriesLabel">Manage Categories</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+        <button type="button" class="close" aria-label="Close" data-dismiss="modal">
           <span style="font-size:2rem;">&times;</span>
         </button>
       </div>
@@ -363,42 +661,140 @@
       $('#categoryFilter').html(makeOpts(true, 'All Categories'));
     });
   }
+// ---- Button spinner helpers ----
+function enhanceButton($btn){
+  if ($btn.data('spinnerified')) return;
+  const label = $btn.html();
+  $btn.html(
+    '<span class="spinner-border spinner-border-sm mr-2 d-none" role="status" aria-hidden="true"></span>' +
+    '<span class="btn-label">' + label + '</span>'
+  );
+  $btn.data('spinnerified', true);
+}
+function setBtnLoading($btn, on){
+  enhanceButton($btn);
+  $btn.prop('disabled', on);
+  $btn.find('.spinner-border').toggleClass('d-none', !on);
+}
+function withDelayedSpinner($btn, jqPromise, delayMs=600){
+  enhanceButton($btn);
+  let timer = setTimeout(()=> setBtnLoading($btn, true), delayMs); // only show if "slow"
+  $.when(jqPromise).always(function(){
+    clearTimeout(timer);
+    setBtnLoading($btn, false);
+  });
+}
 
   // ---------- Analytics (chart removed; keep metrics) ----------
-  function renderAnalytics(items) {
-    const total = items.length;
-    const lowStock = items.filter(i => i.quantity <= LOW_STOCK).length;
-    const nearExpiry = items.filter(i =>
-      (i.expirationDates||[]).some(date=>{
-        let d = new Date(date), diff = (d-new Date())/(1000*60*60*24);
-        return diff > 0 && diff <= 30;
-      })
-    ).length;
-    const expiredCount = items.reduce((sum, i) => sum + ((i.expiredDates||[]).length), 0);
-    const totalValue = items.reduce((sum, i) => sum + (i.price*i.quantity), 0);
-    $('#analytics-cards').html(`
-      <div class="analytic-card"><div>Total Items</div><span>${total}</span></div>
-      <div class="analytic-card"><div>Low Stock (&le;${LOW_STOCK})</div><span>${lowStock}</span></div>
-      <div class="analytic-card"><div>Near Expiry (30d)</div><span>${nearExpiry}</span></div>
-      <div class="analytic-card"><div>Expired</div><span>${expiredCount}</span></div>
-      <div class="analytic-card"><div>Total Value (₱)</div><span>₱${totalValue.toLocaleString()}</span></div>
-    `);
+function renderAnalytics(items) {
+  const total = items.length;
+  const lowStock = items.filter(i => liveQtyOf(i) <= LOW_STOCK).length;
+  const nearExpiry = items.filter(i =>
+    (i.expirationDates||[]).some(date=>{
+      let d = new Date(date), diff = (d-new Date())/(1000*60*60*24);
+      return diff > 0 && diff <= 30;
+    })
+  ).length;
+const expiredCount = items.reduce((sum, i) => sum + expiredQtyOf(i), 0);
+
+
+  $('#analytics-cards').html(`
+    <div class="analytic-card"><div>Total Items</div><span>${total}</span></div>
+    <div class="analytic-card"><div>Low Stock (&le;${LOW_STOCK})</div><span>${lowStock}</span></div>
+    <div class="analytic-card"><div>Near Expiry (30d)</div><span>${nearExpiry}</span></div>
+    <div class="analytic-card"><div>Expired</div><span>${expiredCount}</span></div>
+  `);
+}
+
+// Sellable units = future-dated + undated (blank date inputs)
+// Undated units are treated as valid/sellable stock.
+function liveQtyOf(item) {
+  const qty = Number(item.quantity || 0);
+  const dates = Array.isArray(item.expirationDates) ? item.expirationDates : [];
+
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  let valid = 0;   // how many date inputs are actually parsable dates
+  let future = 0;  // how many of those dates are > today
+
+  for (const d of dates) {
+    const dt = new Date(d);
+    if (!isNaN(dt)) {
+      valid++;
+      if (dt > today) future++;
+    }
   }
+
+  const undated = Math.max(0, qty - valid); // blanks = undated units
+  return future + undated;
+}
+
+// Expired units = unique expiredDates + any valid date <= today
+// Undated units are NOT considered expired.
+function expiredQtyOf(item) {
+  const qty = Number(item.quantity || 0);
+  const expiredList = Array.isArray(item.expiredDates) ? item.expiredDates : [];
+  const dates = Array.isArray(item.expirationDates) ? item.expirationDates : [];
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const key = (dt) => {
+    const d = new Date(dt);
+    if (isNaN(d)) return null;
+    d.setHours(0,0,0,0);
+    return d.getTime();
+  };
+
+  const seen = new Set();
+  for (const d of expiredList) {
+    const k = key(d);
+    if (k !== null) seen.add(k);
+  }
+
+  // Count valid dated entries that are already expired (<= today)
+  for (const d of dates) {
+    const dt = new Date(d);
+    if (!isNaN(dt) && dt <= today) {
+      const k = key(dt);
+      if (k !== null) seen.add(k);
+    }
+  }
+
+  // Cap by total quantity so we never exceed actual stock
+  return Math.min(seen.size, qty);
+}
+
+function nearExpiryDatesOf(item) {
+  const now = new Date();
+  const in30ms = 30 * 24 * 60 * 60 * 1000;
+  return (Array.isArray(item.expirationDates) ? item.expirationDates : []).filter(d => {
+    const dt = new Date(d);
+    return !isNaN(dt) && dt > now && (dt - now) <= in30ms;
+  });
+}
+function nearExpiryQtyOf(item) {
+  return nearExpiryDatesOf(item).length;
+}
 
   // ---------- Table Render ----------
   function renderTable(data) {
     const searchText = $('#searchBar').val().toLowerCase();
     const categoryFilter = $('#categoryFilter').val();
     const statusFilter = $('#statusFilter').val();
+const isExpiredView = (statusFilter === "expired");
+
+const isLowView     = (statusFilter === "lowstock");
+const isNearView    = (statusFilter === "nearexpiry");
+
 
     let filtered = data.filter(item =>
       item.name.toLowerCase().includes(searchText) &&
       (!categoryFilter || item.category === categoryFilter)
     );
 
-    if(statusFilter === "lowstock") {
-      filtered = filtered.filter(item => item.quantity <= LOW_STOCK);
-    }
+  if(statusFilter === "lowstock") {
+  filtered = filtered.filter(item => liveQtyOf(item) <= LOW_STOCK);
+}
+
     if(statusFilter === "nearexpiry") {
       filtered = filtered.filter(item =>
         (item.expirationDates||[]).some(date=>{
@@ -417,31 +813,69 @@
 
     let tbody = '';
     paginated.forEach(item=>{
-      let status = '';
-      if(item.quantity <= LOW_STOCK) status += `<span class="badge badge-low mr-1">Low</span>`;
-      else status += `<span class="badge badge-instock mr-1">In Stock</span>`;
-      if((item.expirationDates||[]).some(date=>{
-        let d = new Date(date), diff = (d-new Date())/(1000*60*60*24);
-        return diff > 0 && diff <= 30;
-      })) status += `<span class="badge badge-expiry">Expiring</span>`;
-      if((item.expiredDates||[]).length > 0) status += `<span class="badge badge-danger">Expired</span>`;
+let status = '';
+if (isExpiredView) {
+  status = `<span class="badge badge-danger">Expired</span>`;
+} else if (isLowView) {
+  status = `<span class="badge badge-low mr-1">Low</span>`;
+} else if (isNearView) {
+  status = `<span class="badge badge-expiry">Expiring</span>`;
+} else {
+  if (liveQtyOf(item) <= LOW_STOCK) status += `<span class="badge badge-low mr-1">Low</span>`;
+  else status += `<span class="badge badge-instock mr-1">In Stock</span>`;
 
-      let expDates = (item.expirationDates||[]).length
-        ? `<button class="btn btn-sm btn-outline-info view-dates-btn" data-expdates='${JSON.stringify(item.expirationDates).replace(/"/g,'&quot;')}'>View</button>`
-        : 'N/A';
+  if ((item.expirationDates||[]).some(date=>{
+    let d = new Date(date), diff = (d-new Date())/(1000*60*60*24);
+    return diff > 0 && diff <= 30;
+  })) status += `<span class="badge badge-expiry">Expiring</span>`;
+
+  if ((item.expiredDates||[]).length > 0) status += `<span class="badge badge-danger">Expired</span>`;
+}
+
+
+let expDates;
+if (isExpiredView) {
+  expDates = (item.expiredDates||[]).length
+    ? `<button class="btn btn-sm btn-outline-danger view-dates-btn"
+               data-kind="expired"
+               data-expdates='${JSON.stringify(item.expiredDates).replace(/"/g,'&quot;')}'>View</button>`
+    : 'N/A';
+} else if (isNearView) {
+  const near = nearExpiryDatesOf(item);
+  expDates = near.length
+    ? `<button class="btn btn-sm btn-outline-info view-dates-btn"
+               data-kind="near"
+               data-expdates='${JSON.stringify(near).replace(/"/g,'&quot;')}'>View</button>`
+    : 'N/A';
+} else {
+  expDates = (item.expirationDates||[]).length
+    ? `<button class="btn btn-sm btn-outline-info view-dates-btn"
+               data-kind="future"
+               data-expdates='${JSON.stringify(item.expirationDates).replace(/"/g,'&quot;')}'>View</button>`
+    : 'N/A';
+}
+
 
       tbody += `
       <tr>
         <td>${item.name}</td>
         <td>${item.category}</td>
         <td>₱${parseFloat(item.price).toFixed(2)}</td>
-        <td>${item.quantity}</td>
+        <td>₱${parseFloat(item.markup ?? 0).toFixed(2)}</td>  <!-- NEW -->
+    <td>${
+  isExpiredView ? expiredQtyOf(item) :
+  isNearView    ? nearExpiryQtyOf(item) :
+                  liveQtyOf(item)
+}</td>
+
+
         <td>${status}</td>
         <td>${expDates}</td>
-        <td>
-          <button class="btn btn-sm btn-info edit-btn" data-id="${item._id}">Edit</button>
-          <button class="btn btn-sm btn-danger delete-btn" data-id="${item._id}">Delete</button>
-        </td>
+      <td>
+  ${isExpiredView ? '' : `<button class="btn btn-sm btn-info edit-btn" data-id="${item._id}">Edit</button>`}
+  <button class="btn btn-sm btn-danger delete-btn" data-id="${item._id}">Delete</button>
+</td>
+
       </tr>`;
     });
     $('#inventoryTableBody').html(tbody);
@@ -451,7 +885,7 @@
 
   function renderPagination(totalPages) {
     let html = '';
-    if(totalPages<=1){$('#paginationControls').html('');return;}
+    if(totalPages<=1){ $('#paginationControls').html(''); return; }
     html += `<li class="page-item ${currentPage===1?'disabled':''}">
                <a class="page-link" href="#" data-page="${currentPage-1}">Previous</a>
              </li>`;
@@ -497,51 +931,29 @@
     $('#oneExpirationDate').prop('disabled', !enabled);
     $('#applyDateToAll').prop('disabled', !enabled);
   }
-
-  // NEW: keep apply button state sticky
   function markAppliedState(applied){
     const $btn = $('#applyDateToAll');
     if (applied) {
-      $btn.text('Applied to all')
-          .removeClass('btn-outline-primary')
-          .addClass('btn-success');
+      $btn.text('Applied to all').removeClass('btn-outline-primary').addClass('btn-success');
     } else {
-      $btn.text('Apply to all')
-          .removeClass('btn-success')
-          .addClass('btn-outline-primary');
+      $btn.text('Apply to all').removeClass('btn-success').addClass('btn-outline-primary');
     }
   }
-
-  // Regenerate expiration inputs preserving values; auto-apply if single-date is on
   function regenerateAddDateInputs(qty){
     qty = Math.max(0, parseInt(qty)||0);
     const c = $('#expirationDatesContainer');
     const existing = c.find('input[name="expirationDates[]"]').map(function(){ return $(this).val(); }).get();
-
     c.empty();
     for(let i=1;i<=qty;i++){
       const val = existing[i-1] || '';
       c.append('<label>Expiration Date '+i+'</label><input type="date" class="form-control mb-2" name="expirationDates[]" value="'+ val +'">');
     }
-
     const useOne = $('#useOneDate').is(':checked');
     const oneVal = $('#oneExpirationDate').val();
     toggleOneDateControls(qty > 0 && useOne);
-
-    if (useOne && oneVal) {
-      setAllDates(oneVal);
-      markAppliedState(true);   // stay “Applied to all”
-    } else {
-      markAppliedState(false);
-    }
+    if (useOne && oneVal) { setAllDates(oneVal); markAppliedState(true); } else { markAppliedState(false); }
   }
-
-  // Quantity → regenerate in REAL-TIME (input + change)
-  $('#itemQuantity').on('input change', function() {
-    regenerateAddDateInputs($(this).val());
-  });
-
-  // One-date toggle
+  $('#itemQuantity').on('input change', function(){ regenerateAddDateInputs($(this).val()); });
   $('#useOneDate').on('change', function(){
     const checked = $(this).is(':checked');
     const qty = parseInt($('#itemQuantity').val())||0;
@@ -549,104 +961,150 @@
     if (checked) {
       const v = $('#oneExpirationDate').val();
       if (v) { setAllDates(v); markAppliedState(true); }
-    } else {
-      markAppliedState(false);
-    }
+    } else { markAppliedState(false); }
   });
-
-  // Change single date → auto-apply and keep “Applied to all”
   $('#oneExpirationDate').on('change', function(){
     if ($('#useOneDate').is(':checked')) {
       const v = $(this).val();
       if (v) { setAllDates(v); markAppliedState(true); }
     }
   });
-
-  // Button: Apply to all (sticky label)
   $('#applyDateToAll').on('click', function(){
     const v = $('#oneExpirationDate').val();
     if (!v) return;
     setAllDates(v);
-    markAppliedState(true); // DO NOT revert
+    markAppliedState(true);
   });
 
   // ---------- Filters & pagination ----------
-  $('#searchBar,#categoryFilter,#statusFilter').on('keyup change',()=>{
-    currentPage=1;
-    renderTable(allInventory);
-  });
+  $('#searchBar,#categoryFilter,#statusFilter').on('keyup change',()=>{ currentPage=1; renderTable(allInventory); });
   $('#paginationControls').on('click','a',function(e){
     e.preventDefault();
     let page = parseInt($(this).data('page'));
     if(!isNaN(page)) { currentPage=page; renderTable(allInventory); }
   });
 
-  // Add inventory
-  $('#inventoryForm').on('submit', function(e){
-    e.preventDefault();
-    var form = this;
-    $.post('/admin/inventory/add', $(form).serialize())
-      .done(function(res){
-        $('#addModal').modal('hide');
-        setTimeout(function() {
-          Swal.fire({ icon:'success', title:'Success', text:res.message, timer:1500, showConfirmButton:false })
-            .then(()=>{
-              form.reset();
-              $('#expirationDatesContainer').empty();
-              // reset single-date controls
-              $('#useOneDate').prop('checked', false);
-              $('#oneExpirationDate').val('');
-              toggleOneDateControls(false);
-              markAppliedState(false);
+// ADD FORM — submit (keep modal open on success)
+$('#inventoryForm').off('submit').on('submit', function(e){
+  e.preventDefault();
+  const form = this;
 
-              loadInventory();
-              loadCategories();
-              updateAddPreview();
-            });
-          $('.modal-backdrop').remove();
-          $('body').removeClass('modal-open').css('padding-right','');
-        }, 400);
-      })
-      .fail(function(){
-        Swal.fire('Error','Error adding item.','error');
+  // Require a date when "Use one expiration date for all" is checked
+  const qty    = parseInt($('#itemQuantity').val()) || 0;
+  const useOne = $('#useOneDate').is(':checked');
+  const oneVal = $('#oneExpirationDate').val();
+  if (useOne && qty > 0 && !oneVal) {
+    Swal.fire({
+      icon:'info',
+      title:'Expiration date required',
+      text:'Please choose the date to apply to all units.',
+      timer:1800,
+      showConfirmButton:false
+    });
+    $('#oneExpirationDate').focus();
+    return;
+  }
+
+  const $submit = $('#inventoryForm button[type="submit"]');
+  setBtnLoading($submit, true);
+
+  $.post('/admin/inventory/add', $(form).serialize())
+    .done(function(res){
+      // ✅ Do NOT close the modal—just toast and prep for next entry
+      Swal.fire({
+        icon:'success',
+        title:'Added',
+        text: res.message || 'Item saved.',
+        timer:1200,
+        showConfirmButton:false
       });
-  });
 
-  // Price previews on input
+      // Keep some fields sticky for faster multi-entry
+      const keep = {
+        category: $('#itemCategorySelect').val(),
+        basePrice: $('#itemBasePrice').val(),
+        markup: $('#itemMarkup').val(),
+        useOne: $('#useOneDate').is(':checked'),
+        oneDate: $('#oneExpirationDate').val()
+      };
+
+      // Soft reset: clear name/qty/dates, keep pricing/category
+      form.reset();
+      $('#expirationDatesContainer').empty();
+      updateAddPreview();
+
+      $('#itemCategorySelect').val(keep.category || '');
+      $('#itemBasePrice').val(keep.basePrice || '');
+      $('#itemMarkup').val(keep.markup || '');
+      $('#useOneDate').prop('checked', !!keep.useOne);
+      $('#oneExpirationDate').val(keep.oneDate || '');
+
+      // Controls will re-enable once quantity is set again
+      toggleOneDateControls(false);
+      markAppliedState(false);
+
+      // Focus back to Item Name for the next add
+      $('#itemName').focus();
+
+      // Refresh table (no category reload needed here)
+      loadInventory();
+    })
+    .fail(function(xhr){
+      const msg = xhr.responseJSON?.error || 'Error adding item.';
+      Swal.fire('Error', msg, 'error');
+    })
+    .always(function(){
+      setBtnLoading($submit, false);
+    });
+});
+
+  // Price previews
   $('#itemBasePrice,#itemMarkup').on('input', updateAddPreview);
   $('#editBasePrice,#editMarkup').on('input', updateEditPreview);
 
-  // Edit inventory (open modal & populate)
-  $('#inventoryTableBody').on('click','.edit-btn',function(){
-    let id=$(this).data('id');
-    $.get('/admin/inventory/item/'+id, item=>{
-      $('#editId').val(item._id);
-      $('#editName').val(item.name);
+  // Edit inventory
+ // Edit inventory (table "Edit" button) — show spinner on the button while loading
+$('#inventoryTableBody').off('click', '.edit-btn').on('click', '.edit-btn', function(){
+  const $btn = $(this);
+  const id = $btn.data('id');
 
-      loadCategories().then(()=>{
-        const $sel = $('#editCategorySelect');
-        if ($sel.find('option[value="'+ item.category +'"]').length === 0 && item.category) {
-          $sel.append('<option value="'+item.category+'">'+(item.category.charAt(0).toUpperCase()+item.category.slice(1))+'</option>');
-        }
-        $sel.val(item.category);
-      });
+  // Build one promise that resolves when the modal is ready
+  const p = $.get('/admin/inventory/item/' + id).then(item => {
+    $('#editId').val(item._id);
+    $('#editName').val(item.name);
 
+    // Load categories, ensure current category is selectable
+    return loadCategories().then(() => {
+      const $sel = $('#editCategorySelect');
+      if ($sel.find('option[value="'+ item.category +'"]').length === 0 && item.category) {
+        $sel.append('<option value="'+item.category+'">'+(item.category.charAt(0).toUpperCase()+item.category.slice(1))+'</option>');
+      }
+      $sel.val(item.category);
+
+      // Fill the rest
       $('#editBasePrice').val(item.basePrice);
       $('#editMarkup').val(item.markup);
       $('#editQuantity').val(item.quantity);
 
-      let c = $('#editExpirationDatesContainer'); c.empty();
-      let qty = item.quantity || 0;
-      for(let i=0;i<qty;i++) {
-        let val = (item.expirationDates && item.expirationDates[i])
-                  ? String(item.expirationDates[i]).split("T")[0]
-                  : "";
+      const c = $('#editExpirationDatesContainer'); c.empty();
+      const qty = item.quantity || 0;
+      for (let i=0;i<qty;i++) {
+        const val = (item.expirationDates && item.expirationDates[i])
+          ? String(item.expirationDates[i]).split("T")[0]
+          : "";
         c.append('<label>Expiration Date '+(i+1)+'</label><input type="date" class="form-control mb-2" name="expirationDates[]" value="'+ val +'">');
       }
+
       updateEditPreview();
       $('#editModal').modal('show');
-    }).fail(()=>Swal.fire('Error','Error fetching item.','error'));
+    });
+  }).fail(() => {
+    Swal.fire('Error','Error fetching item.','error');
   });
+
+  // Only show spinner if slow (delayed)
+  withDelayedSpinner($btn, p, 500);
+});
 
   // Dynamic expiration dates for edit
   $('#editQuantity').on('change', function() {
@@ -662,45 +1120,129 @@
   });
 
   // Submit edit form
-  $('#editForm').on('submit',function(e){
-    e.preventDefault();
-    $.post('/admin/inventory/edit', $(this).serialize())
-      .done(res=>{
-        Swal.fire('Success',res.message,'success');
-        $('#editModal').modal('hide');
-        setTimeout(function(){ loadInventory(); loadCategories(); }, 400);
-      }).fail(()=>Swal.fire('Error','Error updating item.','error'));
+ // Submit edit form — spinner on "Save Changes"
+$('#editForm').off('submit').on('submit', function(e){
+  e.preventDefault();
+  const $form   = $(this);
+  const $submit = $('#editForm button[type="submit"]');
+  setBtnLoading($submit, true);
+
+  // 🔧 Remove blank expirationDates[] fields before serialize
+  const $dateInputs = $form.find('input[name="expirationDates[]"]');
+  $dateInputs.each(function(){
+    if (!$(this).val()) {
+      // Remove the name so it won't be serialized
+      $(this).attr('data-was-name','expirationDates[]').removeAttr('name');
+    }
   });
+
+  const payload = $form.serialize();
+
+  // Restore the names after serialization so UI remains intact if needed
+  $form.find('input[data-was-name="expirationDates[]"]').attr('name','expirationDates[]').removeAttr('data-was-name');
+
+  $.post('/admin/inventory/edit', payload)
+    .done(res => {
+      Swal.fire('Success', res.message, 'success');
+      $('#editModal').modal('hide');
+      setTimeout(function(){ loadInventory(); loadCategories(); }, 400);
+    })
+    .fail(() => {
+      Swal.fire('Error','Error updating item.','error');
+    })
+    .always(() => {
+      setBtnLoading($submit, false);
+    });
+});
 
   // Delete
-  $('#inventoryTableBody').on('click','.delete-btn',function(){
-    let id=$(this).data('id');
-    Swal.fire({ title:'Are you sure to delete this item?', icon:'warning', showCancelButton:true })
-      .then(r=>{
-        if(r.isConfirmed){
-          $.post('/admin/inventory/delete',{id},res=>{
-            Swal.fire('Deleted',res.message,'success');
-            loadInventory();
-            loadCategories();
-          }).fail(()=>Swal.fire('Error','Error deleting item.','error'));
-        }
-      });
-  });
+// Delete (discard expired-only when in "Expired" filter)
+$('#inventoryTableBody').on('click','.delete-btn',function(){
+  const id = $(this).data('id');
+  const isExpiredView = ($('#statusFilter').val() === 'expired');
+  const title = isExpiredView ? 'Discard expired stock only?' : 'Delete this item?';
+  const text  = isExpiredView
+    ? 'Only expired units will be removed; sellable stock stays.'
+    : 'This will remove the entire item.';
 
-  // View Expiration Dates
-  $(document).on('click', '.view-dates-btn', function() {
-    let expDates = $(this).data('expdates');
-    if (!Array.isArray(expDates)) {
-      try { expDates = JSON.parse(expDates); } catch(e) { expDates = []; }
-    }
-    let content = '';
-    expDates.forEach((date, i) => {
-      let formatted = new Date(date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'});
-      content += '<p>Expiration Date '+(i+1)+': '+formatted+'</p>';
+  Swal.fire({ title, text, icon:'warning', showCancelButton:true })
+    .then(r=>{
+      if(!r.isConfirmed) return;
+
+      $.post('/admin/inventory/delete', { id, expiredOnly: isExpiredView })
+        .done(res=>{
+          Swal.fire('Done', res.message || 'Completed.', 'success');
+          loadInventory();
+          loadCategories();
+        })
+        .fail(()=> Swal.fire('Error','Error deleting item.','error'));
     });
-    $('#viewDatesContent').html(content);
-    $('#viewDatesModal').modal('show');
-  });
+});
+
+$(document).off('click', '.view-dates-btn').on('click', '.view-dates-btn', function() {
+  const $btn  = $(this);
+  setBtnLoading($btn, true); // show spinner immediately
+
+  let expDates = $btn.data('expdates');
+  const kind   = $btn.data('kind') || 'future'; // 'expired' | 'near' | 'future'
+
+  if (!Array.isArray(expDates)) {
+    try { expDates = JSON.parse(expDates); } catch(e) { expDates = []; }
+  }
+
+  const $modal   = $('#viewDatesModal');
+  const $dialog  = $modal.find('.modal-dialog');      // we'll toggle scroll here
+  const $content = $modal.find('.modal-content');
+  const $title   = $('#viewDatesModalLabel');
+
+  // Header theme
+  if (kind === 'expired') {
+    $content.addClass('modal-expired');
+    $title.text('Expired Dates');
+  } else if (kind === 'near') {
+    $content.removeClass('modal-expired');
+    $title.text('Near Expiry Dates (≤ 30 days)');
+  } else {
+    $content.removeClass('modal-expired');
+    $title.text('Expiration Dates');
+  }
+
+  // Body
+  let html = '';
+  if (!expDates.length) {
+    html = '<p class="text-muted mb-0">No dates recorded.</p>';
+  } else {
+    expDates.forEach((date, i) => {
+      const formatted = new Date(date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'});
+      if (kind === 'expired') {
+        html += `<p class="mb-1 expired-text">Expired on ${formatted}</p>`;
+      } else if (kind === 'near') {
+        html += `<p class="mb-1">Near expiry on ${formatted}</p>`;
+      } else {
+        html += `<p class="mb-1">Expiration Date ${i+1}: ${formatted}</p>`;
+      }
+    });
+  }
+
+  // Inject content
+  $('#viewDatesContent').html(html);
+
+  // 🚀 Make modal scrollable when 10+ items (Bootstrap 4 built-in)
+  $dialog.toggleClass('modal-dialog-scrollable', (expDates.length >= 10));
+
+  // Stop spinner when the modal finishes showing (fallback just in case)
+  $modal.one('shown.bs.modal', function(){ setBtnLoading($btn, false); });
+  setTimeout(() => setBtnLoading($btn, false), 1200);
+
+  $modal.modal('show');
+});
+
+// Ensure modal resets look when closed
+$('#viewDatesModal').on('hidden.bs.modal', function(){
+  $(this).find('.modal-content').removeClass('modal-expired');
+  $('#viewDatesModalLabel').text('Expiration Dates');
+});
+
 
   // ====== Category Manager (modal) ======
   function fetchCategoriesFull() { return $.get('/admin/categories'); } // [{_id, name}]
@@ -740,25 +1282,39 @@
   }
 
   // Open Manage Categories → load list
-  $('#manageCategoriesModal').on('show.bs.modal', function(){
-    refreshCategoriesUI();
-  });
+$('#manageCategoriesModal').on('show.bs.modal', function(){
+  const p = refreshCategoriesUI();               // existing fetch
+  withDelayedSpinner($('#btnManageCategories'), p, 600); // show spinner only if slow
+});
+
+$('#addModal').on('show.bs.modal', function(){
+  const p = loadCategories();                         // ensure category list is fresh
+  withDelayedSpinner($('#btnOpenAddModal'), p, 600);  // delayed spinner on button
+});
 
   // Add category
-  $('#btnAddCategory').on('click', function(){
-    const name = ($('#newCategoryName').val() || '').trim();
-    if (!name) return Swal.fire('Oops', 'Please enter a category name.', 'info');
-    $.post('/admin/categories', { name })
-      .done(() => {
-        $('#newCategoryName').val('');
-        refreshCategoriesUI();
-        Swal.fire({ icon:'success', title:'Added', timer:1000, showConfirmButton:false });
-      })
-      .fail(xhr => {
-        const msg = xhr.responseJSON?.error || 'Error adding category';
-        Swal.fire('Error', msg, 'error');
-      });
-  });
+// Add category (with spinner)
+$('#btnAddCategory').off('click').on('click', function(){
+  const $btn = $(this);
+  const name = ($('#newCategoryName').val() || '').trim();
+  if (!name) return Swal.fire('Oops', 'Please enter a category name.', 'info');
+
+  setBtnLoading($btn, true);
+
+  $.post('/admin/categories', { name })
+    .done(() => {
+      $('#newCategoryName').val('');
+      refreshCategoriesUI();
+      Swal.fire({ icon:'success', title:'Added', timer:1000, showConfirmButton:false });
+    })
+    .fail(xhr => {
+      const msg = xhr.responseJSON?.error || 'Error adding category';
+      Swal.fire('Error', msg, 'error');
+    })
+    .always(() => {
+      setBtnLoading($btn, false);
+    });
+});
 
   // Rename (switch to edit mode)
   $('#categoriesList').on('click', '.btn-rename', function(){
@@ -775,26 +1331,33 @@
   });
 
   // Save rename
-  $('#categoriesList').on('click', '.btn-save-rename', function(){
-    const li = $(this).closest('li');
-    const id = li.data('id');
-    const newName = (li.find('.input-newname').val() || '').trim();
-    if (!newName) return Swal.fire('Oops', 'Please enter a new name.', 'info');
+// Save rename (with spinner)
+$('#categoriesList').off('click', '.btn-save-rename').on('click', '.btn-save-rename', function(){
+  const $btn = $(this);
+  const li = $btn.closest('li');
+  const id = li.data('id');
+  const newName = (li.find('.input-newname').val() || '').trim();
+  if (!newName) return Swal.fire('Oops', 'Please enter a new name.', 'info');
 
-    $.ajax({
-      url: '/admin/categories/' + id,
-      method: 'PATCH',
-      data: { name: newName }
-    })
-    .done(()=>{
-      refreshCategoriesUI();
-      Swal.fire({ icon:'success', title:'Renamed', timer:1000, showConfirmButton:false });
-    })
-    .fail(xhr=>{
-      const msg = xhr.responseJSON?.error || 'Error renaming category';
-      Swal.fire('Error', msg, 'error');
-    });
+  setBtnLoading($btn, true);
+
+  $.ajax({
+    url: '/admin/categories/' + id,
+    method: 'PATCH',
+    data: { name: newName }
+  })
+  .done(()=>{
+    refreshCategoriesUI();
+    Swal.fire({ icon:'success', title:'Renamed', timer:1000, showConfirmButton:false });
+  })
+  .fail(xhr=>{
+    const msg = xhr.responseJSON?.error || 'Error renaming category';
+    Swal.fire('Error', msg, 'error');
+  })
+  .always(()=>{
+    setBtnLoading($btn, false);
   });
+});
 
   // Delete category
   $('#categoriesList').on('click', '.btn-delete', function(){
@@ -833,6 +1396,13 @@
     if(e.originalEvent && e.originalEvent.persisted) { loadInventory(); loadCategories(); }
   });
 })();
+// Local guard for Add / Manage Categories / Edit / View Dates
+$('#addModal, #manageCategoriesModal, #editModal, #viewDatesModal')
+  .on('show.bs.modal', function(){
+    $('#sidebarOverlay').removeClass('show');      // never double-dim
+    setTimeout(function(){ $('.modal-backdrop').slice(0, -1).remove(); }, 0);
+  });
+
 </script>
 </body>
 </html>
