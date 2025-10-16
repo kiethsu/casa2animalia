@@ -6,101 +6,41 @@
     : { species: [], speciesBreeds: {}, diseases: [], speciesDiseases: {}, services: [] };
 
 %>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Pet Details Settings</title>
-  <!-- Bootstrap CSS -->
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
-  <!-- Font Awesome (for icons) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<<%
+  // Ensure petDetails is defined for the partial.
+  var petDetails = typeof petDetails !== 'undefined'
+    ? petDetails
+    : { species: [], speciesBreeds: {}, diseases: [], speciesDiseases: {}, services: [] };
+%>
 
-  <!-- SweetAlert2 CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+<!-- START: Pet Details Partial (no <html>, no <head>, no <body>) -->
 
+<div class="container py-4">
+  <h2 class="mb-4">Pet Details Settings</h2>
+
+  <!-- (Optional) keep your styles here so they apply only to this partial) -->
   <style>
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .section-header h4 {
-      margin: 0;
-    }
-    .search-box {
-      max-width: 300px;
-      margin-left: auto;
-    }
-    .table-container {
-      overflow-y: auto;
-      max-height: 250px; /* About 5 items */
-    }
-    .table-container::-webkit-scrollbar {
-      width: 4px;
-    }
-    .table-container::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    .table-container::-webkit-scrollbar-thumb {
-      background-color: #888;
-      border-radius: 2px;
-    }
-    .modal-label {
-      font-weight: 600;
-      margin-bottom: 5px;
-    }
-    .inline-confirm {
-      background: #f8d7da;
-      border: 1px solid #f5c6cb;
-      padding: 5px 10px;
-      margin-top: 5px;
-      border-radius: 4px;
-      font-size: 0.85rem;
-      color: #721c24;
-    }
-    .inline-confirm button {
-      margin-right: 5px;
-    }
-    .breed-search-container {
-      display: flex;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-    #breedStatusMsg {
-      width: 50%;
-      font-size: 0.9rem;
-    }
-    .breed-add-msg {
-      color: #28a745;
-    }
-    .breed-delete-msg {
-      color: #dc3545;
-    }
-    .breed-search-box {
-      width: 50%;
-      margin-left: auto;
-    }
-    #breedList {
-      max-height: 150px;
-      overflow-y: auto;
-    }
-    #breedList::-webkit-scrollbar {
-      width: 4px;
-    }
-    #breedList::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    #breedList::-webkit-scrollbar-thumb {
-      background-color: #888;
-      border-radius: 2px;
-    }
-      .swal2-container{ z-index: 6000 !important; }
+    .section-header { display:flex; align-items:center; justify-content:space-between; }
+    .section-header h4 { margin:0; }
+    .search-box { max-width:300px; margin-left:auto; }
+    .table-container { overflow-y:auto; max-height:250px; }
+    .table-container::-webkit-scrollbar { width:4px; }
+    .table-container::-webkit-scrollbar-track { background:transparent; }
+    .table-container::-webkit-scrollbar-thumb { background-color:#888; border-radius:2px; }
+    .modal-label { font-weight:600; margin-bottom:5px; }
+    .inline-confirm { background:#f8d7da; border:1px solid #f5c6cb; padding:5px 10px; margin-top:5px; border-radius:4px; font-size:.85rem; color:#721c24; }
+    .inline-confirm button { margin-right:5px; }
+    .breed-search-container { display:flex; align-items:center; margin-bottom:10px; }
+    #breedStatusMsg { width:50%; font-size:.9rem; }
+    .breed-add-msg { color:#28a745; }
+    .breed-delete-msg { color:#dc3545; }
+    .breed-search-box { width:50%; margin-left:auto; }
+    #breedList { max-height:150px; overflow-y:auto; }
+    #breedList::-webkit-scrollbar { width:4px; }
+    #breedList::-webkit-scrollbar-track { background:transparent; }
+    #breedList::-webkit-scrollbar-thumb { background-color:#888; border-radius:2px; }
+    .swal2-container{ z-index: 6000 !important; }
   </style>
-</head>
-<body class="bg-light">
-  <div class="container py-4">
-    <h2 class="mb-4">Pet Details Settings</h2>
 
     <!-- ===================== 1) SPECIES/BREED SECTION ===================== -->
     <div class="card mb-4">
