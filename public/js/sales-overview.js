@@ -3,30 +3,73 @@
   'use strict';
 
   // Public API
-  const SalesOverview = { init, destroy };
+  const SalesOverview = { init, destroy, pause, resume };
   window.SalesOverview = SalesOverview;
 
-  // ---- internal state (cleared on destroy) ----
+  // ---- internal state ----
   const ns = '.salesOverview';
-  const REFRESH_MS = 20000; // auto refresh every 20s
+  const REFRESH_MS = 30000; // gentler than 20s
+  let autoId = null;
+  let paused = false;
 
-  let timers = [];
+  // selection state so auto-refresh honors user's choice (preset/monthpick/yoy)
+  const lastSel = {
+    mode: 'preset',                // 'preset' | 'monthpick' | 'yoy'
+    preset: 'today',
+    month: null,                   // 0..11 (when mode === 'monthpick')
+    year: null,                    // YYYY   (when mode === 'monthpick')
+    yoy: null                      // YYYY   (when mode === 'yoy')
+  };
+
+  // in-flight guards per section (so we can cancel/avoid stacking)
+  let xhrKpi = null, xhrTrend = null, xhrCat = null, xhrProd = null, xhrServ = null;
+
   let pending = [];
   let salesTrendChart = null;
   let catSparklineChart = null;
 
-  // ------------- tiny utils -------------
-  const addTimer = (id) => { timers.push(id); };
-  const clearTimers = () => { timers.forEach(clearInterval); timers = []; };
-  const track = (jqxhr) => { pending.push(jqxhr); return jqxhr; };
-  const abortAll = () => { pending.forEach(x => { try { x.abort(); } catch(e){} }); pending = []; };
+  // ---------- tiny utils ----------
   const peso = (n) => {
     const v = Number(n) || 0;
     return (v < 0 ? `-₱${Math.abs(v).toLocaleString()}` : `₱${v.toLocaleString()}`);
   };
-  const debounce = (fn, ms=250) => {
-    let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn.apply(null,args), ms); };
+
+  const debounce = (fn, ms = 250) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn.apply(null,args), ms); }; };
+
+  // Track jqXHR and remove when finished (prevents memory growth)
+  const track = (jq) => {
+    pending.push(jq);
+    jq.always(() => {
+      const i = pending.indexOf(jq);
+      if (i > -1) pending.splice(i, 1);
+    });
+    return jq;
   };
+
+  const isSalesTabActive = () =>
+    $('#salesOverview').hasClass('active') &&
+    $('#salesOverview').is(':visible') &&
+    document.visibilityState === 'visible';
+
+  const isSlowNet = () => {
+    const n = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!n) return false;
+    return !!(n.saveData || /(^|-)2g$/.test(n.effectiveType || '') || (n.downlink && n.downlink < 1));
+  };
+
+  const addInterval = () => {
+    clearInterval(autoId);
+    autoId = setInterval(() => {
+      if (paused || !isSalesTabActive() || isSlowNet()) return;
+      refreshAll('auto');
+    }, REFRESH_MS);
+  };
+
+  const clearIntervalSafe = () => { clearInterval(autoId); autoId = null; };
+
+  function abortIfAny(...xhrs) {
+    xhrs.forEach(x => { try { x && x.abort(); } catch (_) {} });
+  }
 
   function destroyCharts() {
     try { salesTrendChart && salesTrendChart.destroy(); } catch(e){}
@@ -40,44 +83,82 @@
     // Remove any old handlers first (namespaced)
     $(document)
       .off('change' + ns, '#salesTrendPreset')
-      .off('apply.daterangepicker' + ns + ' cancel.daterangepicker' + ns, '#salesTrendCustom')
+      .off('change' + ns, '#trendMonth, #trendYear')
       .off('change' + ns, '#salesTrendYOY')
       .off('change' + ns, '#categorySelect, #categoryRangeSelect')
       .off('change' + ns, '#prodCategorySelect, #prodRangeSelect')
       .off('input'  + ns, '#prodSearchInput')
-      .off('change' + ns, '#servRangeSelect');
+      .off('change' + ns, '#servRangeSelect')
+      .off('shown.bs.tab' + ns, 'a[data-toggle="tab"]');
 
-    // Re-bind
+    // Tabs: pause background refresh when not on Sales Overview
+    $(document).on('shown.bs.tab' + ns, 'a[data-toggle="tab"]', function (e) {
+      const target = $(e.target).attr('href');
+      paused = (target !== '#salesOverview');
+      if (!paused) refreshAll('tab-shown');
+    });
+
+    // Page visibility
+    document.removeEventListener('visibilitychange', onVis);
+    document.addEventListener('visibilitychange', onVis);
+
+    // PRESET changed
     $(document).on('change' + ns, '#salesTrendPreset', function () {
       const v = $(this).val();
-      if (v === 'today') {
-        $('#salesTrendCustom').hide().val('');
-        loadSales('today', null, null, 'prev');
-      } else if (v === 'custom') {
-        $('#salesTrendCustom').show().val('');
-      } else {
-        $('#salesTrendCustom').hide().val('');
-        loadSales(v, null, null, 'prev');
+
+      // Clear YoY if user picks a preset/month
+      $('#salesTrendYOY').val('');
+
+      if (v === 'monthpick') {
+        // Show month + year pickers (default to current if empty)
+        $('#trendMonth, #trendYear').show();
+
+        const now = new Date();
+        if ($('#trendMonth').val() === null || $('#trendMonth').val() === '') {
+          $('#trendMonth').val(String(now.getMonth()));
+        }
+        if ($('#trendYear').val() === null || $('#trendYear').val() === '') {
+          $('#trendYear').val(String(now.getFullYear()));
+        }
+
+        lastSel.mode  = 'monthpick';
+        lastSel.month = parseInt($('#trendMonth').val(), 10);
+        lastSel.year  = parseInt($('#trendYear').val(), 10);
+        loadMonthlyYoY(lastSel.month, lastSel.year);
+        return;
+      }
+
+      // Hide month+year pickers when not in monthpick
+      $('#trendMonth, #trendYear').hide();
+
+      // Normal presets
+      lastSel.mode = 'preset';
+      lastSel.preset = v || '7d';
+      loadSales(lastSel.preset, null, null, 'prev');
+    });
+
+    // MONTH / YEAR changed
+    $(document).on('change' + ns, '#trendMonth, #trendYear', function () {
+      const m = parseInt($('#trendMonth').val(), 10);
+      const y = parseInt($('#trendYear').val(), 10);
+      if (Number.isInteger(m) && Number.isInteger(y)) {
+        lastSel.mode = 'monthpick';
+        lastSel.month = m;
+        lastSel.year  = y;
+        loadMonthlyYoY(m, y);
       }
     });
 
-    $(document).on('apply.daterangepicker' + ns, '#salesTrendCustom', (e, picker) => {
-      const start = picker.startDate.format('YYYY-MM-DD');
-      const end = picker.endDate.format('YYYY-MM-DD');
-      $(e.target).val(`${start} to ${end}`);
-      loadSales('custom', start, end, 'prev');
-    });
-    $(document).on('cancel.daterangepicker' + ns, '#salesTrendCustom', () => {
-      $('#salesTrendCustom').val('');
-      const preset = $('#salesTrendPreset').val();
-      loadSales(preset || '7d', null, null, 'prev');
-    });
-
+    // YoY changed (whole year)
     $(document).on('change' + ns, '#salesTrendYOY', function () {
+      // When YoY is selected, clear preset and hide month/year pickers
       $('#salesTrendPreset').val('');
-      $('#salesTrendCustom').hide().val('');
+      $('#trendMonth, #trendYear').hide();
+
       const selectedYear = parseInt($(this).val(), 10);
-      loadSales('year', null, null, 'yoy', selectedYear);
+      lastSel.mode = selectedYear ? 'yoy' : 'preset';
+      lastSel.yoy = selectedYear || null;
+      if (selectedYear) loadSales('year', null, null, 'yoy', selectedYear);
     });
 
     $(document).on('change' + ns, '#categorySelect, #categoryRangeSelect', refreshCategoryKPIs);
@@ -86,45 +167,60 @@
     $(document).on('change' + ns, '#servRangeSelect', refreshServiceList);
   }
 
+  function onVis() {
+    paused = document.visibilityState !== 'visible';
+    if (!paused) refreshAll('visible');
+  }
+
   // ------------- public -------------
   function init() {
-    // Guard: run only if dashboard DOM is present
+    // Run only if dashboard DOM is present
     if (!document.getElementById('salesOverview')) return;
 
-    // Build YOY dropdown fresh
+    // reset timers/requests/charts if reinited
+    clearIntervalSafe();
+    abortIfAny(xhrKpi, xhrTrend, xhrCat, xhrProd, xhrServ);
+    pending = [];
+    destroyCharts();
+    paused = false;
+
+    // Build YoY dropdown with a placeholder (OFF by default)
     const $yoy = $('#salesTrendYOY').empty();
+    $yoy.append('<option value="">YoY (off)</option>');
     const currentYear = new Date().getFullYear();
     for (let y = currentYear; y > currentYear - 5; y--) {
       $yoy.append(`<option value="${y}">${y}-${y - 1}</option>`);
     }
+    $yoy.val(''); // OFF initially
 
-    // Init daterangepicker every time (it attaches to the input node newly injected)
-    const $custom = $('#salesTrendCustom');
-    if ($custom.data('daterangepicker')) {
-      try { $custom.data('daterangepicker').remove(); } catch(e){}
+    // Populate Month + Year pickers
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const $m = $('#trendMonth').empty();
+    monthNames.forEach((name, idx) => $m.append(`<option value="${idx}">${name}</option>`));
+
+    const $y = $('#trendYear').empty();
+    for (let yv = currentYear; yv >= currentYear - 7; yv--) {
+      $y.append(`<option value="${yv}">${yv}</option>`);
     }
-    $custom.daterangepicker({
-      autoUpdateInput: false,
-      opens: 'right',
-      locale: { format: 'YYYY-MM-DD', cancelLabel: 'Clear' },
-      alwaysShowCalendars: true,
-      linkedCalendars: false,
-      showDropdowns: true
-    });
+    // hide by default; shown only when preset=monthpick
+    $('#trendMonth, #trendYear').hide();
 
     bindOnce();
 
-    // First load (makes things appear immediately)
-    $('#salesTrendPreset').val('7d').trigger('change');
+    // Default selection (today) reflected in both DOM and state
+    lastSel.mode = 'preset';
+    lastSel.preset = 'today';
+    $('#salesTrendPreset').val('today').trigger('change');
+
     loadYearKPIs();
     populateCategoryDropdown().then(() => {
-      track($.getJSON('/admin/get-top-category?range=week'))
+      $.getJSON('/admin/get-top-category?range=day')
         .done(resp => {
           const topCat = resp.topCategory;
           if (topCat) {
             $('#categorySelect').val(topCat);
             $('#prodCategorySelect').val(topCat);
-            $('#categoryRangeSelect').val('week');
+            $('#categoryRangeSelect').val('day');
             $('#prodRangeSelect').val('day');
           }
         })
@@ -133,88 +229,245 @@
           refreshProductList();
         });
     });
+
     $('#servRangeSelect').val('day');
     refreshServiceList();
 
-    // Auto refresh loop for “realtime” feel
-    addTimer(setInterval(() => {
-      if (!document.getElementById('salesOverview')) return; // still visible?
-      loadYearKPIs(); // KPI row
-      const preset = $('#salesTrendPreset').val();
-      const yoyVal = $('#salesTrendYOY').val();
-      if (preset && preset !== 'custom') {
-        loadSales(preset, null, null, 'prev');
-      } else if (yoyVal) {
-        loadSales('year', null, null, 'yoy', parseInt(yoyVal, 10));
-      }
-      refreshCategoryKPIs();
-      refreshProductList();
-      refreshServiceList();
-    }, REFRESH_MS));
+    addInterval(); // start visibility-aware, tab-aware loop
   }
 
   function destroy() {
-    // Stop any refreshing + kill requests + charts + handlers
-    clearTimers();
-    abortAll();
+    clearIntervalSafe();
+    abortIfAny(xhrKpi, xhrTrend, xhrCat, xhrProd, xhrServ);
     destroyCharts();
-    $(document).off(ns); // removes all namespaced handlers
+    $(document).off(ns);
+    document.removeEventListener('visibilitychange', onVis);
+  }
+
+  function pause(){ paused = true; }
+  function resume(){ paused = false; refreshAll('resume'); }
+
+  function refreshAll(reason){
+    if (!isSalesTabActive()) return;
+
+    loadYearKPIs();
+
+    // honor the user's last selection
+    if (lastSel.mode === 'preset' && lastSel.preset) {
+      loadSales(lastSel.preset, null, null, 'prev');
+    } else if (lastSel.mode === 'monthpick' && Number.isInteger(lastSel.month) && Number.isInteger(lastSel.year)) {
+      loadMonthlyYoY(lastSel.month, lastSel.year);
+    } else if (lastSel.mode === 'yoy' && lastSel.yoy) {
+      loadSales('year', null, null, 'yoy', parseInt(lastSel.yoy, 10));
+    }
+
+    refreshCategoryKPIs();
+    refreshProductList();
+    refreshServiceList();
   }
 
   // ------------- logic -------------
-  function loadYearKPIs() {
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const curStart = `${currentYear}-01-01`;
-    const curEnd = today.toISOString().slice(0, 10);
-    const prevYear = currentYear - 1;
-    const prevStart = `${prevYear}-01-01`;
-    const prevEnd = `${prevYear}-12-31`;
+function loadYearKPIs() {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const curStart = `${currentYear}-01-01`;
+  const curEnd = today.toISOString().slice(0, 10);
+  const prevYear = currentYear - 1;
+  const prevStart = `${prevYear}-01-01`;
+  const prevEnd = `${prevYear}-12-31`;
 
-    track($.getJSON(`/admin/get-dashboard-stats?range=custom&start=${curStart}&end=${curEnd}&compare=none`))
-      .done(curData => {
-        const curRev  = curData.sales?.totalRevenue || 0;
-        const curTxns = curData.sales?.totalTransactions || 0;
-        $('#kpiRevenue').text(peso(curRev));
-        $('#kpiTxns').text(curTxns);
+  abortIfAny(xhrKpi);
+  xhrKpi = track($.getJSON(`/admin/get-dashboard-stats?range=custom&start=${curStart}&end=${curEnd}&compare=none`))
+    .done(curData => {
+      const curRev  = curData.sales?.totalRevenue || 0;
+      const curTxns = curData.sales?.totalTransactions || 0;
 
-        track($.getJSON(`/admin/get-dashboard-stats?range=custom&start=${prevStart}&end=${prevEnd}&compare=none`))
-          .done(prevData => {
-            const prevRev = prevData.sales?.totalRevenue || 0;
-            // keep original IDs: kpiAov shows last year's revenue in your UI
-            $('#kpiAov').text(peso(prevRev));
+      $('#kpiRevenue').text(peso(curRev));
+      $('#kpiTxns').text(curTxns);
 
-            let revPctChange = 0;
-            if (prevRev > 0) revPctChange = ((curRev - prevRev) / prevRev) * 100;
-            const revPctRounded = parseFloat(revPctChange.toFixed(1));
-            const convText = (revPctRounded >= 0 ? '+' : '') + `${revPctRounded}%`;
-            $('#kpiConv').text(convText)
-              .toggleClass('up', revPctRounded > 0)
-              .toggleClass('down', revPctRounded < 0)
-              .toggleClass('neutral', revPctRounded === 0);
+      const jq = track($.getJSON(`/admin/get-dashboard-stats?range=custom&start=${prevStart}&end=${prevEnd}&compare=none`))
+        .done(prevData => {
+          const prevRev  = prevData.sales?.totalRevenue || 0;
+          const prevTxns = prevData.sales?.totalTransactions || 0;
 
-            const $growthIcon = $('#growthIcon').removeClass('up down neutral fa-arrow-up fa-arrow-down');
-            if (revPctRounded > 0) $growthIcon.addClass('up fa-arrow-up');
-            else if (revPctRounded < 0) $growthIcon.addClass('down fa-arrow-down');
-            else $growthIcon.addClass('neutral fa-arrow-down');
-          })
-          .fail(() => {
-            $('#kpiAov').text('₱0');
-            $('#kpiConv').text('0%').removeClass('up down').addClass('neutral');
-            $('#growthIcon').removeClass('up down').addClass('neutral fa-arrow-down');
-          });
-      })
-      .fail(() => {
-        $('#kpiRevenue').text('₱0');
-        $('#kpiTxns').text(0);
-        $('#kpiAov').text('₱0');
-        $('#kpiConv').text('0%').removeClass('up down').addClass('neutral');
-        $('#growthIcon').removeClass('up down').addClass('neutral fa-arrow-down');
+          // Fill past-year KPIs
+          $('#kpiAov').text(peso(prevRev));
+          $('#kpiTxnsPrev').text(prevTxns);
+
+          // Compute growth vs previous year (revenue)
+          let revPctChange = 0;
+          if (prevRev > 0) revPctChange = ((curRev - prevRev) / prevRev) * 100;
+          const revPctRounded = parseFloat(revPctChange.toFixed(1));
+          const convText = (revPctRounded >= 0 ? '+' : '') + `${revPctRounded}%`;
+
+          $('#kpiConv').text(convText)
+            .toggleClass('up', revPctRounded > 0)
+            .toggleClass('down', revPctRounded < 0)
+            .toggleClass('neutral', revPctRounded === 0);
+
+          const $growthIcon = $('#growthIcon')
+            .removeClass('up down neutral fa-arrow-up fa-arrow-down');
+          if (revPctRounded > 0) $growthIcon.addClass('up fa-arrow-up');
+          else if (revPctRounded < 0) $growthIcon.addClass('down fa-arrow-down');
+          else $growthIcon.addClass('neutral fa-arrow-down');
+        })
+        .fail(() => {
+          $('#kpiAov').text('₱0');
+          $('#kpiTxnsPrev').text('0');
+          $('#kpiConv').text('0%').removeClass('up down').addClass('neutral');
+          $('#growthIcon').removeClass('up down').addClass('neutral fa-arrow-down');
+        });
+
+      xhrKpi = jq;
+    })
+    .fail(() => {
+      $('#kpiRevenue').text('₱0');
+      $('#kpiTxns').text(0);
+      $('#kpiAov').text('₱0');
+      $('#kpiTxnsPrev').text('0');
+      $('#kpiConv').text('0%').removeClass('up down').addClass('neutral');
+      $('#growthIcon').removeClass('up down').addClass('neutral fa-arrow-down');
+    });
+}
+
+  // NEW: Month + Year selection (compare to same month last year)
+  function loadMonthlyYoY(monthIdx, year) {
+    abortIfAny(xhrTrend);
+
+    const monthNamesShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    // Build [YYYY-MM-01 .. YYYY-MM-last]
+    const curStart = new Date(year, monthIdx, 1);
+    const curEnd   = new Date(year, monthIdx + 1, 0);
+    const prevYear = year - 1;
+    const prevStart= new Date(prevYear, monthIdx, 1);
+    const prevEnd  = new Date(prevYear, monthIdx + 1, 0);
+
+    function iso(d){ const s = new Date(d); s.setHours(0,0,0,0); return s.toISOString().slice(0,10); }
+
+    const qs1 = `/admin/get-dashboard-stats?range=custom&start=${iso(curStart)}&end=${iso(curEnd)}&compare=none`;
+    const qs2 = `/admin/get-dashboard-stats?range=custom&start=${iso(prevStart)}&end=${iso(prevEnd)}&compare=none`;
+
+    const q1 = track($.getJSON(qs1));
+    const q2 = track($.getJSON(qs2));
+    xhrTrend = q1;
+
+    $.when(q1, q2).done((curWrap, prevWrap) => {
+      const cur = (curWrap && curWrap[0]) || {};
+      const prv = (prevWrap && prevWrap[0]) || {};
+
+      const curSales   = Number(cur.sales?.totalRevenue)     || 0;
+      const prevSales  = Number(prv.sales?.totalRevenue)     || 0;
+      const curTxns    = Number(cur.sales?.totalTransactions)|| 0;
+      const prevTxns   = Number(prv.sales?.totalTransactions)|| 0;
+      const curProfit  = Number(cur.sales?.profit)           || 0;
+      const prevProfit = Number(prv.sales?.profit)           || 0;
+
+      let pctGrowth = 0;
+      if (prevSales > 0) pctGrowth = ((curSales - prevSales) / prevSales) * 100;
+      const pctRounded = Number(pctGrowth.toFixed(1));
+
+      const curLabel  = `${monthNamesShort[monthIdx]} ${year}`;
+      const prevLabel = `${monthNamesShort[monthIdx]} ${prevYear}`;
+
+      destroyCharts();
+
+      // Chart
+      salesTrendChart = new ApexCharts(document.querySelector('#salesTrendChart'), {
+        chart: { type: 'bar', height: 320, toolbar: { show: false } },
+        series: [
+          { name: 'Sales (₱)',    data: [curSales,  prevSales] },
+          { name: 'Transactions', data: [curTxns,   prevTxns]  },
+          { name: 'Profit (₱)',   data: [curProfit, prevProfit] }
+        ],
+        xaxis: { categories: [curLabel, prevLabel], labels: { style: { fontSize: '13px' } } },
+        yaxis: { labels: { formatter: v => Number(Number(v).toFixed(0)).toLocaleString() } },
+        colors: ['#008FFB', '#FEB019', '#28A745'],
+        plotOptions: { bar: { columnWidth: '45%', dataLabels: { position: 'top' } } },
+        dataLabels: {
+          enabled: true,
+          offsetY: -28,
+          style: { colors: ['#222'], fontWeight: 700, fontSize: '15px' },
+          background: { enabled: true, foreColor: '#fff', borderRadius: 4, opacity: 0.95, padding: 3 },
+          formatter: (val, opts) => {
+            if (opts.seriesIndex === 0 && opts.dataPointIndex === 0) {
+              const sign = pctRounded >= 0 ? '+' : '';
+              return `${peso(val)}\n${sign}${pctRounded}%`;
+            }
+            return opts.seriesIndex === 1
+              ? `${Number(val).toLocaleString()}`
+              : `${peso(val)}`;
+          }
+        },
+        legend: { show: true, position: 'top', horizontalAlign: 'right' },
+        tooltip: { y: (v, o) => (o.seriesIndex === 1 ? `${Number(v).toLocaleString()}` : `${peso(v)}`) }
       });
+      salesTrendChart.render();
+
+      // KPI table
+      $('#salesTrendKPITable').show();
+      $('#stCurLabel').text(curLabel);
+      $('#stPrevLabel').text(prevLabel);
+      $('#stCurSales').text(peso(curSales));
+      $('#stCurTxns').text(curTxns);
+      $('#stCurProfit').text(peso(curProfit));
+      $('#stPrevSales').text(peso(prevSales));
+      $('#stPrevTxns').text(prevTxns);
+      $('#stPrevProfit').text(peso(prevProfit));
+    }).fail(() => {
+      renderTrendZero();
+    });
+
+    function renderTrendZero() {
+      $('#salesTrendKPITable').show();
+      $('#stCurLabel').text('Current');
+      $('#stPrevLabel').text('Previous');
+      $('#stCurSales, #stPrevSales, #stCurProfit, #stPrevProfit').text('₱0');
+      $('#stCurTxns, #stPrevTxns').text('0');
+
+      destroyCharts();
+      salesTrendChart = new ApexCharts(document.querySelector('#salesTrendChart'), {
+        chart: { type: 'bar', height: 320, toolbar: { show: false } },
+        series: [
+          { name: 'Sales (₱)',    data: [0, 0] },
+          { name: 'Transactions', data: [0, 0] },
+          { name: 'Profit (₱)',   data: [0, 0] }
+        ],
+        xaxis: { categories: ['Current', 'Previous'] },
+        legend: { show: false },
+        dataLabels: { enabled: false }
+      });
+      salesTrendChart.render();
+    }
   }
 
+  // Existing generic loader (presets + YoY year)
   function loadSales(range, start, end, compare, year) {
-    // YOY: fetch two custom windows (no compare) and render side-by-side
+    abortIfAny(xhrTrend);
+
+    function renderTrendZero() {
+      $('#salesTrendKPITable').show();
+      $('#stCurLabel').text('Current');
+      $('#stPrevLabel').text('Previous');
+      $('#stCurSales, #stPrevSales, #stCurProfit, #stPrevProfit').text('₱0');
+      $('#stCurTxns, #stPrevTxns').text('0');
+
+      destroyCharts();
+      salesTrendChart = new ApexCharts(document.querySelector('#salesTrendChart'), {
+        chart: { type: 'bar', height: 320, toolbar: { show: false } },
+        series: [
+          { name: 'Sales (₱)',    data: [0, 0] },
+          { name: 'Transactions', data: [0, 0] },
+          { name: 'Profit (₱)',   data: [0, 0] }
+        ],
+        xaxis: { categories: ['Current', 'Previous'] },
+        legend: { show: false },
+        dataLabels: { enabled: false }
+      });
+      salesTrendChart.render();
+    }
+
+    // YoY (whole-year) path unchanged
     if (compare === 'yoy' && typeof year === 'number') {
       const curYear  = year;
       const prevYear = year - 1;
@@ -223,81 +476,75 @@
       const prevStart= `${prevYear}-01-01`;
       const prevEnd  = `${prevYear}-12-31`;
 
-      track($.getJSON(`/admin/get-dashboard-stats?range=custom&start=${curStart}&end=${curEnd}&compare=none`))
-        .done(curData => {
-          track($.getJSON(`/admin/get-dashboard-stats?range=custom&start=${prevStart}&end=${prevEnd}&compare=none`))
-            .done(prevData => {
-              const curSales   = curData.sales?.totalRevenue || 0;
-              const prevSales  = prevData.sales?.totalRevenue || 0;
-              const curTxns    = curData.sales?.totalTransactions || 0;
-              const prevTxns   = prevData.sales?.totalTransactions || 0;
-              const curProfit  = curData.sales?.profit || 0;
-              const prevProfit = prevData.sales?.profit || 0;
+      const q1 = track($.getJSON(`/admin/get-dashboard-stats?range=custom&start=${curStart}&end=${curEnd}&compare=none`));
+      const q2 = track($.getJSON(`/admin/get-dashboard-stats?range=custom&start=${prevStart}&end=${prevEnd}&compare=none`));
 
-              let pctGrowth = 0;
-              if (prevSales > 0) pctGrowth = ((curSales - prevSales) / prevSales) * 100;
-              const pctRounded = Number(pctGrowth.toFixed(1));
+      xhrTrend = q1;
+      $.when(q1, q2).done((curDataWrap, prevDataWrap) => {
+        const curData = curDataWrap[0] || {};
+        const prevData= prevDataWrap[0] || {};
+        const curSales   = curData.sales?.totalRevenue || 0;
+        const prevSales  = prevData.sales?.totalRevenue || 0;
+        const curTxns    = curData.sales?.totalTransactions || 0;
+        const prevTxns   = prevData.sales?.totalTransactions || 0;
+        const curProfit  = curData.sales?.profit || 0;
+        const prevProfit = prevData.sales?.profit || 0;
 
-              destroyCharts();
-              $('#salesTrendKPITable').show();
-              $('#stCurLabel').text(`${curYear}`);
-              $('#stPrevLabel').text(`${prevYear}`);
-              $('#stCurSales').text(peso(curSales));
-              $('#stCurTxns').text(curTxns);
-              $('#stCurProfit').text(peso(curProfit));
-              $('#stPrevSales').text(peso(prevSales));
-              $('#stPrevTxns').text(prevTxns);
-              $('#stPrevProfit').text(peso(prevProfit));
+        let pctGrowth = 0;
+        if (prevSales > 0) pctGrowth = ((curSales - prevSales) / prevSales) * 100;
+        const pctRounded = Number(pctGrowth.toFixed(1));
 
-              salesTrendChart = new ApexCharts(document.querySelector('#salesTrendChart'), {
-                chart: { type: 'bar', height: 320, toolbar: { show: false } },
-                series: [
-                  { name: 'Sales (₱)',      data: [curSales,  prevSales] },
-                  { name: 'Transactions',   data: [curTxns,   prevTxns]  },
-                  { name: 'Profit (₱)',     data: [curProfit, prevProfit] }
-                ],
-                xaxis: { categories: [`${curYear}`, `${prevYear}`], labels: { style: { fontSize: '13px' } } },
-                yaxis: { labels: { formatter: v => Number(Number(v).toFixed(0)).toLocaleString() } },
-                colors: ['#008FFB', '#FEB019', '#28A745'],
-                plotOptions: { bar: { columnWidth: '45%', dataLabels: { position: 'top' } } },
-                dataLabels: {
-                  enabled: true,
-                  offsetY: -28,
-                  style: { colors: ['#222'], fontWeight: 700, fontSize: '15px' },
-                  background: { enabled: true, foreColor: '#fff', borderRadius: 4, opacity: 0.95, padding: 3 },
-                  formatter: (val, opts) => {
-                    if (opts.seriesIndex === 0 && opts.dataPointIndex === 0) {
-                      const sign = pctRounded >= 0 ? '+' : '';
-                      return `${peso(val)}\n${sign}${pctRounded}%`;
-                    }
-                    return opts.seriesIndex === 1
-                      ? `${Number(val).toLocaleString()}`
-                      : `${peso(val)}`;
-                  }
-                },
-                legend: { show: true, position: 'top', horizontalAlign: 'right' },
-                tooltip: { y: (v, o) => (o.seriesIndex === 1 ? `${Number(v).toLocaleString()}` : `${peso(v)}`) }
-              });
-              salesTrendChart.render();
-            })
-            .fail(renderTrendZero);
-        })
-        .fail(renderTrendZero);
+        destroyCharts();
+        $('#salesTrendKPITable').show();
+        $('#stCurLabel').text(`${curYear}`);
+        $('#stPrevLabel').text(`${prevYear}`);
+        $('#stCurSales').text(peso(curSales));
+        $('#stCurTxns').text(curTxns);
+        $('#stCurProfit').text(peso(curProfit));
+        $('#stPrevSales').text(peso(prevSales));
+        $('#stPrevTxns').text(prevTxns);
+        $('#stPrevProfit').text(peso(prevProfit));
+
+        salesTrendChart = new ApexCharts(document.querySelector('#salesTrendChart'), {
+          chart: { type: 'bar', height: 320, toolbar: { show: false } },
+          series: [
+            { name: 'Sales (₱)',      data: [curSales,  prevSales] },
+            { name: 'Transactions',   data: [curTxns,   prevTxns]  },
+            { name: 'Profit (₱)',     data: [curProfit, prevProfit] }
+          ],
+          xaxis: { categories: [`${curYear}`, `${prevYear}`], labels: { style: { fontSize: '13px' } } },
+          yaxis: { labels: { formatter: v => Number(Number(v).toFixed(0)).toLocaleString() } },
+          colors: ['#008FFB', '#FEB019', '#28A745'],
+          plotOptions: { bar: { columnWidth: '45%', dataLabels: { position: 'top' } } },
+          dataLabels: {
+            enabled: true,
+            offsetY: -28,
+            style: { colors: ['#222'], fontWeight: 700, fontSize: '15px' },
+            background: { enabled: true, foreColor: '#fff', borderRadius: 4, opacity: 0.95, padding: 3 },
+            formatter: (val, opts) => {
+              if (opts.seriesIndex === 0 && opts.dataPointIndex === 0) {
+                const sign = pctRounded >= 0 ? '+' : '';
+                return `${peso(val)}\n${sign}${pctRounded}%`;
+              }
+              return opts.seriesIndex === 1
+                ? `${Number(val).toLocaleString()}`
+                : `${peso(val)}`;
+            }
+          },
+          legend: { show: true, position: 'top', horizontalAlign: 'right' },
+          tooltip: { y: (v, o) => (o.seriesIndex === 1 ? `${Number(v).toLocaleString()}` : `${peso(v)}`) }
+        });
+        salesTrendChart.render();
+      }).fail(renderTrendZero);
+
       return;
     }
 
-    // TODAY vs PREV
-    if (range === 'today' && compare === 'prev') {
-      track($.getJSON(`/admin/get-dashboard-stats?range=today&compare=prev`))
-        .done(renderTrendFromApi)
-        .fail(renderTrendZero);
-      return;
-    }
-
-    // Other ranges + prev compare (or none)
+    // Other ranges + prev compare (or none) – unchanged
     let qs = `?range=${encodeURIComponent(range)}&compare=${encodeURIComponent(compare || 'prev')}`;
-    if (range === 'custom') qs += `&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
-    track($.getJSON(`/admin/get-dashboard-stats${qs}`))
+    if (range === 'custom' && start && end) qs += `&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+
+    xhrTrend = track($.getJSON(`/admin/get-dashboard-stats${qs}`))
       .done(renderTrendFromApi)
       .fail(renderTrendZero);
 
@@ -396,33 +643,11 @@
       $('#stPrevTxns').text(previousTxns);
       $('#stPrevProfit').text(peso(previousProfit));
     }
-
-    function renderTrendZero() {
-      $('#salesTrendKPITable').show();
-      $('#stCurLabel').text('Current');
-      $('#stPrevLabel').text('Previous');
-      $('#stCurSales, #stPrevSales, #stCurProfit, #stPrevProfit').text('₱0');
-      $('#stCurTxns, #stPrevTxns').text('0');
-
-      destroyCharts();
-      salesTrendChart = new ApexCharts(document.querySelector('#salesTrendChart'), {
-        chart: { type: 'bar', height: 320, toolbar: { show: false } },
-        series: [
-          { name: 'Sales (₱)',    data: [0, 0] },
-          { name: 'Transactions', data: [0, 0] },
-          { name: 'Profit (₱)',   data: [0, 0] }
-        ],
-        xaxis: { categories: ['Current', 'Previous'] },
-        legend: { show: false },
-        dataLabels: { enabled: false }
-      });
-      salesTrendChart.render();
-    }
   }
 
   function refreshCategoryKPIs() {
     const category = $('#categorySelect').val();
-    const range = $('#categoryRangeSelect').val() || 'week';
+    const range = $('#categoryRangeSelect').val() || 'day';
 
     if (!category) {
       $('#catSales, #catProfit, #catLoss').text('₱0');
@@ -435,7 +660,8 @@
       return;
     }
 
-    track($.getJSON(`/admin/get-sales-by-category?category=${encodeURIComponent(category)}&range=${encodeURIComponent(range)}`))
+    abortIfAny(xhrCat);
+    xhrCat = track($.getJSON(`/admin/get-sales-by-category?category=${encodeURIComponent(category)}&range=${encodeURIComponent(range)}`))
       .done(data => {
         const rev    = Number(data.totalRevenue)         || 0;
         const loss   = Number(data.totalExpiredFullLoss) || 0;
@@ -464,7 +690,7 @@
         $('#catSparkline').html('');
         catSparklineChart = new ApexCharts(document.querySelector('#catSparkline'), {
           chart: { type: 'line', height: 20, width: 50, sparkline: { enabled: true } },
-          series: [{ data: [lastRev, rev] }],
+          series: [{ data: [lastRev, rev] } ],
           stroke: { curve: 'smooth', width: 2 },
           colors: [pctRounded > 0 ? '#28a745' : '#e74c3c'],
           tooltip: { enabled: false }
@@ -504,7 +730,8 @@
     const $tbody = $('#salesByProdTable tbody').empty();
     $('#prodNoData').hide();
 
-    track($.getJSON(`/admin/get-sales-by-product?category=${encodeURIComponent(category)}&range=${encodeURIComponent(range)}`))
+    abortIfAny(xhrProd);
+    xhrProd = track($.getJSON(`/admin/get-sales-by-product?category=${encodeURIComponent(category)}&range=${encodeURIComponent(range)}`))
       .done(data => {
         let items = data.products || [];
         if (searchTerm) items = items.filter(i => (i.productName || '').toLowerCase().includes(searchTerm));
@@ -530,7 +757,8 @@
     const $tbody = $('#salesByServTable tbody').empty();
     $('#servNoData').hide();
 
-    track($.getJSON(`/admin/get-sales-by-service?range=${encodeURIComponent(range)}`))
+    abortIfAny(xhrServ);
+    xhrServ = track($.getJSON(`/admin/get-sales-by-service?range=${encodeURIComponent(range)}`))
       .done(data => {
         const items = data.services || [];
         if (!items.length) { $('#servNoData').show(); return; }
