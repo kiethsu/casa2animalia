@@ -55,23 +55,55 @@
     #topbar .menu-toggle {
       color: var(--white); font-size: 1.5em;
     }
-    #topbar .topbar-title {
-      color: var(--white); font-size: 1.1em; font-weight: 500;
-      flex-grow: 1;
-    }
-    /* tiny messages icon (parity) */
-    .topbar-actions { display: flex; align-items: center; gap: 12px; }
-    .message-icon { position: relative; color: var(--white); cursor: pointer; }
-    .message-icon .badge {
-      position: absolute; top: -6px; right: -10px;
-      background: #e53935; color: #fff; border-radius: 10px;
-      padding: 0 6px; font-size: 11px; line-height: 18px; min-width: 18px; text-align: center;
-    }
+    /* === LOCK the brand text so partial CSS can't resize it === */
+/* === Keep old look but prevent partials from resizing it === */
+#topbar{ 
+  font-size:16px !important;                /* base for anything inside topbar */
+}
 
-    @media (max-width: 991.98px) {
-      #topbar .topbar-title { display: none; }
-      #topbar .menu-toggle { display: inline-block; }
-    }
+#topbar .topbar-title{
+  color: var(--white);
+  font-family: 'Roboto', sans-serif !important;  /* same font as before */
+  font-size: 1.1em !important;                   /* = 17.6px from the 16px topbar base */
+  font-weight: 500 !important;                   /* back to original weight */
+  line-height: 1.2 !important;
+  letter-spacing: 0 !important;                  /* remove the extra tracking we added */
+  white-space: nowrap !important;
+  flex-grow: 1;
+}
+
+/* Keep icons steady (optional) */
+#topbar .topbar-paw,
+#topbar .menu-toggle{
+  font-size: 24px !important;
+}
+
+/* Ignore any generic font-size overrides inside topbar */
+#topbar span,
+#topbar i,
+#topbar .badge{
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+
+ /* right-side logo */
+/* right-side logo (bigger) */
+.topbar-actions { display: flex; align-items: center; gap: 12px; height: 100%; }
+
+.topbar-logo{
+  height: 36px;              /* was 28px */
+  max-height: 44px;          /* keeps ~6px top/bottom breathing in a 56px bar */
+  width: auto;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.15));
+}
+
+/* slightly smaller on narrow screens so it doesn't crowd the menu */
+@media (max-width: 991.98px){
+  .topbar-logo{ height: 32px; max-height: 40px; }
+}
+
 
     body {
       font-family: 'Roboto', sans-serif;
@@ -206,30 +238,31 @@
     @keyframes spin { to { transform: rotate(360deg) } }
     #contentLoading { display:none; position:absolute; inset:0; align-items:center; justify-content:center; background:rgba(255,255,255,.65); z-index:10; }
     #contentLoading.show { display:flex !important; }
+
     /* Remove any left guideline/line on menu items */
-.sidebar-menu li,
-.sidebar-menu a { border-left: 0 !important; box-shadow: none !important; }
-.sidebar-menu a::before { content: none !important; }
+    .sidebar-menu li,
+    .sidebar-menu a { border-left: 0 !important; box-shadow: none !important; }
+    .sidebar-menu a::before { content: none !important; }
 
-/* Make sure only FA6 is used everywhere */
-:root { --fa-font-family: "Font Awesome 6 Free"; }
-.sidebar-menu i { font-family: var(--fa-font-family) !important; }
-/* --- ADD: lock sidebar font so partials can't change it --- */
-#sidebar,
-#sidebar .sidebar-title,
-#sidebar .sidebar-menu a,
-#sidebar .sidebar-bottom-profile {
-  font-family: 'Roboto', sans-serif !important;
-  font-size: 0.95rem;          /* keep menu text consistent */
-  line-height: 1.2;
-}
-#sidebar .sidebar-title { font-size: 1.2rem; } /* keep header stable */
-/* Put Bootstrap modals above the app chrome (topbar/sub-nav/sidebar) */
-body .modal-backdrop { z-index: 5550 !important; }
-body .modal          { z-index: 5600 !important; }
+    /* Make sure only FA6 is used everywhere */
+    :root { --fa-font-family: "Font Awesome 6 Free"; }
+    .sidebar-menu i { font-family: var(--fa-font-family) !important; }
+    /* --- ADD: lock sidebar font so partials can't change it --- */
+    #sidebar,
+    #sidebar .sidebar-title,
+    #sidebar .sidebar-menu a,
+    #sidebar .sidebar-bottom-profile {
+      font-family: 'Roboto', sans-serif !important;
+      font-size: 0.95rem;
+      line-height: 1.2;
+    }
+    #sidebar .sidebar-title { font-size: 1.2rem; }
+    /* Put Bootstrap modals above the app chrome (topbar/sub-nav/sidebar) */
+    body .modal-backdrop { z-index: 5550 !important; }
+    body .modal          { z-index: 5600 !important; }
 
-/* (You already have this) Keep SweetAlert above everything */
-.swal2-container     { z-index: 6000 !important; }
+    /* (You already have this) Keep SweetAlert above everything */
+    .swal2-container     { z-index: 6000 !important; }
 
   </style>
 </head>
@@ -241,24 +274,23 @@ body .modal          { z-index: 5600 !important; }
     <i class="fas fa-paw topbar-paw"></i>
     <span class="topbar-title">SmartVet</span>
     <div class="topbar-actions">
-      <div class="message-icon" id="messageButton" title="Messages">
-        <i class="fas fa-envelope"></i>
-        <div class="badge" id="messageBadge">2</div>
-      </div>
-    </div>
+  <img src="/images/casi.png" alt="SmartVet Logo" class="topbar-logo">
+</div>
+
   </header>
 
   <!-- Sub-nav -->
   <div id="sub-nav">
     <div class="sub-nav-inner">
-      <div id="subnav-title">Dashboard</div>
+      <!-- default label to avoid FOUC before first load -->
+      <div id="subnav-title">Patient</div>
     </div>
   </div>
 
   <div class="wrapper">
     <div id="sidebarOverlay"></div>
 
-    <!-- Sidebar (same markup & classes as HR) -->
+    <!-- Sidebar -->
     <nav id="sidebar" class="active" aria-label="Main navigation">
       <div class="sidebar-header">
         <span class="sidebar-logo"><i class="fas fa-paw"></i></span>
@@ -266,19 +298,15 @@ body .modal          { z-index: 5600 !important; }
       </div>
 
       <ul class="sidebar-menu nav flex-column">
+        <!-- Dashboard item removed -->
         <li>
-          <a href="#" class="menu-item active" data-content="d-dashboard">
-            <i class="fa-solid fa-home"></i>Dashboard
-          </a>
-        </li>
-        <li>
-          <a href="#" class="menu-item" data-content="d-patient">
-          <i class="fa-solid fa-user-doctor"></i>Patient
+          <a href="#" class="menu-item active" data-content="d-patient">
+            <i class="fa-solid fa-user-doctor"></i>Patient
           </a>
         </li>
         <li>
           <a href="#" class="menu-item" data-content="d-history">
-           <i class="fa-solid fa-clock-rotate-left"></i>  History
+            <i class="fa-solid fa-clock-rotate-left"></i>History
           </a>
         </li>
         <li class="logout mt-3">
@@ -312,20 +340,17 @@ body .modal          { z-index: 5600 !important; }
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 
-
   <script>
     $(function () {
       // --- helpers (parity with HR) ---
       const isMobile = () => $(window).width() < 992;
 
-      // Map doctor partials to routes (matches your /doctor/:page naming)
+      // Map doctor partials to routes (Dashboard removed)
       const PATH_MAP = {
-        'd-dashboard': '/doctor/d-dashboard',
         'd-patient'  : '/doctor/d-patient',
         'd-history'  : '/doctor/d-history'
       };
       const TITLE_MAP = {
-        'd-dashboard': 'Dashboard',
         'd-patient'  : 'Patient',
         'd-history'  : 'History'
       };
@@ -342,70 +367,66 @@ body .modal          { z-index: 5600 !important; }
         $('#sidebarOverlay').removeClass('show');
         $('body').removeClass('sidebar-open');
       }
-$(document).on('shown.bs.modal', '.modal', function () {
-  $(this).find('.modal-dialog').addClass('modal-dialog-centered');
-});
-     function cleanupBeforeSwap() {
-  try { $('.modal.show').modal('hide'); } catch (e) {}
-  $('.modal-backdrop').remove();
-  $('body').removeClass('modal-open').css('padding-right', '');
+      $(document).on('shown.bs.modal', '.modal', function () {
+        $(this).find('.modal-dialog').addClass('modal-dialog-centered');
+      });
 
-  // NEW: remove any modals that were moved to <body> during a previous visit
-  $('body > .modal[id]').remove();
+      function cleanupBeforeSwap() {
+        try { $('.modal.show').modal('hide'); } catch (e) {}
+        $('.modal-backdrop').remove();
+        $('body').removeClass('modal-open').css('padding-right', '');
 
-  // optional: destroy any datepickers left around
-  try { $('#scheduleDatePicker, #globalCalendarPicker').datepicker('destroy'); } catch(e){}
+        // remove any modals moved to <body> during a previous visit
+        $('body > .modal[id]').remove();
 
-  $('[data-toggle="tooltip"]').tooltip('dispose');
-  $('[data-toggle="popover"]').popover('dispose');
-  $('.flatpickr-calendar').remove();
-}
+        // optional: destroy any datepickers left around
+        try { $('#scheduleDatePicker, #globalCalendarPicker').datepicker('destroy'); } catch(e){}
 
+        $('[data-toggle="tooltip"]').tooltip('dispose');
+        $('[data-toggle="popover"]').popover('dispose');
+        $('.flatpickr-calendar').remove();
+      }
 
       function showLoading() { $('#contentLoading').addClass('show'); }
       function hideLoading() { $('#contentLoading').removeClass('show'); }
 
-      // Robust content loader with abort + stale guard (same as HR)
+      // Robust content loader with abort + stale guard
       let currentXHR = null;
       let currentLoadId = 0;
-        // --- ADD THIS BLOCK (ABOVE loadContent) ---
-  function sanitizePartial(rawHtml) {
-    const tmp = document.createElement('div');
-    tmp.innerHTML = rawHtml;
 
-    // If a <body> exists, use it; otherwise use whole temp
-    const root = tmp.querySelector('body') || tmp;
+      // sanitize partials to avoid clobbering shell libs
+      function sanitizePartial(rawHtml) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = rawHtml;
+        const root = tmp.querySelector('body') || tmp;
 
-    // Remove external CSS that can clobber the shell (FA/Bootstrap/etc.)
-    root.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
-      const href = (link.getAttribute('href') || '').toLowerCase();
-      if (/(font-?awesome|bootstrap|sweetalert|jquery-ui|flatpickr|chart)/.test(href)) {
-        link.remove();
+        root.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+          const href = (link.getAttribute('href') || '').toLowerCase();
+          if (/(font-?awesome|bootstrap|sweetalert|jquery-ui|flatpickr|chart)/.test(href)) {
+            link.remove();
+          }
+        });
+
+        const inlineScripts = [];
+        root.querySelectorAll('script').forEach(sc => {
+          if (sc.src) {
+            const src = sc.src.toLowerCase();
+            if (/(font-?awesome|bootstrap|jquery|sweetalert|flatpickr|chart)/.test(src)) sc.remove();
+          } else {
+            inlineScripts.push(sc.textContent || '');
+            sc.remove();
+          }
+        });
+
+        const container = document.createElement('div');
+        [...root.childNodes].forEach(n => container.appendChild(n.cloneNode(true)));
+        return { html: container.innerHTML, inlineScripts };
       }
-    });
 
-    // Collect inline scripts; remove all external <script src="…"> that might duplicate libs
-    const inlineScripts = [];
-    root.querySelectorAll('script').forEach(sc => {
-      if (sc.src) {
-        const src = sc.src.toLowerCase();
-        if (/(font-?awesome|bootstrap|jquery|sweetalert|flatpickr|chart)/.test(src)) sc.remove();
-      } else {
-        inlineScripts.push(sc.textContent || '');
-        sc.remove();
-      }
-    });
-
-    // Return the cleaned inner HTML + the inline scripts to execute manually
-    const container = document.createElement('div');
-    [...root.childNodes].forEach(n => container.appendChild(n.cloneNode(true)));
-    return { html: container.innerHTML, inlineScripts };
-  }
       function loadContent(pageKey) {
         const path = PATH_MAP[pageKey] || `/doctor/${pageKey}`;
         const loadId = ++currentLoadId;
 
-        // Abort prior request if any
         if (currentXHR && currentXHR.readyState !== 4) {
           currentXHR.abort();
         }
@@ -420,21 +441,19 @@ $(document).on('shown.bs.modal', '.modal', function () {
           dataType: 'html'
         });
 
-       currentXHR.done(function (html) {
-  if (loadId !== currentLoadId) return; // stale guard
+        currentXHR.done(function (html) {
+          if (loadId !== currentLoadId) return; // stale guard
 
-  // --- REPLACED: sanitize & inject partial safely ---
-  const { html: clean, inlineScripts } = sanitizePartial(html);
-  $('#main-content').empty().html(clean);
+          const { html: clean, inlineScripts } = sanitizePartial(html);
+          $('#main-content').empty().html(clean);
 
-  // Execute inline scripts (jQuery's .html() doesn't run them)
-  (inlineScripts || []).forEach(code => {
-    try { $.globalEval(code); } catch (e) { console.warn('Inline script error', e); }
-  });
+          (inlineScripts || []).forEach(code => {
+            try { $.globalEval(code); } catch (e) { console.warn('Inline script error', e); }
+          });
 
-  // Allow "global" modals to escape if your partials mark them
-  $('#main-content .modal[data-global-modal="true"]').appendTo('body');
-});
+          // allow global modals to escape if marked
+          $('#main-content .modal[data-global-modal="true"]').appendTo('body');
+        });
 
         currentXHR.fail(function (xhr, status) {
           if (status === 'abort') return;
@@ -451,10 +470,10 @@ $(document).on('shown.bs.modal', '.modal', function () {
         });
       }
 
-      // Initial route
-      loadContent('d-dashboard');
+      // Initial route (Patient by default)
+      loadContent('d-patient');
 
-      // Debounced nav clicks (same feel as HR)
+      // Debounced nav clicks
       let navTimer = null;
       $('.menu-item').on('click', function (e) {
         const href = $(this).attr('href');
@@ -482,16 +501,7 @@ $(document).on('shown.bs.modal', '.modal', function () {
       $('#sidebarOverlay').on('click', hideSidebar);
       $(window).on('resize', () => { isMobile() ? hideSidebar() : showSidebar(); });
 
-      // Messages button (parity)
-      $('#messageButton').on('click', () => {
-        Swal.fire({
-          title: 'Messages',
-          text: 'You have new messages.',
-          icon: 'info',
-          confirmButtonText: 'View'
-        });
-      });
-
+      
       // Keep session alive (same cadence)
       setInterval(() => {
         $.ajax({ url: '/refresh-token', type: 'POST', xhrFields: { withCredentials: true } });
