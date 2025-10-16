@@ -1,3 +1,4 @@
+// models/petlist.js
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
@@ -8,9 +9,12 @@ const ConsultationHistorySchema = new Schema({
 }, { _id: false });
 
 const PetListSchema = new Schema({
-  // Either owner (User) OR ownerName (string) will exist.
   owner:       { type: Schema.Types.ObjectId, ref: 'User' },  // optional for walk-ins
   ownerName:   { type: String, required: true },               // ALWAYS set (from reservation.ownerName)
+
+  // NEW
+  contactEmail:  { type: String },
+  contactMobile: { type: String },
 
   petName:     { type: String, required: true },
   reservation: { type: Schema.Types.ObjectId, ref: 'Reservation', required: true },
@@ -19,7 +23,6 @@ const PetListSchema = new Schema({
   consultationHistory: [ ConsultationHistorySchema ]
 }, { timestamps: true });
 
-// Speed up common lookups
 PetListSchema.index({ owner: 1, ownerName: 1, petName: 1 });
 
 module.exports = mongoose.model('PetList', PetListSchema);
