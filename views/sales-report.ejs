@@ -9,92 +9,193 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
 
-  <style>
-    body { background:#f6f8fb; }
-    .card { border:0; box-shadow: 0 6px 18px rgba(12,46,96,.06); border-radius:16px; }
-    .kpi-value { font-weight:700; font-size:1.6rem; }
-    .muted { color:#6b7280; }
-    .small-label { font-size:.82rem; color:#6b7280; }
-    .table thead th { font-weight:600; color:#6b7280; border-bottom:1px solid #edf1f7; }
-    .table > :not(caption) > * > * { padding:.75rem .9rem; }
-    .sticky-actions { position: sticky; top: 0; z-index: 15; background: #f6f8fb; padding:.5rem 0 1rem; }
+<style>
+  /* Base */
+  body { background:#f7faff; } /* match inventory */
+  :root{
+    --blue:#0D47A1;         /* header blue */
+    --blue-2:#1669bb;       /* primary buttons/labels */
+    --card-border:#e6eef9;  /* light border */
+    --card-shadow:0 8px 24px rgba(13,71,161,.06);
+  }
 
-    .text-truncate-2 {
-      overflow:hidden; display:-webkit-box;
-      -webkit-line-clamp:2; -webkit-box-orient:vertical; line-clamp: 2;
-    }
+  /* Buttons like inventory */
+  .btn-primary{ background:var(--blue-2); border:none; }
+  .btn-primary:hover{ filter:brightness(.95); }
+  .btn-outline-primary{ border-color:var(--blue-2); color:var(--blue-2); }
+  .btn-outline-primary:hover{ background:var(--blue-2); color:#fff; }
+  .btn .spinner-border { width:1rem; height:1rem; vertical-align:text-bottom; margin-right:.4rem; }
 
-    /* Top Profit Drivers styling (keeps your color coding + rank badges) */
-    #tpdSingle table thead th,
-    #tpdDual   table thead th { background:#f8f9fa; color:#495057 !important; font-weight:600; border-bottom:1px solid #e9ecef; }
-    #tpdSingle table tbody td,
-    #tpdDual   table tbody td { vertical-align: middle; color:#343a40; }
-    #tpdSingle tbody tr:nth-child(odd)  td,
-    #tpdDual   tbody tr:nth-child(odd)  td { background: rgba(0,143,251,0.03); }
-    #tpdSingle tbody tr:nth-child(even) td,
-    #tpdDual   tbody tr:nth-child(even) td { background: rgba(254,176,25,0.03); }
-    #tpdSingle tbody tr:nth-child(1) td,
-    #tpdDual   tbody tr:nth-child(1) td { background: rgba(0,143,251,0.06); }
-    #tpdSingle tbody tr:nth-child(2) td,
-    #tpdDual   tbody tr:nth-child(2) td { background: rgba(254,176,25,0.06); }
-    #tpdSingle tbody tr:nth-child(3) td,
-    #tpdDual   tbody tr:nth-child(3) td { background: rgba(40,167,69,0.06); }
-    #tpdSingle tbody tr:hover td,
-    #tpdDual   tbody tr:hover td { background: rgba(0,0,0,0.03); }
+  /* Cards */
+  .card { border:0; box-shadow: 0 6px 18px rgba(12,46,96,.06); border-radius:16px; }
+  .sales-container .card{
+    border:1px solid var(--card-border);
+    border-radius:16px;
+    box-shadow:var(--card-shadow);
+  }
 
-    .rank-badge{
-      display:inline-flex; align-items:center; justify-content:center;
-      width:28px; height:28px; border-radius:50%;
-      font-weight:700; font-size:.9rem; line-height:1; user-select:none;
-      box-shadow: 0 1px 3px rgba(0,0,0,.15);
-      border: 1px solid rgba(0,0,0,.04);
-      vertical-align: middle;
-    }
-    .rank-1{ background: linear-gradient(135deg,#ffd54f,#f6b93b); color:#1c2c45; }
-    .rank-2{ background: linear-gradient(135deg,#cfd8dc,#b0bec5); color:#1c2c45; }
-    .rank-3{ background: linear-gradient(135deg,#d7a86e,#b87333); color:#1c2c45; }
-    .rank-4,.rank-5{ background:#008ffb; color:#fff; }
+  /* Text helpers */
+  .kpi-value { font-weight:700; font-size:1.6rem; }
+  .muted { color:#6b7280; }
+  .small-label { font-size:.82rem; color:#6b7280; }
 
-    .profit-cell .profit-val{ font-weight:600; }
-    .profit-cell .mini-bar{ height:6px; border-radius:999px; background:#eef2f7; margin-top:4px; overflow:hidden; }
-    .profit-cell .mini-bar .bar{ height:100%; border-radius:999px; }
-    .profit-cell .mini-bar .bar.rank-1{ background: linear-gradient(90deg,#008ffb,#66b2ff); }
-    .profit-cell .mini-bar .bar.rank-2{ background: linear-gradient(90deg,#feb019,#ffd480); }
-    .profit-cell .mini-bar .bar.rank-3{ background: linear-gradient(90deg,#28a745,#7cd992); }
-    .profit-cell .mini-bar .bar.rank-4,
-    .profit-cell .mini-bar .bar.rank-5{ background:#6ea8fe; }
+  /* Tables (generic bootstrap spacing still ok) */
+  .table thead th { font-weight:600; color:#6b7280; border-bottom:1px solid #edf1f7; }
+  .table > :not(caption) > * > * { padding:.75rem .9rem; }
 
-    #tpdDual .table-responsive{ flex:1 1 auto; min-height:240px; }
+  /* Sticky filters bar */
+  .sticky-actions { position: sticky; top: 0; z-index: 15; background:#f7faff; padding:.5rem 0 1rem; }
+  .sticky-actions .card{
+    background:#fff;
+    border:1px solid var(--card-border);
+    border-radius:16px;
+    box-shadow:var(--card-shadow);
+  }
+  .sticky-actions .card .form-label{
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    font-size:.75rem;
+    font-weight:800;
+    color:var(--blue);
+  }
 
-    /* Slow Movers tables — same look */
-    #slowSingle table thead th,
-    #slowDual   table thead th { background:#f8f9fa; color:#495057 !important; font-weight:600; border-bottom:1px solid #e9ecef; }
-    #slowSingle tbody tr:nth-child(odd)  td,
-    #slowDual   tbody tr:nth-child(odd)  td { background: rgba(0,143,251,0.03); }
-    #slowSingle tbody tr:nth-child(even) td,
-    #slowDual   tbody tr:nth-child(even) td { background: rgba(254,176,25,0.03); }
-    #slowSingle tbody tr:hover td,
-    #slowDual   tbody tr:hover td { background: rgba(0,0,0,0.03); }
+  .text-truncate-2 {
+    overflow:hidden; display:-webkit-box;
+    -webkit-line-clamp:2; -webkit-box-orient:vertical; line-clamp: 2;
+  }
 
-    .pill {
-      display:inline-block; padding:.15rem .5rem; border-radius:999px; font-size:.75rem;
-      border:1px solid #e5e7eb; background:#fff;
-    }
-    .pill.gray { color:#6b7280; }
+  /* ===== Inventory-style tables for ALL report tables ===== */
+  #tpdSingle table thead th,
+  #tpdDual   table thead th,
+  #slowSingle table thead th,
+  #slowDual   table thead th{
+    position:sticky; top:0; z-index:2;
+    background:var(--blue) !important;
+    color:#fff !important;
+    text-align:left;
+    padding:12px;
+    font-weight:700;
+    letter-spacing:.02em;
+    text-transform:uppercase;
+    font-size:.78rem;
+    border-bottom:0;
+    white-space:nowrap;
+  }
 
-    /* === Slow Movers: turn body scrollable when 5+ rows (class toggled by JS) === */
-    .scrollable-table thead,
-    .scrollable-table tbody tr { display: table; width: 100%; table-layout: fixed; }
-    .scrollable-table tbody {
-      display: block;
-      /* ~5 rows visible; adjust if you want a different height */
-      max-height: calc(5 * 2.6rem);
-      overflow-y: auto;
-    }
-  </style>
+  #tpdSingle table tbody td,
+  #tpdDual   table tbody td,
+  #slowSingle table tbody td,
+  #slowDual   table tbody td{
+    vertical-align:middle !important;
+    padding:12px;
+    color:#0f172a;
+    border-top:1px dashed #e9edf5;
+  }
+
+  #tpdSingle table tbody tr:hover td,
+  #tpdDual   table tbody tr:hover td,
+  #slowSingle table tbody tr:hover td,
+  #slowDual   table tbody tr:hover td{
+    background:#f9fbff;
+  }
+
+  /* Keep your rank badge look */
+  .rank-badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:28px; height:28px; border-radius:50%;
+    font-weight:700; font-size:.9rem; line-height:1; user-select:none;
+    box-shadow: 0 1px 3px rgba(0,0,0,.15);
+    border: 1px solid rgba(0,0,0,.04);
+    vertical-align: middle;
+  }
+  .rank-1{ background: linear-gradient(135deg,#ffd54f,#f6b93b); color:#1c2c45; }
+  .rank-2{ background: linear-gradient(135deg,#cfd8dc,#b0bec5); color:#1c2c45; }
+  .rank-3{ background: linear-gradient(135deg,#d7a86e,#b87333); color:#1c2c45; }
+  .rank-4,.rank-5{ background:#008ffb; color:#fff; }
+
+  /* Profit mini-bars (unchanged) */
+  .profit-cell .profit-val{ font-weight:600; }
+  .profit-cell .mini-bar{ height:6px; border-radius:999px; background:#eef2f7; margin-top:4px; overflow:hidden; }
+  .profit-cell .mini-bar .bar{ height:100%; border-radius:999px; }
+  .profit-cell .mini-bar .bar.rank-1{ background: linear-gradient(90deg,#008ffb,#66b2ff); }
+  .profit-cell .mini-bar .bar.rank-2{ background: linear-gradient(90deg,#feb019,#ffd480); }
+  .profit-cell .mini-bar .bar.rank-3{ background: linear-gradient(90deg,#28a745,#7cd992); }
+  .profit-cell .mini-bar .bar.rank-4,
+  .profit-cell .mini-bar .bar.rank-5{ background:#6ea8fe; }
+
+  /* Keep dual table min-height */
+  #tpdDual .table-responsive{ flex:1 1 auto; min-height:240px; }
+
+  /* Slow movers pills */
+  .pill {
+    display:inline-block; padding:.15rem .5rem; border-radius:999px; font-size:.75rem;
+    border:1px solid #e5e7eb; background:#fff;
+  }
+  .pill.gray { color:#6b7280; }
+
+  /* Slow Movers: body scrollable when 5+ rows */
+  .scrollable-table thead,
+  .scrollable-table tbody tr { display: table; width: 100%; table-layout: fixed; }
+  .scrollable-table tbody {
+    display: block;
+    max-height: calc(5 * 2.6rem);
+    overflow-y: auto;
+  }
+
+  /* Page shell spacing to match other pages */
+  .sales-container{
+    background:#f8f9fa;
+    min-height:100vh;
+    padding:8px 8px 10px !important;
+  }
+  .sales-container .row{ --bs-gutter-x: .75rem; }
+  .sales-container .card{ border-radius:16px; }
+
+  /* ===== KPI cards upgraded to inventory style (requires id="kpiRow" on the KPI row) ===== */
+  #kpiRow .card{
+    position:relative;
+    border:1px solid var(--card-border);
+    border-radius:16px;
+    box-shadow:var(--card-shadow);
+  }
+  #kpiRow .card::before{
+    content:"";
+    position:absolute; left:0; top:0; right:0; height:4px;
+    background:var(--accent, var(--blue));
+    border-top-left-radius:16px; border-top-right-radius:16px;
+  }
+  #kpiRow .small-label{
+    font-weight:700; font-size:.78rem; color:var(--blue); opacity:.9;
+    letter-spacing:.04em; text-transform:uppercase; margin-bottom:.35rem;
+  }
+  #kpiRow .kpi-value{ font-size:1.9rem; line-height:1.1; font-weight:800; color:#0f172a; }
+
+  /* Accent colors per KPI card (1: Total, 2: Loss, 3: Profit) */
+  #kpiRow .col-xl-4:nth-child(1) .card{ --accent:#0D47A1; }
+  #kpiRow .col-xl-4:nth-child(2) .card{ --accent:#E53935; }
+  #kpiRow .col-xl-4:nth-child(3) .card{ --accent:#1E88E5; }
+  /* === Revert KPI text to old sizing === */
+#kpiRow .small-label{
+  font-weight: 400;       /* was bold/uppercase before; revert */
+  font-size: .82rem;      /* old size */
+  color: #6b7280;         /* old color */
+  text-transform: none;   /* no uppercase */
+  letter-spacing: 0;      /* no extra spacing */
+}
+
+#kpiRow .kpi-value{
+  font-weight: 700;       /* old weight */
+  font-size: 1.6rem;      /* old size */
+  line-height: normal;
+  color: inherit;         /* keep whatever the card uses */
+}
+
+</style>
+
 </head>
 <body>
-  <div class="container-fluid py-4">
+<div class="container-fluid sales-container">
+
 
     <!-- Header (Exports) -->
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
@@ -105,9 +206,7 @@
         <button id="btnExportCSV" class="btn btn-outline-success">
           <i class="bi bi-filetype-csv me-1"></i> Export CSV (Date Range)
         </button>
-        <button id="btnExportPDF" class="btn btn-outline-secondary">
-          <i class="bi bi-filetype-pdf me-1"></i> Export PDF (Date Range)
-        </button>
+    
       </div>
     </div>
 
@@ -135,9 +234,12 @@
               </select>
             </div>
             <div class="col-12 col-md-3 d-grid">
-              <button id="btnApply" class="btn btn-primary">
-                <i class="bi bi-funnel me-1"></i>Apply Filters
-              </button>
+      <button id="btnApply" class="btn btn-primary d-inline-flex align-items-center justify-content-center">
+  <span id="btnApplySpinner" class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
+  <i class="bi bi-funnel me-1"></i>
+  <span class="btn-label">Apply Filters</span>
+</button>
+
             </div>
 
             <div class="col-12"><hr class="mt-2 mb-1"/></div>
@@ -167,41 +269,43 @@
             <div class="col-12 col-lg-4"></div>
           </div>
 
-          <div class="d-flex justify-content-end mt-3">
-            <div class="btn-group">
-              <button id="btnExportVisibleCSV" class="btn btn-outline-dark btn-sm">
-                <i class="bi bi-download me-1"></i> Export Visible Table (CSV)
-              </button>
-            </div>
-          </div>
+        
         </div>
       </div>
     </div>
 
     <!-- KPIs -->
-    <div class="row g-3 mt-2">
-      <div class="col-12 col-md-6 col-xl-4">
-        <div class="card h-100"><div class="card-body">
-          <div class="small-label">Total Sales</div>
-          <div class="kpi-value" id="kpiSalesAmount">₱0</div>
-          <div class="muted" id="kpiSalesChange">—</div>
-        </div></div>
-      </div>
-      <div class="col-12 col-md-6 col-xl-4">
-        <div class="card h-100"><div class="card-body">
-          <div class="small-label" id="kpiLossLabel">Loss</div>
-          <div class="kpi-value" id="kpiLoss">₱0</div>
-          <div class="muted" id="kpiLossSub">Expired / write-off loss</div>
-        </div></div>
-      </div>
-      <div class="col-12 col-md-6 col-xl-4" id="kpiProfitCol">
-        <div class="card h-100"><div class="card-body">
-          <div class="small-label">Profit</div>
-          <div class="kpi-value" id="kpiProfit">₱0</div>
-          <div class="muted" id="kpiProfitChange">—</div>
-        </div></div>
-      </div>
-    </div>
+ <div id="kpiRow" class="row g-3 mt-2">
+
+     <!-- Total Sales -->
+<div class="col-12 col-md-6 col-xl-4">
+  <div class="card h-100"><div class="card-body">
+    <div class="small-label">Total Sales</div>
+    <div class="kpi-value" id="kpiSalesAmount">₱0</div>
+    <!-- add this: -->
+    <div class="small-label" id="kpiSalesChange">—</div>
+  </div></div>
+</div>
+
+<!-- Loss -->
+<div class="col-12 col-md-6 col-xl-4">
+  <div class="card h-100"><div class="card-body">
+    <div class="small-label" id="kpiLossLabel">Loss</div>
+    <div class="kpi-value" id="kpiLoss">₱0</div>
+    <!-- add this: -->
+    <div class="small-label" id="kpiLossSub">Expired / write-off loss</div>
+  </div></div>
+</div>
+
+<!-- Profit -->
+<div class="col-12 col-md-6 col-xl-4" id="kpiProfitCol">
+  <div class="card h-100"><div class="card-body">
+    <div class="small-label">Profit</div>
+    <div class="kpi-value" id="kpiProfit">₱0</div>
+    <!-- add this: -->
+    <div class="small-label" id="kpiProfitChange">—</div>
+  </div></div>
+</div>
 
     <!-- Top Profit Drivers + Slow Movers -->
     <div class="row g-3 mt-3">
@@ -386,6 +490,12 @@
       }
     };
   </script>
+<script>
+  // Run every time this fragment is injected by jQuery.load()
+  if (window.SalesReport && typeof window.SalesReport.init === 'function') {
+    window.SalesReport.init();
+  }
+</script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
   <script src="/js/sales-report.js" defer></script>
