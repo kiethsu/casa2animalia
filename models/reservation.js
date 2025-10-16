@@ -4,10 +4,21 @@ const mongoose = require('mongoose');
 const PetEntrySchema = new mongoose.Schema({
   petId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Pet' },
   petName: { type: String },
+
+  // Per-pet follow-up schedule
   schedule: {
     scheduleDate:    { type: Date },
-    scheduleDetails: { type: String }
+    scheduleDetails: { type: String }, // human-readable fallback (e.g. "Deworming")
+
+    // NEW: structured service information (optional)
+    service: {
+      id:           { type: mongoose.Schema.Types.ObjectId, ref: 'Service' },
+      name:         { type: String },
+      categoryId:   { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceCategory' },
+      categoryName: { type: String }
+    }
   },
+
   done:       { type: Boolean, default: false },
   hasConsult: { type: Boolean, default: false }
 }, { _id: false });
@@ -24,6 +35,27 @@ const ReservationSchema = new mongoose.Schema({
   owner:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // optional for walk-ins
   ownerName: { type: String, required: true, trim: true },
   walkIn:    { type: Boolean, default: false },
+
+  // Optional contact info for this reservation (works for both account owners & walk-ins)
+  contactEmail: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    validate: {
+      // Accept any valid email if provided (empty is allowed)
+      validator: v => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+      message: 'Invalid email format'
+    }
+  },
+  contactMobile: {
+    type: String,
+    trim: true,
+    // PH formats: 09XXXXXXXXX or +639XXXXXXXXXX (lenient, optional if empty)
+    validate: {
+      validator: v => !v || /^(\+?63|0)9\d{9}$/.test(v),
+      message: 'Invalid PH mobile format (use 09XXXXXXXXX or +639XXXXXXXXXX)'
+    }
+  },
 
   // Walk-in modal flag
   isExistingPet: { type: Boolean, default: true },
@@ -71,10 +103,18 @@ const ReservationSchema = new mongoose.Schema({
   doctor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: { type: String, default: 'Pending' }, // Pending/Approved/Done/etc.
 
-  // Optional reservation-level follow-up
+  // Optional reservation-level follow-up (earliest across pets for dashboards)
   schedule: {
     scheduleDate:    { type: Date },
-    scheduleDetails: { type: String }
+    scheduleDetails: { type: String }, // human-readable fallback
+
+    // NEW: structured service information (optional)
+    service: {
+      id:           { type: mongoose.Schema.Types.ObjectId, ref: 'Service' },
+      name:         { type: String },
+      categoryId:   { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceCategory' },
+      categoryName: { type: String }
+    }
   },
 
   isFollowUp: { type: Boolean, default: false },
