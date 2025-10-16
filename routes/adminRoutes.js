@@ -14,7 +14,8 @@ const Payment = require('../models/Payment');
 const PetList = require('../models/petlist');
 const salesReportController = require("../controllers/salesReportController");
 // ⬇️ Add this line near the top of adminRoutes.js with other requires
-const PetDetailsSetting = require('../models/petDetailsSetting'); // <-- use the ACTUAL filename/casing
+const PetDetailsSetting = require('../models/petDetailsSetting'); 
+// <-- use the ACTUAL filename/casing
 const Pet = require('../models/pet');
 const clinicAnalytics = require('../controllers/clinicAnalyticsController');
 // ⬇️ add these
@@ -919,5 +920,23 @@ router.post('/followup-limit', authMiddleware, async (req, res) => {
     res.json({ success: false, message: 'Failed to save limit' });
   }
 });
+// Pet Details settings page
+// ---- Pet Details settings page (partial used by SPA) ----
+// Works for both /admin/pet-details and /admin/settings/pet-details
+router.get(['/pet-details', '/settings/pet-details'], async (req, res) => {
+  try {
+    console.log('[admin] GET', req.originalUrl);   // helps on Render logs
+    let doc = await PetDetailsSetting.findOne().lean();
+    if (!doc) doc = { species: [], speciesBreeds: {}, diseases: [], speciesDiseases: {}, services: [] };
+
+    // Prevent CDN/browser from caching a 404/old version
+    res.set('Cache-Control', 'no-store');
+    return res.render('petdetails', { petDetails: doc });
+  } catch (e) {
+    console.error('Error rendering pet-details:', e);
+    return res.status(500).send('Server error');
+  }
+});
+
 
 module.exports = router;
