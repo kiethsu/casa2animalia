@@ -18,6 +18,9 @@ const Consultation = require('../models/consultation');
 const pdf = require('html-pdf');
 const Message = require('../models/message');
 const { broadcast } = require('../utils/hrSse');
+const fs   = require('fs');
+const path = require('path');
+
 // --- helper: normalize to YYYY-MM-DD (local-safe fallback) ---
 // helper → normalize to YYYY-MM-DD
 const toYMD = (d) => {
@@ -847,19 +850,23 @@ router.get(
 
         const pr = (idStr && prById.get(idStr)) || (nameKey && prByName.get(nameKey)) || null;
 
-        perPets.push({
-          petId: p.petId || null,
-          petName: p.petName || (c && c.targetPetName) || 'Unknown',
-          service: pr?.service || '',
-          concerns: pr?.concerns || '',
-          physicalExam: c?.physicalExam || null,
-          overview: c?.overview || null,
-          diagnosis: c?.diagnosis || '',
-          services: c?.services || [],
-          medications: c?.medications || [],
-          confinementStatus: c?.confinementStatus || [],
-          notes: c?.notes || c?.consultationNotes || ''
-        });
+       perPets.push({
+  petId: p.petId || null,
+  petName: p.petName || (c && c.targetPetName) || 'Unknown',
+  service: pr?.service || '',
+  concerns: pr?.concerns || '',
+  physicalExam: c?.physicalExam || null,
+  overview: c?.overview || null,
+  // ⬇️ add diseases (array) with back-compat to single disease
+  diseases: Array.isArray(c?.diseases) ? c.diseases
+           : (c?.disease ? [c.disease] : []),
+  diagnosis: c?.diagnosis || '',
+  services: c?.services || [],
+  medications: c?.medications || [],
+  confinementStatus: c?.confinementStatus || [],
+  notes: c?.notes || c?.consultationNotes || ''
+});
+
       }
 
       // also include consults whose pets weren’t in reservation.pets (edge cases)
@@ -875,19 +882,23 @@ router.get(
             (nameKey && prByName.get(nameKey)) ||
             null;
 
-          perPets.push({
-            petId: c.targetPetId || null,
-            petName: c.targetPetName || 'Unknown',
-            service: pr?.service || '',
-            concerns: pr?.concerns || '',
-            physicalExam: c.physicalExam || null,
-            overview: c.overview || null,
-            diagnosis: c.diagnosis || '',
-            services: c.services || [],
-            medications: c.medications || [],
-            confinementStatus: c.confinementStatus || [],
-            notes: c.notes || c.consultationNotes || ''
-          });
+        perPets.push({
+  petId: c.targetPetId || null,
+  petName: c.targetPetName || 'Unknown',
+  service: pr?.service || '',
+  concerns: pr?.concerns || '',
+  physicalExam: c.physicalExam || null,
+  overview: c.overview || null,
+  // ⬇️ add diseases
+  diseases: Array.isArray(c.diseases) ? c.diseases
+           : (c.disease ? [c.disease] : []),
+  diagnosis: c.diagnosis || '',
+  services: c.services || [],
+  medications: c.medications || [],
+  confinementStatus: c.confinementStatus || [],
+  notes: c.notes || c.consultationNotes || ''
+});
+
         }
       }
 
@@ -896,6 +907,9 @@ router.get(
         const first = consults[0];
         reservation.physicalExam = first.physicalExam;
         reservation.diagnosis = first.diagnosis;
+        reservation.diseases = Array.isArray(first.diseases) ? first.diseases
+                        : (first.disease ? [first.disease] : []);
+
         reservation.services = first.services;
         reservation.medications = first.medications;
         reservation.notes = first.notes || first.consultationNotes;
@@ -1161,33 +1175,43 @@ router.get('/get-pets', authMiddleware, async (req, res) => {
 });
 router.get('/prescription/:reservationId', authMiddleware, async (req, res) => {
   try {
-   const { reservationId } = req.params;
+    const { reservationId } = req.params;
+
     const reservation = await Reservation.findById(reservationId)
-      .populate('doctor', 'username')
+      .populate('doctor', 'username licenseNo license prc')
       .lean();
     if (!reservation) return res.status(404).send('Reservation not found');
 
+    // Pull medications from Consultation if present
     const consult = await Consultation.findOne({ reservation: reservationId }).lean();
     if (consult) reservation.medications = consult.medications;
 
-    // render the EJS to a HTML string
-    res.render('customer/prescription', { reservation }, (err, html) => {
+    // --- 👇 Build a logo src that always works inside PDF (base64, fallback to file://) ---
+    const logoPath = path.resolve(__dirname, '../public/images/casa.png');
+    let logoSrc;
+    try {
+      const buf = fs.readFileSync(logoPath);
+      logoSrc = 'data:image/png;base64,' + buf.toString('base64'); // most reliable
+    } catch (e) {
+      // fallback to an absolute file URL (for Windows paths, normalize slashes)
+      logoSrc = 'file://' + logoPath.replace(/\\/g, '/');
+    }
+
+    // Render EJS to HTML string and inject logoSrc
+    res.render('customer/prescription', { reservation, logoSrc }, (err, html) => {
       if (err) {
-       console.error('EJS render error:', err);
+        console.error('EJS render error:', err);
         return res.status(500).send('Error rendering prescription');
       }
-      // convert HTML to PDF
-      pdf.create(html, { format: 'A4' }).toStream((err, stream) => {
+
+      // Generate PDF
+      pdf.create(html, { format: 'A4', border: '8mm' }).toStream((err, stream) => {
         if (err) {
-         console.error('PDF creation error:', err);
+          console.error('PDF creation error:', err);
           return res.status(500).send('Error generating PDF');
         }
-        // set headers so browser will download
         res.setHeader('Content-Type', 'application/pdf');
-       res.setHeader(
-          'Content-Disposition',
-         `attachment; filename=prescription_${reservationId}.pdf`
-        );
+        res.setHeader('Content-Disposition', `attachment; filename=prescription_${reservationId}.pdf`);
         stream.pipe(res);
       });
     });
@@ -1196,6 +1220,7 @@ router.get('/prescription/:reservationId', authMiddleware, async (req, res) => {
     res.status(500).send('Server error generating prescription');
   }
 });
+
 // Upload/update a pet's picture
 router.post('/update-pet-image/:id', authMiddleware, upload.single('petPic'), async (req, res) => {
   try {
