@@ -1,7 +1,7 @@
 <%
 // Ensure petDetails is defined for the partial.
-var petDetails = (typeof petDetails !== 'undefined' && petDetails) 
-  ? petDetails 
+var petDetails = (typeof petDetails !== 'undefined' && petDetails)
+  ? petDetails
   : { species: [], speciesBreeds: {}, diseases: [], speciesDiseases: {}, services: [] };
 %>
 
@@ -18,19 +18,22 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
     .table-container::-webkit-scrollbar { width:4px; }
     .table-container::-webkit-scrollbar-track { background:transparent; }
     .table-container::-webkit-scrollbar-thumb { background-color:#888; border-radius:2px; }
+
     .modal-label { font-weight:600; margin-bottom:5px; }
     .inline-confirm { background:#f8d7da; border:1px solid #f5c6cb; padding:5px 10px; margin-top:5px; border-radius:4px; font-size:.85rem; color:#721c24; }
     .inline-confirm button { margin-right:5px; }
-    .breed-search-container { display:flex; align-items:center; margin-bottom:10px; }
-    #breedStatusMsg { width:50%; font-size:.9rem; }
+
+    .breed-search-container { display:flex; align-items:center; margin-bottom:10px; gap:12px; }
+    #breedStatusMsg { flex:1; font-size:.9rem; min-height:1.2em; }
     .breed-add-msg { color:#28a745; }
     .breed-delete-msg { color:#dc3545; }
     .breed-search-box { width:50%; margin-left:auto; }
-    #breedList { max-height:150px; overflow-y:auto; }
+    #breedList { max-height:220px; overflow-y:auto; }
     #breedList::-webkit-scrollbar { width:4px; }
     #breedList::-webkit-scrollbar-track { background:transparent; }
     #breedList::-webkit-scrollbar-thumb { background-color:#888; border-radius:2px; }
-    .swal2-container{ z-index: 6000 !important; }
+
+    .swal2-container{ z-index: 6000 !important; } /* SweetAlert above modal */
   </style>
 
   <!-- ===================== 1) SPECIES/BREED SECTION ===================== -->
@@ -60,7 +63,14 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
               <tr>
                 <td><%= sp %></td>
                 <td>
-                  <button class="btn btn-info btn-sm addBreedBtn" data-species="<%= sp %>" data-breeds='<%= JSON.stringify(petDetails.speciesBreeds[sp] || []) %>'>Add Breed</button>
+                  <!-- IMPORTANT: data-toggle + data-target so Bootstrap passes relatedTarget -->
+                  <button type="button"
+                          class="btn btn-info btn-sm addBreedBtn"
+                          data-toggle="modal" data-target="#addBreedModal"
+                          data-species="<%= sp %>"
+                          data-breeds='<%= JSON.stringify(petDetails.speciesBreeds[sp] || []) %>'>
+                    Add Breed
+                  </button>
                   <button class="btn btn-danger btn-sm deleteSpeciesBtn" data-species="<%= sp %>">Delete</button>
                 </td>
               </tr>
@@ -180,6 +190,52 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
   </div>
 </div>
 
+<!-- ===== MODAL: Add Breeds ===== -->
+<div class="modal fade" id="addBreedModal" tabindex="-1" role="dialog" aria-labelledby="addBreedLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addBreedLabel">Manage Breeds</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="modal-label">Species</label>
+          <input type="text" id="breedSpeciesInput" class="form-control" readonly>
+        </div>
+
+        <div class="breed-search-container">
+          <div id="breedStatusMsg"></div>
+          <input type="text" id="breedListSearch" class="form-control breed-search-box" placeholder="Search breeds...">
+        </div>
+
+        <div class="form-row">
+          <div class="col-md-7">
+            <label class="modal-label d-block">Breeds</label>
+            <ul class="list-group" id="breedList"></ul>
+          </div>
+          <div class="col-md-5">
+            <label class="modal-label d-block">Add a breed</label>
+            <div class="input-group mb-2">
+              <input type="text" id="newBreedInput" class="form-control" placeholder="e.g. Siberian Husky">
+              <div class="input-group-append">
+                <button type="button" id="addBreedToListBtn" class="btn btn-primary">Add</button>
+              </div>
+            </div>
+            <small class="text-muted">Breeds are saved only after you click “Save Changes”.</small>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-success" id="saveBreedsBtn">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Keep SweetAlert (shell doesn’t load it globally) -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -195,7 +251,8 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
     const term = ($('#breedListSearch').val() || '').trim().toLowerCase();
     $('#breedList li').each(function(){
       const b = ($(this).data('breed') || '').toLowerCase();
-      $(this).toggleClass('d-none', !b.startsWith(term)).toggleClass('d-flex', b.startsWith(term));
+      const match = b.indexOf(term) === 0 || b.includes(term);
+      $(this).toggleClass('d-none', !match).toggleClass('d-flex', match);
     });
   }
 
@@ -205,7 +262,7 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
       $list.append(
         '<li class="list-group-item d-flex justify-content-between align-items-center" data-breed="'+
         String(breed).toLowerCase()+'">'+
-          breed+
+          '<span>'+breed+'</span>'+
           '<button type="button" class="btn btn-danger btn-sm removeBreedBtn" data-index="'+i+'">Remove</button>'+
         '</li>'
       );
@@ -227,8 +284,9 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
   setupSearchFilter('#diseaseSearch', '#diseaseTableBody');
   setupSearchFilter('#serviceSearch', '#serviceTableBody');
   setupSearchFilter('#speciesDiseaseSearch', '#speciesDiseaseTableBody');
+  $(document).on('keyup.petdetails', '#breedListSearch', filterBreedList);
 
-  // ===== Per-species diseases: helpers & events =====
+  // ===== Diseases by species: helpers & events =====
   function renderSpeciesDiseases(species, diseases) {
     const $tbody = $('#speciesDiseaseTableBody').empty();
     const $empty = $('#speciesDiseaseEmpty');
@@ -311,16 +369,13 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
     });
   });
 
-  // Optional: auto-select first species on load
+  // Auto-select first species in dropdown
   $(function(){
     const first = ($('#speciesForDisease option:eq(1)').val() || '');
     if (first) { $('#speciesForDisease').val(first).trigger('change'); }
   });
 
-  // ===== Breed modal & species/services handlers (unchanged from your code) =====
-  // ... (your existing IIFE handlers below remain the same) ...
-
-  // ===== 1) Add Species =====
+  // ===== SPECIES: Add =====
   $(document).on('click.petdetails', '#addSpeciesBtn', function(){
     const newSpecies = ($('#newSpeciesInput').val() || '').trim();
     if(!newSpecies){ $('#newSpeciesInput').addClass('is-invalid'); return; }
@@ -335,7 +390,9 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
             '<tr>'+
               '<td>'+newSpecies+'</td>'+
               '<td>'+
-                '<button class="btn btn-info btn-sm addBreedBtn" data-species="'+newSpecies+'" data-breeds="[]">Add Breed</button> '+
+                '<button type="button" class="btn btn-info btn-sm addBreedBtn" '+
+                ' data-toggle="modal" data-target="#addBreedModal" '+
+                ' data-species="'+newSpecies+'" data-breeds="[]">Add Breed</button> '+
                 '<button class="btn btn-danger btn-sm deleteSpeciesBtn" data-species="'+newSpecies+'">Delete</button>'+
               '</td>'+
             '</tr>'
@@ -354,73 +411,7 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
       .always(function(){ $btn.prop('disabled', false).html('Add Species'); });
   });
 
-  // ===== 1a) Open Add Breed modal =====
-  $(document).on('click.petdetails', '.addBreedBtn', function(){
-    const species = $(this).data('species');
-    let breedsAttr = $(this).attr('data-breeds');
-    try { tempBreedList = breedsAttr ? JSON.parse(breedsAttr) : []; } catch(e){ tempBreedList = []; }
-
-    $('#breedSpeciesInput').val(species);
-    $('#newBreedInput').val('');
-    $('#breedListSearch').val('');
-    $('#breedStatusMsg').empty();
-    renderBreedList();
-    $('#addBreedModal').modal('show');
-  });
-
-  // ===== 1b) Add breed to temp list =====
-  $(document).on('click.petdetails', '#addBreedToListBtn', function(){
-    const newBreed = ($('#newBreedInput').val() || '').trim();
-    if(!newBreed){ $('#newBreedInput').addClass('is-invalid'); return; }
-    $('#newBreedInput').removeClass('is-invalid');
-
-    if(tempBreedList.includes(newBreed)){
-      $('#newBreedInput').addClass('is-invalid');
-      Swal.fire('Error','Breed "'+newBreed+'" is already in the list.','error');
-      return;
-    }
-    tempBreedList.push(newBreed);
-    $('#newBreedInput').val('');
-    renderBreedList();
-    $('#breedStatusMsg').html('<span class="breed-status-msg breed-add-msg">Added "'+newBreed+'".</span>');
-    setTimeout(function(){ $('#breedStatusMsg').empty(); }, 2000);
-  });
-
-  // ===== 1c) Remove breed (confirm) =====
-  $(document).on('click.petdetails', '.removeBreedBtn', function(){
-    const idx = Number($(this).data('index'));
-    const name = tempBreedList[idx];
-    Swal.fire({
-      title:'Delete Breed?', text:'Are you sure you want to remove "'+name+'"?',
-      icon:'warning', showCancelButton:true, confirmButtonText:'Yes, remove it', cancelButtonText:'Cancel'
-    }).then(function(r){
-      if(!r.isConfirmed) return;
-      tempBreedList.splice(idx, 1);
-      renderBreedList();
-      $('#breedStatusMsg').html('<span class="breed-delete-msg">Removed "'+name+'"</span>');
-      setTimeout(function(){ $('#breedStatusMsg').empty(); }, 2000);
-    });
-  });
-
-  // ===== 1d) Save breeds =====
-  $(document).on('click.petdetails', '#saveBreedsBtn', function(){
-    const species = $('#breedSpeciesInput').val();
-    const $btn = $(this).prop('disabled', true)
-      .html('<span class="spinner-border spinner-border-sm mr-2" role="status"></span>Saving...');
-    $.ajax({ url:'/settings/update-breeds', method:'POST', data:{ species:species, breeds: JSON.stringify(tempBreedList) } })
-      .done(function(res){
-        if(res.success){
-          Swal.fire({icon:'success', title:'Saved', text:'Breeds updated for '+species+'.'});
-          $('.addBreedBtn[data-species="'+species+'"]').attr('data-breeds', JSON.stringify(tempBreedList));
-        } else {
-          Swal.fire('Error', res.message || 'Error saving breeds.', 'error');
-        }
-      })
-      .fail(function(){ Swal.fire('Error','Server error while updating breeds.','error'); })
-      .always(function(){ $btn.prop('disabled', false).html('Save Changes'); });
-  });
-
-  // ===== 1e) Delete species =====
+  // ===== SPECIES: Delete =====
   $(document).on('click.petdetails', '.deleteSpeciesBtn', function(){
     const species = $(this).data('species');
     Swal.fire({
@@ -428,7 +419,7 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
       icon:'warning', showCancelButton:true, confirmButtonText:'Yes, delete it', cancelButtonText:'Cancel'
     }).then(function(r){
       if(!r.isConfirmed) return;
-      $.post('/settings/delete-species', { species: species })
+      $.post('/settings/delete-species', { species })
         .done(function(res){
           if(res.success){
             Swal.fire({icon:'success', title:'Deleted', text:'Species "'+species+'" has been removed.'});
@@ -443,7 +434,100 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
     });
   });
 
-  // ===== 2) Add / Delete Global Disease =====
+  // ===== BREED MODAL: populate & open (works for both data-API and manual) =====
+  function populateBreedModalFromButton($btn){
+    const species = ($btn && $btn.data('species')) ? String($btn.data('species')) : '';
+    let breedsAttr = ($btn && $btn.attr('data-breeds')) ? $btn.attr('data-breeds') : '[]';
+    try { tempBreedList = JSON.parse(breedsAttr || '[]'); } catch(e){ tempBreedList = []; }
+
+    $('#breedSpeciesInput').val(species);
+    $('#newBreedInput').val('');
+    $('#breedListSearch').val('');
+    $('#breedStatusMsg').empty();
+    renderBreedList();
+  }
+
+  let __lastBreedBtn = null;
+
+  $(document).on('click.petdetails', '.addBreedBtn', function(){
+    __lastBreedBtn = $(this);
+    populateBreedModalFromButton(__lastBreedBtn);
+    $('#addBreedModal').modal('show');
+  });
+
+  $('#addBreedModal').on('show.bs.modal', function(evt){
+    const $btn = $(evt.relatedTarget || __lastBreedBtn || []);
+    if ($btn && $btn.length) {
+      __lastBreedBtn = $btn;
+      populateBreedModalFromButton($btn);
+    }
+  });
+
+  // ===== BREEDS: Add to temp list =====
+  $(document).on('click.petdetails', '#addBreedToListBtn', function(e){
+    e.preventDefault();
+    const newBreed = ($('#newBreedInput').val() || '').trim();
+    if(!newBreed){ $('#newBreedInput').addClass('is-invalid'); return; }
+    $('#newBreedInput').removeClass('is-invalid');
+
+    // case-insensitive duplicate check
+    const exists = tempBreedList.some(b => String(b).toLowerCase() === newBreed.toLowerCase());
+    if(exists){
+      $('#newBreedInput').addClass('is-invalid');
+      Swal.fire('Error','Breed "'+newBreed+'" is already in the list.','error');
+      return;
+    }
+    tempBreedList.push(newBreed);
+    $('#newBreedInput').val('');
+    renderBreedList();
+    $('#breedStatusMsg').html('<span class="breed-status-msg breed-add-msg">Added "'+newBreed+'".</span>');
+    setTimeout(function(){ $('#breedStatusMsg').empty(); }, 1500);
+  });
+
+  // ===== BREEDS: Remove =====
+  $(document).on('click.petdetails', '.removeBreedBtn', function(){
+    const idx = Number($(this).data('index'));
+    const name = tempBreedList[idx];
+    Swal.fire({
+      title:'Delete Breed?', text:'Are you sure you want to remove "'+name+'"?',
+      icon:'warning', showCancelButton:true, confirmButtonText:'Yes, remove it', cancelButtonText:'Cancel'
+    }).then(function(r){
+      if(!r.isConfirmed) return;
+      tempBreedList.splice(idx, 1);
+      renderBreedList();
+      $('#breedStatusMsg').html('<span class="breed-delete-msg">Removed "'+name+'"</span>');
+      setTimeout(function(){ $('#breedStatusMsg').empty(); }, 1500);
+    });
+  });
+
+  // ===== BREEDS: Save Changes =====
+  $(document).on('click.petdetails', '#saveBreedsBtn', function(e){
+    e.preventDefault();
+    const species = ($('#breedSpeciesInput').val() || '').trim();
+    if (!species){
+      Swal.fire('Missing species','Please open the modal from an “Add Breed” button so the species is set.','warning');
+      return;
+    }
+    const $btn = $(this).prop('disabled', true)
+      .html('<span class="spinner-border spinner-border-sm mr-2" role="status"></span>Saving...');
+    $.ajax({ url:'/admin/settings/update-breeds', method:'POST', data:{ species, breeds: JSON.stringify(tempBreedList) } })
+      .done(function(res){
+        if(res && res.success){
+          Swal.fire({icon:'success', title:'Saved', text:'Breeds updated for '+species+'.'});
+          // keep button state in table in sync
+          $('.addBreedBtn[data-species="'+species+'"]').attr('data-breeds', JSON.stringify(tempBreedList));
+        } else {
+          Swal.fire('Error', (res && res.message) || 'Error saving breeds.', 'error');
+        }
+      })
+      .fail(function(xhr){
+        Swal.fire('Error','Server error while updating breeds.','error');
+        console.error('update-breeds failed', xhr && xhr.responseText);
+      })
+      .always(function(){ $btn.prop('disabled', false).html('Save Changes'); });
+  });
+
+  // ===== GLOBAL DISEASES =====
   $(document).on('click.petdetails', '#addDiseaseBtn', function(){
     const newDisease = ($('#newDiseaseInput').val() || '').trim();
     if(!newDisease){ $('#newDiseaseInput').addClass('is-invalid'); return; }
@@ -469,17 +553,17 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
         $('#newDiseaseInput').addClass('is-invalid');
         Swal.fire('Error','Server error while adding disease.','error');
       })
-      .always(function(){ $btn.prop('disabled', false).html('Add Disease'); });
+      .always(function(){ $btn.prop('disabled', false).html('Add Global Disease'); });
   });
 
   $(document).on('click.petdetails', '.deleteDiseaseBtn', function(){
     const disease = $(this).data('disease');
     Swal.fire({
       title:'Delete Disease?', text:'Are you sure you want to delete "'+disease+'"?',
-      icon:'warning', showCancelButton:true, confirmButtonText:'Yes, delete it', cancelButtonText:'Cancel'
+      icon:'warning', showCancelButton:true, confirmButtonText:'Yes, delete', cancelButtonText:'Cancel'
     }).then(function(r){
       if(!r.isConfirmed) return;
-      $.post('/settings/delete-disease', { disease:disease })
+      $.post('/settings/delete-disease', { disease })
         .done(function(res){
           if(res.success){
             Swal.fire({icon:'success', title:'Deleted', text:'Disease "'+disease+'" has been removed.'});
@@ -494,7 +578,7 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
     });
   });
 
-  // ===== 3) Add / Delete Service =====
+  // ===== SERVICES =====
   $(document).on('click.petdetails', '#addServiceBtn', function(){
     const newService = ($('#newServiceInput').val() || '').trim();
     if(!newService){ $('#newServiceInput').addClass('is-invalid'); return; }
@@ -527,10 +611,10 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
     const service = $(this).data('service');
     Swal.fire({
       title:'Delete Service?', text:'Are you sure you want to delete "'+service+'"?',
-      icon:'warning', showCancelButton:true, confirmButtonText:'Yes, delete it', cancelButtonText:'Cancel'
+      icon:'warning', showCancelButton:true, confirmButtonText:'Yes, delete', cancelButtonText:'Cancel'
     }).then(function(r){
       if(!r.isConfirmed) return;
-      $.post('/settings/delete-service', { service:service })
+      $.post('/settings/delete-service', { service })
         .done(function(res){
           if(res.success){
             Swal.fire({icon:'success', title:'Deleted', text:'Service "'+service+'" has been removed.'});
@@ -545,7 +629,7 @@ var petDetails = (typeof petDetails !== 'undefined' && petDetails)
     });
   });
 
-  // ===== Optional leftover “My Pet” handlers (unchanged) =====
+  // ===== Optional front-end "My Pet" helpers =====
   $(document).on('change.petdetails', '#species', function(){
     const selectedSpecies = $(this).val();
     const $breed = $('#petBreed').empty().append('<option value="">Select breed</option>');
