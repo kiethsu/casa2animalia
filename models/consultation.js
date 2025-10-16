@@ -65,6 +65,8 @@ const ConsultationSchema = new Schema({
 
   // Diagnosis, notes, meds, services, confinement
   diagnosis:         { type: String },
+  disease:           { type: String }, 
+  diseases:          [{ type: String }],    // NEW: full list  
   notes:             { type: String },
   medications:       [MedicationSchema],
   services:          [ServiceEntrySchema],
@@ -92,6 +94,32 @@ ConsultationSchema.pre('save', function(next) {
     if (!o.others && pe.observations)     this.overview = { ...(this.overview || {}), others: pe.observations };
   } catch (_) { /* no-op */ }
   next();
+});
+// === Notify clients when a consultation is created/updated ===
+function ymdLocal(d) {
+  const x = new Date(d);
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, '0');
+  const dd = String(x.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+ConsultationSchema.post('save', function(doc) {
+  try {
+    const { broadcast } = require('../utils/hrSse'); // lazy require to avoid cycles
+    const when = doc.createdAt || doc.updatedAt || new Date();
+    broadcast && broadcast({
+      type: 'consultation:created',
+      payload: {
+        reservationId: String(doc.reservation),
+        petId: doc.targetPetId ? String(doc.targetPetId) : null,
+        petName: doc.targetPetName || '',
+        dateISO: ymdLocal(when)
+      }
+    });
+  } catch (e) {
+    // no-op
+  }
 });
 
 module.exports = mongoose.model('Consultation', ConsultationSchema);
