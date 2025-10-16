@@ -1,48 +1,26 @@
 <%
-  // pets: array of all pet objects passed from the server.
-  // Each pet object should include a property "addedFromReservation" that is set to true
-  // if the pet was added via the reservation "Add" action.
-  // Also, the owner field should be populated (with at least "username").
-  // Helper function to format a date in local time as "YYYY-MM-DD"
-  function formatLocalDate(dateStr) {
-    var d = new Date(dateStr);
-    var month = '' + (d.getMonth() + 1);
-    var day = '' + d.getDate();
-    var year = d.getFullYear();
-    if (month.length < 2) month = '0' + month;
-    if (day.length < 2) day = '0' + day;
-    return [year, month, day].join('-');
-  }
-
-  // NEW: “entries” comes from your route:
-  //    const entries = await PetList.find(…)…
-  //    res.render('hr/petlist', { entries })
-  const list = typeof entries !== 'undefined' ? entries : [];
+// entries: array of PetList docs from /admin/petlist
+// Each entry has: _id, petName, owner { _id, username, cellphone?, email? } OR walk-in fields
+const list = Array.isArray(entries) ? entries : [];
 %>
 <div class="container-fluid petlist-container">
 <style>
-  /* Page shell: match reservation spacing */
+  /* Page shell: match HR spacing */
   .petlist-container{
     background:#f8f9fa;
     min-height:100vh;
-    padding:8px 8px 10px !important; /* tight like reservation */
+    padding:8px 8px 10px !important;
   }
 
-  /* Search bar (same function, nicer look) */
+  /* Search + Filter row */
   .search-wrap{
-    display:flex; justify-content:flex-end; align-items:center; margin-bottom:10px;
-    position:relative;
+    display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;
+    gap:10px; flex-wrap:wrap;
   }
-  .search-wrap .search-icon{
-    position:absolute; right:calc(420px + 10px); /* lines up with input on wide screens */
-    display:none;
-  }
+  .search-wrap .search-icon{ position:absolute; right:calc(420px + 10px); display:none; }
   .search-box{
     width:clamp(220px, 40%, 420px);
-    height:36px;
-    border-radius:999px;
-    border:1px solid #d1d5db;
-    padding-left:14px;
+    height:36px; border-radius:999px; border:1px solid #d1d5db; padding-left:14px;
     box-shadow: inset 0 0 0 1px rgba(0,0,0,.04);
   }
   .search-box:focus{
@@ -51,150 +29,149 @@
     outline:none;
   }
 
-  /* Table wrapper: rounded card w/ shadow; also clips header corners */
+  /* Filter segmented buttons */
+  .filter-seg .btn{ border-radius:999px; padding:.25rem .6rem; }
+  .filter-seg .btn:not(.active){ background:#fff; }
+  .filter-seg .btn.active{ color:#fff; background:#0D47A1; border-color:#0D47A1; }
+
+  /* Table wrapper */
   .fixed-table-container{
-    height:600px;
-    overflow-y:auto;
-    overflow-x:auto;
-    border:1px solid #e9ecef;
-    border-radius:14px;
+    max-height:none; overflow-y:visible; overflow-x:auto;
+    border:1px solid #e9ecef; border-radius:14px;
     box-shadow:0 3px 12px rgba(30,34,90,0.08);
     background:#fff;
   }
+  .fixed-table-container.scrollable{ max-height:600px; overflow-y:auto; }
 
   /* Table */
   .custom-table{
     width:100%;
     table-layout:fixed;
-    border-collapse:separate;       /* necessary so radius renders cleanly */
-    border-spacing:0;               /* no gaps inside wrapper border */
+    border-collapse:separate;
+    border-spacing:0;
     margin:0;
   }
   .custom-table thead th{
     position:sticky; top:0; z-index:1;
-    background:#0D47A1;            /* requested color */
-    color:#fff;
+    background:#0D47A1; color:#fff;
     text-align:center;
     padding:12px;
-    font-weight:700;
-    letter-spacing:.02em;
-    text-transform:uppercase;
-    font-size:.75rem;
+    font-weight:700; letter-spacing:.02em; text-transform:uppercase; font-size:.75rem;
   }
   .custom-table tbody td{
     text-align:center; padding:12px; color:#0f172a;
-    border-top:1px dashed #e9edf5;
-    word-break:break-word;
+    border-top:1px dashed #e9edf5; word-break:break-word;
   }
   .custom-table tbody tr:hover{ background:#f9fbff; }
 
-  /* Utility */
   .equal-btn{ width:120px; }
 
-  /* Make all Bootstrap modals sit ABOVE topbar/subnav/sidebar and be centered */
+  /* Modals z-index */
   .modal { z-index: 5001 !important; }
   .modal-backdrop { z-index: 5000 !important; }
 
   /* Pet History modal polish */
   #petDetailsModal .modal-dialog { max-width: 900px; }
-  #petDetailsModal .modal-content {
-    border: 0;
-    border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0,0,0,.25);
-    overflow: hidden;
+  #petDetailsModal .modal-content{
+    border:0; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.25); overflow:hidden;
   }
-  #petDetailsModal .modal-header {
+  #petDetailsModal .modal-header{
     background: linear-gradient(135deg, #0D47A1, #1E88E5);
-    color: #fff;
-    padding: 14px 18px;
-    border-bottom: 0;
+    color:#fff; padding:14px 18px; border-bottom:0;
   }
-  #petDetailsModal .modal-title {
-    font-weight: 700;
-    letter-spacing: .3px;
-    font-size: 1.05rem;
-    display: flex; align-items: center; gap: 8px;
+  #petDetailsModal .modal-title{
+    font-weight:700; letter-spacing:.3px; font-size:1.05rem; display:flex; align-items:center; gap:8px;
   }
-  #petDetailsModal .modal-body {
-    background: #f9fbff;
-    padding: 1rem 1.25rem;
-  }
-  #petDetailsModal .modal-footer {
-    background: #f5f7fb;
-    border-top: 0;
-  }
+  #petDetailsModal .modal-body{ background:#f9fbff; padding:1rem 1.25rem; }
+  #petDetailsModal .modal-footer{ background:#f5f7fb; border-top:0; }
 
-  /* Keep dialog from jumping while centering */
-  @media (min-width:576px){
-    .modal .modal-dialog { margin-top:0; margin-bottom:0; }
-  }
-
-  /* History items look nice even without color */
+  /* History items */
   .history-item { margin-bottom: 10px; }
   .history-header{
-    cursor: pointer;
-    padding: .6rem .85rem;
-    border-radius: 10px;
-    border: 1px solid #e5e7eb;
-    display: flex; align-items: center; justify-content: space-between;
-    transition: filter .15s ease;
+    cursor:pointer; padding:.6rem .85rem; border-radius:10px; border:1px solid #e5e7eb;
+    display:flex; align-items:center; justify-content:space-between; transition:filter .15s ease;
   }
-  .history-header:hover{ filter: brightness(.98); }
+  .history-header:hover{ filter:brightness(.98); }
   .history-header i{ transition: transform .2s ease; }
   .history-header[aria-expanded="true"] i { transform: rotate(180deg); }
-
   .history-content{
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-top: none;
-    border-radius: 0 0 10px 10px;
-    padding: .75rem 1rem;
+    background:#fff; border:1px solid #e5e7eb; border-top:none; border-radius:0 0 10px 10px; padding:.75rem 1rem;
   }
 
-  /* ===== Spinners ===== */
-
-  /* Global full-page spinner overlay */
+  /* Spinners */
   .page-spinner{
-    position: fixed; inset: 0;
-    background: rgba(255,255,255,.75);
-    backdrop-filter: blur(1px);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 6000; /* above modals */
+    position:fixed; inset:0; background:rgba(255,255,255,.75); backdrop-filter:blur(1px);
+    display:flex; align-items:center; justify-content:center; z-index:6000;
   }
   .page-spinner .spin-card{
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 16px 18px;
-    box-shadow: 0 10px 40px rgba(0,0,0,.15);
-    display:flex; flex-direction:column; align-items:center; gap:8px;
+    background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; padding:16px 18px;
+    box-shadow:0 10px 40px rgba(0,0,0,.15); display:flex; flex-direction:column; align-items:center; gap:8px;
   }
   .page-spinner .spin-label{ font-size:.85rem; color:#334155; }
 
-  /* Section/Block spinner (sits over a specific container) */
   .block-spinner{
-    position:absolute; inset:0;
-    display:flex; align-items:center; justify-content:center;
-    background: rgba(255,255,255,.70);
-    z-index: 10; border-radius: inherit;
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background: rgba(255,255,255,.70); z-index:10; border-radius: inherit;
   }
 
-  /* helpers */
   .d-none{ display:none !important; }
   .position-relative{ position:relative !important; }
+
+  /* Edit Contact modal styling */
+  #editContactModal .modal-dialog { max-width: 420px; }
+  #editContactModal .modal-content{
+    border:0; border-radius:16px; box-shadow: 0 18px 60px rgba(13,71,161,.25); overflow:hidden;
+  }
+  #editContactModal .modal-header{
+    background: linear-gradient(135deg, #0D47A1, #1976D2);
+    color:#fff; border:0; padding:.65rem .9rem;
+  }
+  #editContactModal .modal-title{
+    font-size:.95rem; font-weight:700; letter-spacing:.2px; display:flex; align-items:center; gap:8px;
+  }
+  #editContactModal .modal-body{ background:#f9fbff; padding:12px 14px; }
+  #editContactModal .form-label{ font-size:.8rem; color:#334155; margin-bottom:.25rem; }
+  #editContactModal .input-group-text{ background:#eef2ff; border-color:#c7d2fe; }
+  #editContactModal .form-control{ border-color:#cbd5e1; }
+  #editContactModal .form-control:focus{ border-color:#93c5fd; box-shadow:0 0 0 .15rem rgba(147,197,253,.35); }
+  #editContactModal .modal-footer{ background:#f5f7fb; border:0; padding:.55rem .9rem; }
+  .btn-loading .spinner-border{ margin-right:6px; }
+  .form-hint{ font-size:.75rem; color:#64748b; }
+  /* ===== SweetAlert2 toast: match HR look, small size, top-right, above modals ===== */
+.swal2-container { z-index: 6002 !important; } /* higher than your modal (5001) & spinner (6000) */
+.swal2-container.swal2-top-end > .swal2-popup {
+  width: 18rem !important;           /* compact width */
+  padding: 8px 10px !important;      /* tighter padding */
+  border-radius: 12px !important;    /* softer corners */
+  font-size: .90rem !important;      /* smaller text */
+  box-shadow: 0 10px 28px rgba(0,0,0,.15) !important;
+}
+.swal2-container.swal2-top-end > .swal2-popup .swal2-title {
+  font-size: .95rem !important;      /* slightly larger title for readability */
+}
+.swal2-container .swal2-timer-progress-bar {
+  height: 3px !important;            /* slim progress bar */
+}
+
+@media (max-width: 480px) {
+  .swal2-container.swal2-top-end > .swal2-popup { width: 16rem !important; }
+}
+
 </style>
 
-<!-- Search -->
+<!-- Search + Filter -->
 <div class="search-wrap">
-  <input type="text"
-         class="form-control form-control-sm search-box"
-         id="petSearchInput"
-         placeholder="Search pets or owners">
+  <div class="filter-seg btn-group" role="group" aria-label="Owner type filter">
+    <button type="button" class="btn btn-outline-primary btn-sm active" data-type="all" id="filterAll">All</button>
+    <button type="button" class="btn btn-outline-primary btn-sm" data-type="walkin" id="filterWalkin">Walk-in</button>
+    <button type="button" class="btn btn-outline-primary btn-sm" data-type="account" id="filterAccount">Account</button>
+  </div>
+
+  <input type="text" class="form-control form-control-sm search-box" id="petSearchInput" placeholder="Search pets or owners">
 </div>
 
 <!-- Table -->
 <div class="table-responsive fixed-table-container position-relative" id="petTableWrap">
-  <!-- Section spinner (covers only this table/card) -->
   <div class="block-spinner d-none" id="tableSpin">
     <div class="text-center">
       <div class="spinner-border text-primary" role="status" aria-label="Loading"></div>
@@ -206,51 +183,75 @@
     <thead>
       <tr>
         <th>Owner Name</th>
+        <th>Mobile</th>
+        <th>Email</th>
         <th>Pet Name</th>
         <th>Details</th>
       </tr>
     </thead>
     <tbody id="petTableBody">
-      <% if (Array.isArray(list) && list.length > 0) { %>
+      <% if (list.length > 0) { %>
         <% list.forEach(function(e) {
-             var hasOwner   = e && e.owner && (e.owner._id || typeof e.owner === 'object');
-             var ownerIdStr = (hasOwner && e.owner._id) ? String(e.owner._id) : null;
-             var ownerName  = (e && e.owner && e.owner.username) ? e.owner.username : (e.ownerName || '');
+          var hasOwner   = e && e.owner && (e.owner._id || typeof e.owner === 'object');
+          var ownerIdStr = (hasOwner && e.owner._id) ? String(e.owner._id) : null;
+          var ownerName  = (e && e.owner && e.owner.username) ? e.owner.username : (e.ownerName || '');
+          var displayMobile = hasOwner ? (e.owner.cellphone || '') : (e.contactMobile || '');
+          var displayEmail  = hasOwner ? (e.owner.email     || '') : (e.contactEmail  || '');
         %>
-          <tr id="pet-<%= e._id %>">
-            <td class="ownerName"><%= ownerName %></td>
-            <td class="petName"><%= e.petName %></td>
-            <td class="text-center">
-              <button
-                class="btn btn-info btn-sm equal-btn"
-                onclick='viewPetDetails(
-                  null,
-                  <%- JSON.stringify(e.petName || "") %>,
-                  <%= ownerIdStr ? `"${ownerIdStr}"` : "null" %>,
-                  <%- JSON.stringify(ownerName) %>
-                )'>
-                View History
+        <tr id="pet-<%= e._id %>" data-owner-type="<%= hasOwner ? 'account' : 'walkin' %>">
+          <td class="ownerName" data-owner="<%= (ownerName || '').toLowerCase() %>">
+            <%= ownerName || 'Unknown' %>
+            <% if (hasOwner) { %>
+              <span class="badge badge-success ml-1">Account</span>
+            <% } else { %>
+              <span class="badge badge-secondary ml-1">Walk-in</span>
+            <% } %>
+          </td>
+          <td class="ownerPhone"><%= displayMobile || '—' %></td>
+          <td class="ownerEmail"><%= displayEmail  || '—' %></td>
+          <td class="petName"><%= e.petName %></td>
+          <td class="text-center">
+            <button
+              class="btn btn-info btn-sm equal-btn"
+              onclick='viewPetDetails(
+                <%- JSON.stringify(e._id) %>,
+                <%- JSON.stringify(e.petName || "") %>,
+                <%= ownerIdStr ? `"${ownerIdStr}"` : "null" %>,
+                <%- JSON.stringify(ownerName) %>
+              )'>View History</button>
+
+            <% if (!hasOwner) { %>
+              <button class="btn btn-secondary btn-sm equal-btn btn-edit-contact"
+                      onclick='openEditContact(
+                        "<%= e._id %>",
+                        <%- JSON.stringify(e.contactMobile || "") %>,
+                        <%- JSON.stringify(e.contactEmail  || "") %>,
+                        this
+                      )'>
+                <i class="fas fa-user-edit mr-1"></i> Edit Contact
               </button>
-            </td>
-          </tr>
+            <% } %>
+          </td>
+        </tr>
         <% }); %>
       <% } else { %>
-        <tr><td colspan="3" class="text-center">No pets added.</td></tr>
+        <tr><td colspan="5" class="text-center">No pets added.</td></tr>
       <% } %>
     </tbody>
   </table>
 </div>
 
-<!-- Modal for Viewing Pet Consultation History -->
+<!-- Pet History Modal -->
 <div class="modal fade" id="petDetailsModal" tabindex="-1" role="dialog"
      aria-labelledby="petDetailsModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="petDetailsModalLabel">
-          <i class="fas fa-notes-medical"></i> Pet Consultation History
-        </h5>
-        <!-- Removed the top-right X button -->
+      <h5 class="modal-title" id="petDetailsModalLabel">
+  <i class="fas fa-notes-medical"></i> Pet Consultation History
+  <span id="petHdrInline" class="ml-2" style="opacity:.9;"></span>
+</h5>
+
       </div>
       <div class="modal-body" id="petDetailsContent">
         <div class="d-flex align-items-center gap-2">
@@ -265,7 +266,60 @@
   </div>
 </div>
 
-<!-- Global page spinner (moved to <body> at runtime) -->
+<!-- Edit Contact (Walk-in) -->
+<div class="modal fade" id="editContactModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title">
+          <i class="fas fa-address-book"></i> Edit Contact (Walk-in)
+        </h6>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="ec_id">
+
+        <div class="form-group mb-2">
+          <label class="form-label">Mobile (PH)</label>
+          <div class="input-group input-group-sm">
+            <div class="input-group-prepend">
+              <span class="input-group-text"><i class="fas fa-mobile-alt"></i></span>
+            </div>
+            <input class="form-control" id="ec_mobile" placeholder="09XXXXXXXXX or +639XXXXXXXXX">
+          </div>
+          <div class="invalid-feedback d-block" id="ec_mobile_err" style="display:none;"></div>
+          <div class="form-hint">Leave blank to clear the saved mobile.</div>
+        </div>
+
+        <div class="form-group mb-1">
+          <label class="form-label">Email</label>
+          <div class="input-group input-group-sm">
+            <div class="input-group-prepend">
+              <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+            </div>
+            <input class="form-control" id="ec_email" placeholder="name@example.com">
+          </div>
+          <div class="invalid-feedback d-block" id="ec_email_err" style="display:none;"></div>
+          <div class="form-hint">Leave blank to clear the saved email.</div>
+        </div>
+
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="ec_applyAll">
+          <label class="form-check-label small" for="ec_applyAll">
+            Apply to all pets of this walk-in
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-light btn-sm" data-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="ec_save">
+          <i class="fas fa-save mr-1"></i> Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Global page spinner -->
 <div id="globalSpinner" class="page-spinner d-none">
   <div class="spin-card">
     <div class="spinner-border text-primary" role="status" aria-label="Loading"></div>
@@ -273,159 +327,125 @@
   </div>
 </div>
 
-<!-- Include jQuery UI and Bootstrap scripts -->
+<!-- deps (remove if your layout already includes them) -->
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <script>
-/* ========= GLOBAL SPINNER UTILITIES ========= */
-function ensureGlobalSpinner() {
-  var $g = $('#globalSpinner');
-  if (!$g.length) {
-    $('body').append(
-      '<div id="globalSpinner" class="page-spinner d-none">' +
-        '<div class="spin-card">' +
-          '<div class="spinner-border text-primary" role="status" aria-label="Loading"></div>' +
-          '<div class="spin-label">Loading…</div>' +
-        '</div>' +
-      '</div>'
-    );
-    $g = $('#globalSpinner');
-  } else if (!$g.parent().is('body')) {
-    $g.appendTo('body'); // keep it top-level above all content
-  }
-  return $g;
-}
-function showPageSpinner(immediate){
-  var $g = ensureGlobalSpinner();
-  if (immediate) { $g.removeClass('d-none'); return; }
-  $g.removeClass('d-none');
-}
-function hidePageSpinner(){
-  $('#globalSpinner').addClass('d-none');
-}
-
-/* Prefer short delay on slow connections to show spinner ASAP */
-(function setSpinnerDelayStrategy(){
+/* ========= GLOBAL SPINNER ========= */
+function ensureGlobalSpinner(){ let $g = $('#globalSpinner'); if(!$g.length){ $('body').append($('#globalSpinner')); $g = $('#globalSpinner'); } return $g; }
+function showPageSpinner(){ ensureGlobalSpinner().removeClass('d-none'); }
+function hidePageSpinner(){ $('#globalSpinner').addClass('d-none'); }
+(function(){
   var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-  window.__NAV_SPINNER_DELAY__ = (conn && (
-    (conn.effectiveType && /(^|-)2g$/.test(conn.effectiveType)) ||
-    conn.saveData === true ||
-    (typeof conn.downlink === 'number' && conn.downlink < 1.2)
-  )) ? 80 : 260;
+  window.__NAV_SPINNER_DELAY__ = (conn && ((conn.effectiveType && /(^|-)2g$/.test(conn.effectiveType)) || conn.saveData === true || (typeof conn.downlink === 'number' && conn.downlink < 1.2))) ? 80 : 260;
+  window.__FILTER_SPINNER_DELAY__ = window.__NAV_SPINNER_DELAY__ || 150;
 })();
-
-/* Show spinner before navigation (menu clicks / normal links / form submits) */
-(function bindPreNavigationSpinner(){
+(function(){
   var navTimer;
-
-  function preNavSpin(){
-    clearTimeout(navTimer);
-    navTimer = setTimeout(function(){ showPageSpinner(true); }, window.__NAV_SPINNER_DELAY__ || 200);
-  }
-
-  // Any link that actually navigates the browser
-  $(document).on('click', 'a[href]:not([target="_blank"]):not([download]):not([data-toggle]):not([data-bs-toggle])', function(ev){
+  function preNav(){ clearTimeout(navTimer); navTimer = setTimeout(function(){ showPageSpinner(); }, window.__NAV_SPINNER_DELAY__ || 200); }
+  $(document).on('click', 'a[href]:not([target="_blank"]):not([download]):not([data-toggle]):not([data-bs-toggle])', function(){
     var href = $(this).attr('href') || '';
-    // ignore hashes and JS no-ops
     if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
-    // allow opt-out
     if ($(this).is('[data-skip-spinner="true"]')) return;
-    preNavSpin();
+    preNav();
   });
-
-  // Forms
-  $(document).on('submit', 'form:not([data-skip-spinner="true"])', function(){
-    preNavSpin();
-  });
-
-  // In case navigation is canceled (rare), hide after a short while
-  window.addEventListener('pageshow', function(){ hidePageSpinner(); });
+  $(document).on('submit', 'form:not([data-skip-spinner="true"])', preNav);
+  window.addEventListener('pageshow', hidePageSpinner);
 })();
 
-/* ========= SECTION (TABLE) SPINNER ========= */
+/* ========= SECTION SPINNER ========= */
 function showTableSpinner(){ $('#tableSpin').removeClass('d-none'); }
 function hideTableSpinner(){ $('#tableSpin').addClass('d-none'); }
+$(document).ajaxStart(showTableSpinner);
+$(document).ajaxStop(hideTableSpinner);
+$(document).ajaxError(hideTableSpinner);
 
-/* Option A: Global AJAX hooks (covers any $.get/$.post on this page) */
-$(document).ajaxStart(function(){ showTableSpinner(); });
-$(document).ajaxStop(function(){ hideTableSpinner(); });
-$(document).ajaxError(function(){ hideTableSpinner(); });
+/* ========= TOASTS ========= */
+/* ========= TOASTS (match HR exactly) ========= */
+/* ========= TOASTS (same as HR) ========= */
+const Toast = (window.Swal && Swal.mixin)
+  ? Swal.mixin({
+      toast: true,
+      position: 'top-end',      // ← top-right corner
+      showConfirmButton: false,
+      timer: 1700,
+      timerProgressBar: true
+    })
+  : null;
 
-/* ========= MODAL HANDLING (UNCHANGED + small loader tweak) ========= */
+function swalSuccess(msg){
+  if (Toast) Toast.fire({ icon: 'success', title: msg });
+  else if (window.Swal) Swal.fire({ icon: 'success', title: msg, toast: true, position: 'top-end', timer: 1700, showConfirmButton: false });
+  else alert(msg);
+}
+function swalError(msg){
+  if (window.Swal) Swal.fire({ icon: 'error', title: 'Oops…', text: msg });
+  else alert(msg);
+}
+
+
+
+/* ========= BTN LOADING ========= */
+function toggleBtnLoading($btn, isLoading, loadingText){
+  if(!$btn || !$btn.length) return;
+  if(isLoading){
+    if(!$btn.data('orig-html')) $btn.data('orig-html', $btn.html());
+    $btn.addClass('btn-loading').prop('disabled', true)
+      .html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>' + (loadingText || 'Processing…'));
+  }else{
+    const html = $btn.data('orig-html'); if(html) $btn.html(html);
+    $btn.removeClass('btn-loading').prop('disabled', false);
+  }
+}
+
+/* ========= MODAL UTIL ========= */
 function getPetDetailsModal() {
   let $modal = $('body > #petDetailsModal').first();
-  if (!$modal.length) {
-    $modal = $('#main-content #petDetailsModal').first();
-    if ($modal.length) { $modal.appendTo('body'); }
-    else {
-      $modal = $(`
-        <div class="modal fade" id="petDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
-          <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-notes-medical"></i> Pet Consultation History</h5>
-              </div>
-              <div class="modal-body" id="petDetailsContent">
-                <div class="d-flex align-items-center gap-2">
-                  <div class="spinner-border text-primary mr-2" role="status" aria-label="Loading"></div>
-                  <span>Loading…</span>
-                </div>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
-              </div>
-            </div>
-          </div>
-        </div>`);
-      $('body').append($modal);
-    }
-  }
-  $('body > #petDetailsModal').not($modal).remove();
+  if (!$modal.length) { $modal = $('#petDetailsModal'); $modal.appendTo('body'); }
   $modal.find('.modal-dialog').addClass('modal-dialog-centered modal-dialog-scrollable');
   return $modal;
 }
+function colorForKey(key){ let hash=0; for(let i=0;i<(key||'').length;i++){ hash=((hash<<5)-hash)+key.charCodeAt(i); hash|=0; }
+  const hue = Math.abs(hash)%360; return { bg:`hsl(${hue},85%,93%)`, fg:`hsl(${hue},60%,24%)`, border:`hsl(${hue},45%,75%)` }; }
 
-function colorForKey(key) {
-  if (!key) return { bg:'#eef2f7', fg:'#1f2937', border:'#cfd8e3' };
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) { hash = ((hash << 5) - hash) + key.charCodeAt(i); hash |= 0; }
-  const hue    = Math.abs(hash) % 360;
-  const bg     = `hsl(${hue}, 85%, 93%)`;
-  const fg     = `hsl(${hue}, 60%, 24%)`;
-  const border = `hsl(${hue}, 45%, 75%)`;
-  return { bg, fg, border };
-}
+/* ========= VIEW PET DETAILS (ADMIN ENDPOINT) ========= */
+function viewPetDetails(petId, petName, ownerId, ownerName, species){
 
-/* ========= VIEW PET DETAILS (shows modal + internal loader) ========= */
-function viewPetDetails(petId, petName, ownerId, ownerName) {
-  const $modal   = getPetDetailsModal();
+  const $modal = getPetDetailsModal();
   const $content = $modal.find('#petDetailsContent');
-
-  // Inline loader for modal body
-  $content.html(
-    '<div class="d-flex align-items-center gap-2">' +
-      '<div class="spinner-border text-primary mr-2" role="status" aria-label="Loading"></div>' +
-      '<span>Loading details…</span>' +
-    '</div>'
-  );
+  $content.html('<div class="d-flex align-items-center gap-2"><div class="spinner-border text-primary mr-2" role="status" aria-label="Loading"></div><span>Loading details…</span></div>');
   $modal.modal('show');
 
   const params = { petId, petName };
   if (ownerId) params.ownerId = ownerId;
   if (!ownerId && ownerName) params.ownerName = ownerName;
 
-  $.get('/hr/get-pet-history', params)
-    .done(({ success, history }) => {
-      if (!success) return $content.html('<p>Error loading details.</p>');
-      if (!history.length) return $content.html('<p>No consultations found.</p>');
+  $.get('/admin/get-pet-history', params)
+  .done(({ success, pet, history, message }) => {
+    // Update header right away (server species first, fallback to param)
+    const inlineHeader = [petName, (pet && pet.species) || species || '']
+      .filter(Boolean)
+      .join(' — ');
+    $('#petHdrInline').text(inlineHeader);
+
+      if (!success) return $content.html(`<p>${message || 'Error loading details.'}</p>`);
+      if (!history || !history.length) return $content.html('<p>No consultations found.</p>');
 
       let html = '';
       history.forEach((rec, idx) => {
-        const dateStr = new Date(rec.date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-        const doctor  = (rec.doctor && rec.doctor.username) ? rec.doctor.username : 'Not Assigned';
-
+        const dateStr = new Date(rec.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const doctor = (typeof rec.doctor === 'string' && rec.doctor) || (rec.doctor && rec.doctor.username) || 'Not Assigned';
         const notes = rec.notes || '—';
         const diag  = rec.diagnosis || '—';
+const diseaseText = (Array.isArray(rec.diseases) && rec.diseases.length)
+  ? rec.diseases.join(', ')
+  : '—';
 
-        const { weight = '—', temperature = '—', observations = '—' } = rec.physical || {};
+        const { weight='—', temperature='—', observations='—' } = rec.physical || {};
         const examHtml = `
           <p><strong>Physical Exam:</strong></p>
           <table class="table table-sm table-bordered mb-3">
@@ -434,50 +454,49 @@ function viewPetDetails(petId, petName, ownerId, ownerName) {
           </table>`;
 
         let srvHtml = '';
-        if (rec.services && rec.services.length) {
+        if (rec.services && rec.services.length){
           srvHtml = `
             <p><strong>Services:</strong></p>
             <table class="table table-sm table-bordered mb-3">
               <thead class="thead-light"><tr><th>Category</th><th>Name</th><th>Details</th><th>File</th></tr></thead>
               <tbody>
-                ${rec.services.map(svc => {
-                  const fileLink = svc.file ? `<a href="${svc.file.replace(/^public/, '')}" download>📎</a>` : '—';
-                  return `<tr><td>${svc.category || '—'}</td><td>${svc.serviceName || '—'}</td><td>${svc.details || '—'}</td><td class="text-center">${fileLink}</td></tr>`;
+                ${rec.services.map(svc=>{
+                  const rawPath = svc.file ? String(svc.file) : '';
+                  const cleaned = rawPath ? rawPath.replace(/^public/, '') : '';
+                  const link = cleaned ? `<a href="${encodeURI(cleaned)}" download aria-label="Download file">📎</a>` : '—';
+                  return `<tr><td>${svc.category || '—'}</td><td>${svc.serviceName || '—'}</td><td>${svc.details || '—'}</td><td class="text-center">${link}</td></tr>`;
                 }).join('')}
               </tbody>
             </table>`;
         }
 
         let medHtml = '';
-        if (rec.medications && rec.medications.length) {
+        if (rec.medications && rec.medications.length){
           medHtml = `
             <p><strong>Medications:</strong></p>
             <table class="table table-sm table-bordered mb-3">
               <thead class="thead-light"><tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr></thead>
               <tbody>
-                ${rec.medications.map(med => `<tr><td>${med.name || med.medicationName || '—'}</td><td>${med.quantity || '—'}</td><td>${med.dosage || '—'}</td><td>${med.remarks || '—'}</td></tr>`).join('')}
+                ${rec.medications.map(med=>`<tr><td>${med.name || med.medicationName || '—'}</td><td>${med.quantity || '—'}</td><td>${med.dosage || '—'}</td><td>${med.remarks || '—'}</td></tr>`).join('')}
               </tbody>
             </table>`;
         }
 
         const conf = (rec.confinement && rec.confinement.length) ? rec.confinement.join(', ') : 'N/A';
         let schedHtml = '<p><strong>Next Follow-Up:</strong> N/A</p>';
-        if (rec.nextSchedule) {
+        if (rec.nextSchedule && rec.nextSchedule.date){
           const sd = rec.nextSchedule;
           const sdate = new Date(sd.date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-          schedHtml = `<p><strong>Next Follow-Up:</strong> ${sdate} — ${sd.details}</p>`;
+          schedHtml = `<p><strong>Next Follow-Up:</strong> ${sdate}${sd.details ? ' — ' + sd.details : ''}</p>`;
         }
 
-        const doctorLabel = doctor || 'Not Assigned';
-        const { bg, fg, border } = colorForKey(doctorLabel);
-
+        const { bg, fg, border } = colorForKey(doctor || 'Not Assigned');
         html += `
           <div class="history-item">
-            <div class="history-header"
-                 data-toggle="collapse" data-target="#historyRecord${idx}"
+            <div class="history-header" data-toggle="collapse" data-target="#historyRecord${idx}"
                  aria-expanded="false" aria-controls="historyRecord${idx}"
                  style="background:${bg}; color:${fg}; border-color:${border};">
-              <span>${dateStr} — Dr. ${doctorLabel}</span>
+              <span>${dateStr} — Dr. ${doctor}</span>
               <i class="fas fa-chevron-down"></i>
             </div>
             <div class="collapse" id="historyRecord${idx}">
@@ -486,6 +505,8 @@ function viewPetDetails(petId, petName, ownerId, ownerName) {
                 <p><strong>Notes:</strong> ${notes}</p>
                 ${examHtml}
                 <p><strong>Diagnosis:</strong> ${diag}</p>
+                <p><strong>Disease(s):</strong> ${diseaseText}</p>
+
                 ${srvHtml}
                 ${medHtml}
                 <p><strong>Confinement:</strong> ${conf}</p>
@@ -497,24 +518,158 @@ function viewPetDetails(petId, petName, ownerId, ownerName) {
 
       $content.html(html);
     })
-    .fail(() => {
-      $content.html('<p>Error loading details.</p>');
-    });
+    .fail(()=> $content.html('<p>Error loading details.</p>'));
 }
 
-/* ========= PAGE INIT ========= */
+/* ===== Walk-in Contact Editor (ADMIN ENDPOINT) ===== */
+let __ecRowBtn = null;
+function openEditContact(id, mobile, email, btn){
+  __ecRowBtn = btn || null;
+  const $trigger = $(btn);
+  if ($trigger.length) toggleBtnLoading($trigger, true, 'Opening…');
+
+  $('#ec_id').val(id);
+  $('#ec_mobile').val(mobile || '');
+  $('#ec_email').val(email || '');
+  $('#ec_applyAll').prop('checked', false);
+
+  $('#ec_mobile_err, #ec_email_err').hide().text('');
+  $('#ec_mobile, #ec_email').removeClass('is-invalid');
+
+  $('#editContactModal')
+    .one('shown.bs.modal', function(){ if ($trigger.length) toggleBtnLoading($trigger, false); })
+    .one('hidden.bs.modal', function(){ if ($trigger.length) toggleBtnLoading($trigger, false); })
+    .modal('show');
+}
+
+function validateContactInputs(){
+  let ok = true;
+  const mobile = $('#ec_mobile').val().trim();
+  const email  = $('#ec_email').val().trim();
+  const phRe   = /^(\+?63|0)9\d{9}$/;
+  const emRe   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  $('#ec_mobile_err, #ec_email_err').hide().text('');
+  $('#ec_mobile, #ec_email').removeClass('is-invalid');
+
+  if (mobile && !phRe.test(mobile)) {
+    $('#ec_mobile').addClass('is-invalid');
+    $('#ec_mobile_err').text('Mobile must be PH format (09XXXXXXXXX or +639XXXXXXXXXX)').show();
+    ok = false;
+  }
+  if (email && !emRe.test(email)) {
+    $('#ec_email').addClass('is-invalid');
+    $('#ec_email_err').text('Please enter a valid email address.').show();
+    ok = false;
+  }
+  return ok;
+}
+
+$('#ec_save').off('click').on('click', function(){
+  if (!validateContactInputs()) {
+    swalError('Please fix the highlighted fields.');
+    return;
+  }
+
+  const $saveBtn = $('#ec_save');
+  toggleBtnLoading($saveBtn, true, 'Saving…');
+
+  const id       = $('#ec_id').val();
+  const mobile   = $('#ec_mobile').val().trim();
+  const email    = $('#ec_email').val().trim();
+  const applyAll = $('#ec_applyAll').is(':checked');
+
+  $.post('/admin/petlist/update-contact', {
+    id,
+    contactMobile: mobile,
+    contactEmail:  email,
+    applyToAllSameWalkin: applyAll
+  })
+  .done(resp => {
+    if (!resp || resp.success !== true) {
+      swalError((resp && resp.message) ? resp.message : 'Failed to save.');
+      return;
+    }
+
+    // Update displayed cells (same logic as HR)
+    if (__ecRowBtn) {
+      const $tr = $(__ecRowBtn).closest('tr');
+      const ownerLabel = $tr.find('.ownerName').text().trim();
+
+      if (applyAll) {
+        $('#petTableBody tr').each(function(){
+          const $row = $(this);
+          const rowOwner = $row.find('.ownerName').text().trim();
+          const isWalkIn = $row.find('.btn-edit-contact').length > 0; // walk-in rows only
+          if (isWalkIn && rowOwner === ownerLabel) {
+            $row.find('.ownerPhone').text(mobile || '—');
+            $row.find('.ownerEmail').text(email  || '—');
+          }
+        });
+      } else {
+        $tr.find('.ownerPhone').text(mobile || '—');
+        $tr.find('.ownerEmail').text(email  || '—');
+      }
+    }
+
+    $('#editContactModal').modal('hide');
+    swalSuccess('Contact updated');   // ← exact same pop up as HR
+  })
+  .fail(xhr => {
+    const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Server error.';
+    swalError(msg);
+  })
+  .always(() => {
+    toggleBtnLoading($saveBtn, false);
+  });
+});
+
+
+/* ========= SORT + FILTER + SCROLL ========= */
+let __ownerTypeFilter = 'all';
+function sortRows(){
+  const $tbody = $('#petTableBody');
+  const rows = $tbody.children('tr').get();
+  rows.sort(function(a,b){
+    const an = ($(a).find('.ownerName').data('owner') || '').toString();
+    const bn = ($(b).find('.ownerName').data('owner') || '').toString();
+    return an.localeCompare(bn, undefined, { sensitivity:'base' });
+  });
+  $.each(rows, function(_, r){ $tbody.append(r); });
+}
+function applyFilters(){
+  const q = ($('#petSearchInput').val() || '').toLowerCase();
+  $('#petTableBody tr').each(function(){
+    const $row  = $(this);
+    const otype = $row.data('owner-type'); // 'walkin' | 'account'
+    const owner = $row.find('.ownerName').text().toLowerCase();
+    const pet   = $row.find('.petName').text().toLowerCase();
+    const phone = $row.find('.ownerPhone').text().toLowerCase();
+    const mail  = $row.find('.ownerEmail').text().toLowerCase();
+    const typeOK = (__ownerTypeFilter === 'all') || (__ownerTypeFilter === otype);
+    const textOK = (!q) || owner.includes(q) || pet.includes(q) || phone.includes(q) || mail.includes(q);
+    $row.toggle(typeOK && textOK);
+  });
+}
+function adjustTableScroll(){
+  const visibleCount = $('#petTableBody tr:visible').length;
+  const $wrap = $('#petTableWrap');
+  if (visibleCount >= 10) $wrap.addClass('scrollable'); else $wrap.removeClass('scrollable');
+}
+$('.filter-seg .btn').on('click', function(){
+  if ($(this).hasClass('active')) return;
+  $('.filter-seg .btn').removeClass('active');
+  $(this).addClass('active');
+  __ownerTypeFilter = $(this).data('type');
+  showTableSpinner();
+  setTimeout(function(){ sortRows(); applyFilters(); adjustTableScroll(); hideTableSpinner(); }, window.__FILTER_SPINNER_DELAY__ || 150);
+});
+
+/* ========= INIT ========= */
 $(function(){
   ensureGlobalSpinner();
-
-  // Simple client-side search
-  $('#petSearchInput').on('input', function(){
-    const q = $(this).val().toLowerCase();
-    $('#petTableBody tr').each(function(){
-      const owner = $(this).find('.ownerName').text().toLowerCase();
-      const pet   = $(this).find('.petName').text().toLowerCase();
-      $(this).toggle(owner.includes(q) || pet.includes(q));
-    });
-  });
+  sortRows(); applyFilters(); adjustTableScroll();
+  $('#petSearchInput').on('input', function(){ applyFilters(); adjustTableScroll(); });
 });
 </script>
 </div>
