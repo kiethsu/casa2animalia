@@ -172,21 +172,7 @@
 body.modal-open #sidebarOverlay { 
   display: none !important; 
 }
-.topbar-actions { display: flex; align-items: center; gap: 12px; height: 100%; }
 
-.topbar-logo{
-  height: 36px;              /* was 28px */
-  max-height: 44px;          /* keeps ~6px top/bottom breathing in a 56px bar */
-  width: auto;
-  display: block;
-  object-fit: contain;
-  filter: drop-shadow(0 1px 1px rgba(0,0,0,.15));
-}
-
-/* slightly smaller on narrow screens so it doesn't crowd the menu */
-@media (max-width: 991.98px){
-  .topbar-logo{ height: 32px; max-height: 40px; }
-}
 </style>
 
 </head>
@@ -210,7 +196,7 @@ body.modal-open #sidebarOverlay {
     <i class="fas fa-paw topbar-paw"></i>
     <span class="topbar-title">SmartVet</span>
     <div class="topbar-actions"></div>
-  <img src="/images/casi.png" alt="SmartVet Logo" class="topbar-logo">
+
   </header>
 
   <!-- Sub-nav -->
@@ -407,21 +393,24 @@ body.modal-open #sidebarOverlay {
       $('#sidebar').removeClass('active');
       if (isMobile()){ $('#sidebarOverlay').removeClass('show'); $('body').removeClass('sidebar-open'); }
     }
-    function setSubNavFor(page){
-      let title =
-        page === 'dashboard' ? 'Admin Dashboard' :
-        page === 'accounts' ? 'Accounts' :
-        page === 'petlist' ? 'Pet List' :
-        page === 'inventory' ? 'Inventory' :
-        page === 'sales-report' ? 'Sales Report' :
-         page === 'upcoming'      ? 'Upcoming' :      // <-- add this line
-        page === 'services' ? 'Services' :
-        page === 'profile' ? 'Profile' : 'Settings';
-      $('#subnav-title').text(title).show();
-      const topbarHeight = $('#topbar').outerHeight() || 56;
-      const subnavHeight = $('#sub-nav').outerHeight();
-      $('.wrapper').css('padding-top', (topbarHeight + subnavHeight) + 'px');
-    }
+function setSubNavFor(page){
+  let title =
+    page === 'dashboard'    ? 'Admin Dashboard' :
+    page === 'accounts'     ? 'Accounts' :
+    page === 'petlist'      ? 'Pet List' :
+    page === 'inventory'    ? 'Inventory' :
+    page === 'sales-report' ? 'Sales Report' :
+    page === 'upcoming'     ? 'Upcoming' :
+    page === 'services'     ? 'Services' :
+    page === 'pet-details'  ? 'Pet Details' :   // <-- added
+    page === 'profile'      ? 'Profile' : 'Settings';
+
+  $('#subnav-title').text(title).show();
+  const topbarHeight = $('#topbar').outerHeight() || 56;
+  const subnavHeight = $('#sub-nav').outerHeight();
+  $('.wrapper').css('padding-top', (topbarHeight + subnavHeight) + 'px');
+}
+
 
     // ===== Lifecycle glue for SPA partial reloads =====
   let __currentPage = null;
@@ -556,6 +545,28 @@ function loadContent(page, basePath = '/admin/'){
   if (isMobile()) hideSidebar();
 });
 
+// --- Submenu click: Settings → Pet Details ---
+$('.submenu-item').on('click', function(e){
+  e.preventDefault();
+  if (__navBusy) return;
+
+  const key = $(this).data('content'); // expects "pet-details"
+  if (key === __currentPage) return;
+
+  // Active state for submenu
+  $('.menu-item').removeClass('active');
+  $('.submenu-item').removeClass('active');
+  $(this).addClass('active');
+
+  // Keep the Settings submenu open
+  $('#settingsSubmenu').collapse('show');
+  $('.dropdown-toggle').attr('aria-expanded','true');
+
+  // Load the partial at /admin/pet-details
+  loadContent(key);
+
+  if (isMobile()) hideSidebar();
+});
 
       // initial load
       loadContent('dashboard');
