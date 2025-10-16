@@ -13,6 +13,7 @@ const Consultation = require('../models/consultation');
 const mongoose = require('mongoose');
 const PetDetailsSetting = require('../models/petDetailsSetting');
 const { broadcast, addClient, removeClient } = require('../utils/hrSse');
+const PetDetailsSettings = require('../models/petDetailsSettings');
 // ----------------- Multer Setup -----------------
 // Updated storage: files will be stored in public/consultation/
 const multer = require('multer');
@@ -57,7 +58,6 @@ const reservationIdSchema = Joi.object({
   reservationId: Joi.string().required()
 });
 
-// Updated schema for adding consultation details
 const addConsultationSchema = Joi.object({
   reservationId: Joi.string().required(),
   consultationNotes: Joi.string().optional().allow(""),
@@ -65,10 +65,13 @@ const addConsultationSchema = Joi.object({
   examTemperature: Joi.string().optional().allow(""),
   examOthers: Joi.string().optional().allow(""),
   diagnosis: Joi.string().optional().allow(""),
+  disease: Joi.string().optional().allow(""),
+  diseasesData: Joi.string().optional().allow(""),   // <-- add this
   notes: Joi.string().optional().allow(""),
   medicationsData: Joi.string().optional().allow(""),
   servicesData: Joi.string().optional().allow("")
-}).unknown(true);  // Allow unknown keys
+}).unknown(true);
+
 
 // Schema for adding a follow-up schedule
 const addScheduleSchema = Joi.object({
@@ -296,12 +299,19 @@ router.get("/d-patient", authMiddleware, async (req, res) => {
         .filter(Boolean)
         .sort((a, b) => a.localeCompare(b));
     }
+    // NEW: diseases list (sorted) from settings
+const diseases = Array.isArray(rawPetDetails?.diseases)
+  ? [...rawPetDetails.diseases].filter(Boolean).sort((a,b)=>a.localeCompare(b))
+  : [];
+
 res.render("doctor/d-patient", {
   rows,
   serviceCategories,
   simpleServices,
+  diseases, // NEW
   doctor: { userId: req.user.userId, username: req.user.username }
 });
+
 } catch (error) {
   console.error("Error fetching assigned patients:", error);
   res.status(500).send("Server error");
@@ -453,23 +463,24 @@ router.post(
   validateRequest(addConsultationSchema),
   async (req, res) => {
     try {
-      const {
-        reservationId,
-        consultationNotes,
-        examWeight,
-        examTemperature,
-        examOthers,
-        diagnosis,
-        notes,
-        medicationsData,
-        servicesData,
-        // NEW (pass these from your form):
-        targetPetId,        // optional
-        targetPetName,      // optional (fallback if no id)
-        // Optional follow-up for THIS pet:
-        scheduleDate,
-        scheduleDetails
-      } = req.body;
+   const {
+  reservationId,
+  consultationNotes,
+  examWeight,
+  examTemperature,
+  examOthers,
+  diagnosis,
+  disease,            // NEW
+  notes,
+  medicationsData,
+  servicesData,
+  // NEW (pass these from your form):
+  targetPetId,
+  targetPetName,
+  // Optional follow-up for THIS pet:
+  scheduleDate,
+  scheduleDetails
+} = req.body;
 
       const reservation = await Reservation.findById(reservationId);
       if (!reservation) {
@@ -493,7 +504,15 @@ router.post(
       // --- Parse payloads ---
       const medications = medicationsData ? JSON.parse(medicationsData) : [];
       let services = servicesData ? JSON.parse(servicesData) : [];
-
+// NEW: parse diseases array
+let diseasesArr = [];
+try {
+  diseasesArr = req.body.diseasesData ? JSON.parse(req.body.diseasesData) : [];
+  if (!Array.isArray(diseasesArr)) diseasesArr = [];
+  diseasesArr = diseasesArr.map(s => String(s || '').trim()).filter(Boolean);
+} catch (_) {
+  diseasesArr = [];
+}
       // Enrich services with real category name + file path
       services = await Promise.all(services.map(async svc => {
         const full = await Service.findById(svc.serviceId)
@@ -542,9 +561,11 @@ const payload = {
   consultationNotes,
   physicalExam: { weight: examWeight, temperature: examTemperature, observations: examOthers },
   diagnosis,
+  disease: (diseasesArr[0] || disease || ''),  // back-compat
+  diseases: diseasesArr,       
   notes,
-  medications,   // replace entire array
-  services,      // replace entire array
+  medications,
+  services,
   confinementStatus: req.body.confinementStatus || []
 };
 
@@ -585,12 +606,16 @@ reservation.services = services.map(srv => ({
 
       if (selector) {
         const setObj = { 'pets.$.hasConsult': true };
-        if (scheduleDate) {
-          setObj['pets.$.schedule'] = {
-            scheduleDate:   new Date(scheduleDate),
-            scheduleDetails: scheduleDetails || ''
-          };
-        }
+    if (scheduleDate) {
+  // If you also pass scheduleServiceName from that form, fall back to it:
+  const svcName = (req.body.scheduleServiceName || '').trim();
+  setObj['pets.$.schedule'] = {
+    scheduleDate:   new Date(scheduleDate),
+    scheduleDetails: (scheduleDetails && scheduleDetails.trim()) || svcName || ''
+    // (Optionally attach a service object here too, like in /add-schedule)
+  };
+}
+
         await Reservation.updateOne(selector, { $set: setObj });
       }
 
@@ -624,6 +649,7 @@ return res.json({ success: true, consultation: updatedConsult });
 // const mongoose = require('mongoose');
 // const Reservation = require('../models/reservation');
 
+// POST /doctor/add-schedule
 router.post('/add-schedule', authMiddleware, async (req, res) => {
   try {
     const {
@@ -632,7 +658,6 @@ router.post('/add-schedule', authMiddleware, async (req, res) => {
       petName,
       scheduleDate,
       scheduleDetails,
-      // NEW: service fields coming from the modal
       scheduleServiceId,
       scheduleServiceName,
       scheduleCategoryId,
@@ -640,89 +665,163 @@ router.post('/add-schedule', authMiddleware, async (req, res) => {
     } = req.body;
 
     if (!reservationId || !scheduleDate || (!petId && !petName)) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: 'reservationId + (petId or petName) + scheduleDate are required'
-        });
+      return res.status(400).json({
+        success: false,
+        message: 'reservationId + (petId or petName) + scheduleDate are required'
+      });
     }
 
-    // Build schedule payload saved on the specific pet
-    const schedulePayload = {
-      scheduleDate: new Date(scheduleDate),
-      scheduleDetails: scheduleDetails || ''
+    // ---------- helpers ----------
+    const toISODateKeyUTC = (d) => {
+      const z = new Date(d);
+      if (isNaN(z)) return null;
+      return z.toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
     };
+    const dayBoundsUTC = (isoKey /* YYYY-MM-DD */) => ({
+      start: new Date(isoKey + 'T00:00:00.000Z'),
+      end  : new Date(isoKey + 'T23:59:59.999Z')
+    });
+      async function getFollowupLimit() {
+      try {
+        // Use your singleton settings doc that has followUpDailyLimit
+        const s = await PetDetailsSettings.findOne().lean();
+        return Number(s?.followUpDailyLimit || 0);  // 0 = no cap
+      } catch {
+        return 0;
+      }
+    }
 
-    // Only attach service object if we have at least a name or id
-    if (scheduleServiceId || scheduleServiceName) {
+    async function countPetsOnDate(isoKey) {
+      const { start, end } = dayBoundsUTC(isoKey);
+      const agg = await Reservation.aggregate([
+        { $unwind: '$pets' },
+        {
+          $match: {
+            'pets.schedule.scheduleDate': { $gte: start, $lte: end }
+          }
+        },
+        { $count: 'n' }
+      ]);
+      return agg.length ? Number(agg[0].n || 0) : 0;
+    }
+
+    // ---------- load current reservation + pet to know previous date ----------
+    const fresh = await Reservation.findById(reservationId).lean();
+    if (!fresh) {
+      return res.status(404).json({ success: false, message: 'Reservation not found.' });
+    }
+
+    // find the target pet within the reservation
+    const pet = (fresh.pets || []).find(p =>
+      (petId && String(p.petId) === String(petId)) ||
+      (!petId && petName && String(p.petName).trim() === String(petName).trim())
+    );
+    if (!pet) {
+      return res.status(404).json({ success: false, message: 'Pet not found in reservation.' });
+    }
+
+    const newISO   = toISODateKeyUTC(scheduleDate);
+    if (!newISO) {
+      return res.status(400).json({ success: false, message: 'Invalid scheduleDate.' });
+    }
+    const prevISO  = pet.schedule && pet.schedule.scheduleDate
+      ? toISODateKeyUTC(pet.schedule.scheduleDate)
+      : null;
+
+    // ---------- enforce limit (except when keeping same date) ----------
+    const limit = await getFollowupLimit(); // 0 => unlimited
+    if (limit > 0 && newISO !== prevISO) {
+      const dayCount = await countPetsOnDate(newISO);
+      if (dayCount >= limit) {
+        return res.status(409).json({
+          success: false,
+          message: 'Selected date is full (daily limit reached).'
+        });
+      }
+    }
+
+    // ---------- build payload to save on this pet ----------
+    const chosenName = (scheduleServiceName || '').trim();
+    const schedulePayload = {
+      scheduleDate   : new Date(scheduleDate),
+      scheduleDetails: (scheduleDetails && scheduleDetails.trim()) || chosenName || ''
+    };
+    if (scheduleServiceId || chosenName) {
       schedulePayload.service = {
-        id: scheduleServiceId || null,
-        name: scheduleServiceName || '',
-        categoryId: scheduleCategoryId || null,
+        id          : scheduleServiceId || null,
+        name        : chosenName || '',
+        categoryId  : scheduleCategoryId || null,
         categoryName: scheduleCategoryName || ''
       };
     }
 
-    // Prefer petId; otherwise fall back to petName (for walk-ins)
+    // ---------- update just this pet's schedule ----------
     let selector;
     if (petId) {
-      const rid = mongoose.Types.ObjectId.isValid(reservationId)
-        ? new mongoose.Types.ObjectId(reservationId)
-        : reservationId;
-      const pid = mongoose.Types.ObjectId.isValid(petId)
-        ? new mongoose.Types.ObjectId(petId)
-        : petId;
-      selector = { _id: rid, 'pets.petId': pid };
+      selector = { _id: reservationId, 'pets.petId': petId };
     } else {
       selector = { _id: reservationId, 'pets.petName': petName };
     }
 
-    const update = {
-      $set: { 'pets.$.schedule': schedulePayload }
-    };
-
+    const update = { $set: { 'pets.$.schedule': schedulePayload } };
     const result = await Reservation.updateOne(selector, update);
 
-    // Mongoose v5 returns { n, nModified }, v6+ returns { matchedCount, modifiedCount }
     const matched = (result.matchedCount ?? result.n) || 0;
     if (matched === 0) {
       return res.status(404).json({ success: false, message: 'Pet not found in reservation.' });
     }
 
-    // ---- Keep a TOP-LEVEL reservation.schedule for dashboards ----
-    // Recompute the earliest upcoming follow-up across all pets and store it at reservation.schedule
-    const fresh = await Reservation.findById(reservationId).lean();
-    const petSchedules = (fresh?.pets || [])
+    // ---------- maintain top-level reservation.schedule = earliest upcoming ----------
+    const after = await Reservation.findById(reservationId).lean();
+    const petSchedules = (after?.pets || [])
       .map(p => p.schedule)
       .filter(s => s && s.scheduleDate);
 
     if (petSchedules.length) {
-      // Pick the earliest scheduleDate
       petSchedules.sort((a, b) => new Date(a.scheduleDate) - new Date(b.scheduleDate));
-      const earliest = petSchedules[0];
-
       await Reservation.updateOne(
         { _id: reservationId },
-        { $set: { schedule: earliest } }
+        { $set: { schedule: petSchedules[0] } }
       );
     } else {
-      // No per-pet schedules left — clear top-level
       await Reservation.updateOne(
         { _id: reservationId },
         { $unset: { schedule: '' } }
       );
     }
 
-    return res.json({
-      success: true,
-      saved: schedulePayload
-    });
+    // ---------- optional: broadcast SSE so admin "upcoming" updates live ----------
+    try {
+      const payloadForSSE = {
+        type: 'followup:scheduled',
+        payload: {
+          reservationId,
+          ownerName : fresh.ownerName || '',
+          doctor    : fresh.doctor || null, // or { username: ... } depending on your schema
+          petId     : pet.petId || null,
+          petName   : pet.petName || '',
+          status    : fresh.resStatus || '',
+          schedule  : {
+            scheduleDate: schedulePayload.scheduleDate,
+            scheduleDetails: schedulePayload.scheduleDetails,
+            service: schedulePayload.service || null
+          }
+        }
+      };
+      // replace this with your actual broadcaster:
+      if (global.sendAdminEvent) global.sendAdminEvent(payloadForSSE);
+      // or: adminSSE.broadcast(payloadForSSE);
+    } catch (e) {
+      console.warn('SSE broadcast failed (non-fatal):', e);
+    }
+
+    return res.json({ success: true, saved: schedulePayload });
   } catch (err) {
     console.error('add-schedule error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
 
 
 
@@ -945,7 +1044,11 @@ function pickConcerns(resv, consultDoc){
     temperature:  c.physicalExam?.temperature || '',
     observations: c.physicalExam?.observations || ''
   },
-  diagnosis: c.diagnosis || '',
+  // ✅ include diseases (array) with back-compat to single `disease`
+  diseases: (
+    Array.isArray(c.diseases) ? c.diseases
+    : (c.disease ? [c.disease] : [])
+  ).map(s => String(s || '').trim()).filter(Boolean),
   services: (Array.isArray(c.services) ? c.services : []).map(s => ({
     category:    s.category || 'Uncategorized',
     serviceName: s.serviceName || '',
@@ -1054,6 +1157,105 @@ router.post('/save-consult-flag', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error('save-consult-flag error:', e);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// GET /doctor/settings/diseasesBySpecies?reservationId=...&petId=...&petName=...
+router.get('/settings/diseasesBySpecies', authMiddleware, async (req, res) => {
+  try {
+    const { reservationId, petId, petName } = req.query;
+    if (!reservationId) {
+      return res.status(400).json({ success: false, message: 'reservationId required' });
+    }
+
+    // Load reservation with pets populated enough to see names/species if available
+    const reservation = await Reservation.findById(reservationId)
+      .populate('pets.petId', 'petName species')
+      .lean();
+
+    if (!reservation) {
+      return res.status(404).json({ success: false, message: 'Reservation not found' });
+    }
+
+    // Resolve species: prefer the specific pet’s species; fall back to reservation.species (walk-in new pet)
+    let species = null;
+
+    if (petId) {
+      const entry = (reservation.pets || []).find(p => String(p.petId?._id || '') === String(petId));
+      species = entry?.petId?.species || null;
+    } else if (petName) {
+      const entry = (reservation.pets || []).find(p => {
+        const n = p.petId?.petName || p.petName || '';
+        return n.trim().toLowerCase() === petName.trim().toLowerCase();
+      });
+      species = entry?.petId?.species || null;
+    }
+
+    // Walk-in new pet case (no petId): reservation-level species
+    if (!species && reservation.isExistingPet === false) {
+      species = reservation.species || null;
+    }
+
+    // Pull settings and pick per-species list or fallback global
+    const settings = await PetDetailsSetting.findOne().lean();
+    let list = [];
+
+    if (settings) {
+      if (species && settings.speciesDiseases && Array.isArray(settings.speciesDiseases[species])) {
+        list = settings.speciesDiseases[species];
+      } else if (Array.isArray(settings.diseases)) {
+        list = settings.diseases; // global fallback
+      }
+    }
+
+    // Clean + sort
+    const diseases = [...new Set((list || [])
+      .map(s => (typeof s === 'string' ? s.trim() : ''))
+      .filter(Boolean))].sort((a,b) => a.localeCompare(b));
+
+    return res.json({ success: true, species: species || null, diseases });
+  } catch (e) {
+    console.error('diseasesBySpecies error:', e);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /doctor/followup/stats?year=YYYY&month=1..12
+router.get('/followup/stats', authMiddleware, async (req, res) => {
+  try {
+    const year  = parseInt(req.query.year, 10);
+    const month = parseInt(req.query.month, 10); // 1..12
+    if (!year || !month || month < 1 || month > 12) {
+      return res.status(400).json({ success:false, message:'Invalid year/month' });
+    }
+
+    // UTC month window [start, end)
+    const start = new Date(Date.UTC(year, month - 1, 1));
+    const end   = new Date(Date.UTC(year, month, 1));
+
+    // Count pet-level schedules per day (UTC) for the month
+    const rows = await Reservation.aggregate([
+      { $unwind: '$pets' },
+      { $match: { 'pets.schedule.scheduleDate': { $gte: start, $lt: end } } },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$pets.schedule.scheduleDate', timezone: 'UTC' }
+          },
+          n: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const counts = {};
+    rows.forEach(r => { counts[r._id] = r.n; });
+
+    const settings = await PetDetailsSettings.findOne().lean();
+    const limit = Number(settings?.followUpDailyLimit || 0);
+
+    res.json({ success: true, limit, counts });
+  } catch (e) {
+    console.error('GET /doctor/followup/stats error:', e);
+    res.status(500).json({ success:false, message:'Server error' });
   }
 });
 
