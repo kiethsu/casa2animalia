@@ -1,0 +1,595 @@
+<%
+  const list = Array.isArray(entries) ? entries : [];
+  const dateCounts = upcomingDateCounts || {};
+%>
+
+<style>
+  /* Page shell */
+  .upcoming-container{ min-height:100vh; padding:8px 8px 12px !important; }
+  .card-shell{ border:1px solid #e9ecef; border-radius:14px; background:#fff; box-shadow:0 3px 12px rgba(30,34,90,0.08); }
+
+  /* ===== Calendar card ===== */
+  #calendarCountCard {
+    overflow: visible;
+    width: fit-content;
+    max-width: 100%;
+    margin-left: 0 !important;
+    margin-right: auto !important;
+    padding: 8px 10px;
+    border-radius: 14px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 3px 12px rgba(30,34,90,0.08);
+  }
+  #calendarCountCard > .d-flex { justify-content: center; gap: 8px; }
+
+  /* Calendar look */
+  #calendarMount .flatpickr-calendar.inline { box-shadow:none; border:0; border-radius:12px; overflow:hidden; }
+  .flatpickr-calendar.inline { box-shadow:none; border:0; }
+  .flatpickr-day.selected,.flatpickr-day.startRange,.flatpickr-day.endRange{ background:#1E88E5; border-color:#1E88E5; color:#fff; }
+  .flatpickr-day.today { border-color:#1E88E5; }
+
+  /* Appointment heat */
+  .flatpickr-day.has-appointment { background:#2a9d8f !important; color:#fff !important; }
+  .flatpickr-day.no-appointment { box-shadow: inset 0 0 0 1px #e9ecef; }
+  .has-appointment a, .no-appointment a { background:transparent !important; color:inherit !important; }
+
+  /* Big counter on the RIGHT of calendar */
+  .count-box { flex:0 0 clamp(160px,22vw,200px); border-left:1px dashed #e9ecef; padding:12px; text-align:center; margin:0 auto; }
+  .count-number { font-size:56px; font-weight:800; line-height:1; }
+  .count-label { font-size:14px; letter-spacing:.5px; text-transform:uppercase; color:#6c757d; }
+  .count-box .count-number, .count-box .count-label, .count-box .count-date { width:100%; text-align:center; }
+  @media (max-width: 991.98px){
+    #calendarCountCard > .d-flex{ justify-content:center; }
+    .count-box{ flex:0 0 auto; max-width:240px; border-left:0; border-top:1px dashed #e9ecef; margin-top:12px; }
+  }
+
+  /* Tools / filters row */
+  .tools-row{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:10px 0;
+  }
+  .tools-row .flex-spacer{ flex:1 1 auto; }
+
+  /* Search */
+  .search-wrap{ position:relative; width: clamp(220px, 40vw, 340px); }
+  .search-wrap i{ position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:14px; color:#6c757d; }
+  .search-box{ width:100%; height:36px; padding-left:30px; border-radius:999px; border:1px solid #ced4da; background:#fff; }
+
+  /* Status filter */
+  .status-filter label{ margin:0 6px 0 0; font-size:.9rem; color:#334155; }
+  .status-filter select{ min-width:170px; height:36px; }
+
+  /* Limit control (right side) */
+  .limit-control{ display:flex; align-items:center; }
+  .limit-control .input-group{ max-width:220px; }
+
+  /* Table */
+  .table-card{ border-radius:14px; overflow:hidden; box-shadow:0 3px 12px rgba(30,34,90,0.08); background:#fff; }
+  table.custom-table{ width:100%; border-collapse:separate; border-spacing:0; margin:0; }
+  table.custom-table thead tr{ background:#0D47A1; color:#fff; }
+  table.custom-table th, table.custom-table td{ padding:10px 12px; text-align:center; }
+  table.custom-table tbody tr:hover{ background:#f8fbff; }
+
+  /* Pagination */
+  .pagination-wrap{ display:flex; justify-content:flex-end; margin-top:8px; }
+  .pagination .page-link{ padding:.25rem .5rem; }
+  .pagination .page-item.disabled .page-link{ color:#adb5bd; }
+
+  /* SweetAlert2 above the top bar + offset */
+  .swal2-container{ z-index:6000 !important; }
+  .swal2-container.swal2-top{ top: var(--swal-top-offset, 60px) !important; }
+</style>
+
+<div class="container-fluid upcoming-container">
+
+  <!-- Calendar -->
+  <div class="mb-3">
+    <div class="card p-3" id="calendarCountCard">
+      <div class="d-flex flex-wrap align-items-stretch">
+        <div id="calendarMount"></div>
+        <div class="count-box d-flex flex-column justify-content-center align-items-center">
+          <div id="selectedDateCount" class="count-number">0</div>
+          <div id="selectedDateLabel" class="count-label">follow-ups</div>
+          <div class="count-date small text-muted mt-1" id="selectedDateText"></div>
+        </div>
+      </div>
+      <input id="inlineCalendar" type="text" class="d-none" />
+    </div>
+  </div>
+
+  <!-- Tools row: Search + Status + (right) Limit -->
+  <div class="tools-row">
+    <div class="search-wrap">
+      <i class="fas fa-search"></i>
+      <input type="text" class="form-control form-control-sm search-box" id="searchInput" placeholder="Search owner, pet, service…">
+    </div>
+
+    <div class="status-filter d-flex align-items-center">
+      <label for="statusFilter">Status</label>
+      <select id="statusFilter" class="form-control form-control-sm ml-1">
+        <option value="all" selected>All</option>
+        <option value="Done">Done</option>
+        <option value="Not Attended">Not Attended</option>
+      </select>
+    </div>
+
+    <div class="flex-spacer"></div>
+
+    <div class="limit-control">
+      <div class="input-group input-group-sm">
+        <input type="number" min="0" step="1" id="followupLimitInput" class="form-control form-control-sm" placeholder="Daily limit" />
+        <div class="input-group-append">
+          <button id="saveFollowupLimitBtn" class="btn btn-primary btn-sm" type="button">Update</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-card">
+    <table class="table custom-table mb-0" id="upcomingTable">
+      <thead>
+        <tr><th>Date</th><th>Owner</th><th>Pet</th><th>Service</th><th>Doctor</th><th>Status</th></tr>
+      </thead>
+      <tbody><!-- rendered by JS --></tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination-wrap">
+    <nav aria-label="Upcoming pagination">
+      <ul id="upcomingPager" class="pagination pagination-sm mb-0"><!-- rendered by JS --></ul>
+    </nav>
+  </div>
+</div>
+
+<script>
+(function(){
+  if (!window.Upcoming) window.Upcoming = {};
+  let fp = null, es = null, pollTimer = null;
+
+  const UPCOMING_RAW = <%- JSON.stringify(list) %>;
+  const DATE_COUNTS  = <%- JSON.stringify(dateCounts) %>;
+
+  /* ===== date helpers (LOCAL) ===== */
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function ymdLocal(d){
+    const x = (d instanceof Date) ? d : new Date(d);
+    if (isNaN(x)) return '';
+    return `${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}`;
+  }
+  function todayISO(){ return ymdLocal(new Date()); }
+
+  /* ===== Normalize status:
+     - Trust server "Done"/"Not Attended"/"Scheduled" if present
+     - Else derive:
+         * Past day → Not Attended
+         * Today >= 12:00 → Not Attended
+         * Otherwise → Scheduled
+  =================================== */
+  function normStatus(it){
+    const s = String(it.status || '').trim().toLowerCase();
+    if (s === 'done')          return 'Done';
+    if (s === 'not attended')  return 'Not Attended';
+    if (s === 'scheduled')     return 'Scheduled';
+
+    const now = new Date();
+    const dayStart = new Date(it.dateISO + 'T00:00:00'); // local midnight
+    const noon     = new Date(it.dateISO + 'T12:00:00'); // local noon
+
+    if (dayStart < new Date(todayISO() + 'T00:00:00')) return 'Not Attended';
+    if (it.dateISO === todayISO() && now >= noon)      return 'Not Attended';
+    return 'Scheduled';
+  }
+
+  // Clone + normalize initial data
+  const UPCOMING = (Array.isArray(UPCOMING_RAW) ? UPCOMING_RAW : []).map(it => ({ ...it, status: normStatus(it) }));
+
+  // Keys for matching rows
+  function keyById(resId, petId, iso){ return `${resId}::id::${petId||''}::${iso}`; }
+  function keyByName(resId, petName, iso){ return `${resId}::name::${String(petName||'').trim().toLowerCase()}::${iso}`; }
+
+  // Heat map
+  const appointmentDates = Object.create(null);
+  Object.keys(DATE_COUNTS || {}).forEach(k => { if (DATE_COUNTS[k] > 0) appointmentDates[k] = true; });
+  window.appointmentDates = window.appointmentDates || Object.create(null);
+  Object.assign(window.appointmentDates, appointmentDates);
+
+  // default selected date = today
+  let activeDate = todayISO();
+
+  /* ===== Pagination ===== */
+  const PAGE_SIZE = 10;
+  let currentPage = 1;
+
+  function escapeHtml(s){
+    return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  /* ===== Filtering + rendering ===== */
+  function getFilteredList(){
+    const q = String($("#searchInput").val() || '').toLowerCase().trim();
+    const statusSel = String($("#statusFilter").val() || 'all').toLowerCase();
+
+    return UPCOMING.filter(it => {
+      if (it.dateISO !== activeDate) return false;
+
+      const rowText = `${it.dateISO} ${it.ownerName} ${it.petName} ${it.service} ${it.doctor} ${it.status}`.toLowerCase();
+      const matchesText = !q || rowText.indexOf(q) !== -1;
+
+      const rowStatus = String(it.status || '—').toLowerCase();
+      const matchesStatus = (statusSel === 'all') || (rowStatus === statusSel);
+
+      return matchesText && matchesStatus;
+    });
+  }
+
+  function renderTablePage(rows, page){
+    const total = rows.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    page = Math.min(Math.max(1, page), totalPages);
+    currentPage = page;
+
+    const start = (page - 1) * PAGE_SIZE;
+    const slice = rows.slice(start, start + PAGE_SIZE);
+
+    if (!slice.length){
+      $("#upcomingTable tbody").html('<tr class="__empty"><td colspan="6" class="text-center">No results.</td></tr>');
+    } else {
+      const html = slice.map(it =>
+        `<tr data-date="${it.dateISO}" data-status="${String(it.status||'—').toLowerCase()}">
+          <td>${it.dateISO}</td>
+          <td>${escapeHtml(it.ownerName)}</td>
+          <td>${escapeHtml(it.petName)}</td>
+          <td>${escapeHtml(it.service)}</td>
+          <td>${escapeHtml(it.doctor)}</td>
+          <td>${escapeHtml(it.status || '—')}</td>
+        </tr>`).join('');
+      $("#upcomingTable tbody").html(html);
+    }
+
+    renderPager(total, totalPages);
+    refreshCounter(slice.length);
+  }
+
+  function renderPager(total, totalPages){
+    const $p = $("#upcomingPager");
+    if (total <= PAGE_SIZE){ $p.empty(); return; }
+
+    const parts = [];
+    const disabledPrev = (currentPage === 1) ? ' disabled' : '';
+    const disabledNext = (currentPage === totalPages) ? ' disabled' : '';
+
+    parts.push(`<li class="page-item${disabledPrev}"><a class="page-link" href="#" data-page="${currentPage-1}" aria-label="Previous">&laquo;</a></li>`);
+
+    const windowSize = 3;
+    const start = Math.max(1, currentPage - windowSize);
+    const end   = Math.min(totalPages, currentPage + windowSize);
+
+    if (start > 1){
+      parts.push(`<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>`);
+      if (start > 2) parts.push(`<li class="page-item disabled"><span class="page-link">…</span></li>`);
+    }
+
+    for (let i = start; i <= end; i++){
+      const active = (i === currentPage) ? ' active' : '';
+      parts.push(`<li class="page-item${active}"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`);
+    }
+
+    if (end < totalPages){
+      if (end < totalPages - 1) parts.push(`<li class="page-item disabled"><span class="page-link">…</span></li>`);
+      parts.push(`<li class="page-item"><a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a></li>`);
+    }
+
+    parts.push(`<li class="page-item${disabledNext}"><a class="page-link" href="#" data-page="${currentPage+1}" aria-label="Next">&raquo;</a></li>`);
+
+    $p.html(parts.join(''));
+  }
+
+  $(document).off('click.upcPager').on('click.upcPager', '#upcomingPager .page-link', function(e){
+    e.preventDefault();
+    const p = parseInt($(this).data('page'), 10);
+    if (!p || p === currentPage) return;
+    const filtered = getFilteredList();
+    renderTablePage(filtered, p);
+  });
+
+  function refreshCounter(visibleCount){
+    const n = Number(visibleCount || 0);
+    $('#selectedDateCount').text(String(n));
+    $('#selectedDateLabel').text(n === 1 ? 'follow-up' : 'follow-ups');
+    const d = new Date(activeDate+'T00:00:00');
+    $('#selectedDateText').text(isNaN(d) ? '' : d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}));
+  }
+
+  /* ===== Calendar ===== */
+  function buildCalendar(){
+    if (typeof window.flatpickr !== 'function'){
+      $('#calendarMount').html('<div class="text-danger">Calendar library not loaded.</div>');
+      return;
+    }
+    if (fp && typeof fp.destroy === 'function'){ try{ fp.destroy(); }catch(_){} }
+    document.getElementById('calendarMount').innerHTML = '';
+    document.getElementById('inlineCalendar').value = '';
+
+    window.appointmentDates = window.appointmentDates || Object.create(null);
+    Object.keys(DATE_COUNTS || {}).forEach(k => { if ((DATE_COUNTS[k] || 0) > 0) window.appointmentDates[k] = true; });
+
+    fp = flatpickr('#inlineCalendar', {
+      inline: true,
+      appendTo: document.getElementById('calendarMount'),
+      dateFormat: 'Y-m-d',
+      defaultDate: activeDate,
+      onChange(selected){
+        activeDate = (selected && selected[0]) ? ymdLocal(selected[0]) : activeDate;
+        currentPage = 1;
+        renderTablePage(getFilteredList(), currentPage);
+        triggerOnDemandPoll();
+      },
+      onDayCreate(_dObj, _dStr, _inst, dayElem){
+        const key = ymdLocal(dayElem.dateObj);
+        if (window.appointmentDates[key]) dayElem.classList.add('has-appointment');
+        else dayElem.classList.add('no-appointment');
+      }
+    });
+    window.fp = fp;
+
+    currentPage = 1;
+    renderTablePage(getFilteredList(), currentPage);
+  }
+
+  /* ===== Insert new entry (from SSE) ===== */
+  function insertEntry(e){
+    const k1 = keyById(e.reservationId||'', e.petId||'', e.dateISO);
+    const k2 = keyByName(e.reservationId||'', e.petName||'', e.dateISO);
+    const exists = UPCOMING.find(x => keyById(x.reservationId, x.petId, x.dateISO) === k1 ||
+                                      keyByName(x.reservationId, x.petName, x.dateISO) === k2);
+    if (exists) return;
+
+    e.status = normStatus(e);
+    UPCOMING.push(e);
+    UPCOMING.sort((a,b) => new Date(a.dateISO) - new Date(b.dateISO) || a.ownerName.localeCompare(b.ownerName));
+    DATE_COUNTS[e.dateISO] = (DATE_COUNTS[e.dateISO] || 0) + 1;
+    window.appointmentDates[e.dateISO] = true;
+
+    if (fp && typeof fp.redraw === 'function') fp.redraw();
+
+    const filtered = getFilteredList();
+    const maxPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (currentPage > maxPage) currentPage = maxPage;
+    renderTablePage(filtered, currentPage);
+  }
+
+  /* ===== Live updates (SSE) ===== */
+  function wireSSE(){
+    try{
+      if (es && typeof es.close === 'function') { es.close(); es = null; }
+      es = new EventSource('/admin/stream');
+      es.onmessage = function(ev){
+        let msg; try { msg = JSON.parse(ev.data); } catch(_) { return; }
+        if (!msg || !msg.type) return;
+
+        // New schedule added
+        if (msg.type === 'followup:scheduled'){
+          const p = msg.payload || {};
+          const d = new Date(p?.schedule?.scheduleDate);
+          if (isNaN(d.getTime())) return;
+          const iso = ymdLocal(d);
+          insertEntry({
+            dateISO: iso, date: d,
+            ownerName: p.ownerName || '',
+            petName: p.petName || '',
+            service: (p.schedule?.service?.name) || p.schedule?.scheduleDetails || '—',
+            doctor: p.doctor?.username || '—',
+            status: p.status || '',
+            reservationId: p.reservationId || '', petId: p.petId || null
+          });
+          return;
+        }
+
+        // Consultation saved → mark as Done immediately
+        if (msg.type === 'consultation:created'){
+          const p = msg.payload || {};
+          const rId = String(p.reservationId || '');
+          const iso = String(p.dateISO || '');
+          const pid = p.petId ? String(p.petId) : null;
+          const pNameLc = String(p.petName || '').trim().toLowerCase();
+
+          let changed = false;
+          for (const it of UPCOMING){
+            if (it.reservationId !== rId || it.dateISO !== iso) continue;
+            const match = (pid && it.petId === pid) ||
+                          (!pid && String(it.petName||'').trim().toLowerCase() === pNameLc);
+            if (match && it.status !== 'Done'){
+              it.status = 'Done';
+              changed = true;
+            }
+          }
+          if (changed){
+            const filtered = getFilteredList();
+            const maxPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+            if (currentPage > maxPage) currentPage = maxPage;
+            renderTablePage(filtered, currentPage);
+          }
+        }
+      };
+    } catch(e){ console.warn('SSE unavailable:', e); }
+  }
+
+  /* ===== Polling fallback (today only) ===== */
+  function refreshFromServerForActiveDate(){
+    $.get('/admin/api/upcoming')
+      .done(function(r){
+        if (!r || !r.success || !Array.isArray(r.entries)) return;
+        const fresh = r.entries.filter(x => x.dateISO === activeDate);
+
+        // merge statuses (prefer server) or add new rows
+        let dirty = false;
+        for (const e of fresh){
+          const k1 = keyById(e.reservationId||'', e.petId||'', e.dateISO);
+          const k2 = keyByName(e.reservationId||'', e.petName||'', e.dateISO);
+          const found = UPCOMING.find(x => keyById(x.reservationId, x.petId, x.dateISO) === k1 ||
+                                           keyByName(x.reservationId, x.petName, x.dateISO) === k2);
+          if (found){
+            const newStatus = normStatus(e);
+            if (found.status !== newStatus){
+              found.status = newStatus;
+              dirty = true;
+            }
+          } else {
+            insertEntry({ ...e, status: normStatus(e) });
+            dirty = true;
+          }
+        }
+        if (dirty){
+          const filtered = getFilteredList();
+          renderTablePage(filtered, currentPage);
+        }
+      });
+  }
+  function startTodayPolling(){
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(function(){
+      if (document.hidden) return;
+      if (activeDate !== todayISO()) return;
+      refreshFromServerForActiveDate();
+    }, 15000); // 15s
+  }
+  function stopPolling(){ if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+  function triggerOnDemandPoll(){
+    if (activeDate === todayISO()) startTodayPolling();
+    else stopPolling();
+  }
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden) refreshFromServerForActiveDate();
+  });
+
+  /* ===== Auto-flip to "Not Attended" after local noon for today ===== */
+  (function autoNoonFlip(){
+    function run(){
+      const now = new Date();
+      if (activeDate !== todayISO()) return;
+      if (now.getHours() < 12) return;
+
+      let dirty = false;
+      for (const it of UPCOMING){
+        if (it.dateISO !== activeDate) continue;
+        if (it.status === 'Scheduled'){
+          it.status = 'Not Attended';
+          dirty = true;
+        }
+      }
+      if (dirty){
+        const filtered = getFilteredList();
+        renderTablePage(filtered, currentPage);
+      }
+    }
+    setInterval(run, 60 * 1000); // check each minute
+    run();
+  })();
+
+  /* ===== Init / Destroy ===== */
+  window.Upcoming._inited = false;
+  window.Upcoming.init = function(){
+    if (window.Upcoming._inited) return;
+    window.Upcoming._inited = true;
+
+    buildCalendar();
+    wireSSE();
+    triggerOnDemandPoll();
+
+    $('#searchInput').off('keyup.upc').on('keyup.upc', function(){
+      currentPage = 1; renderTablePage(getFilteredList(), currentPage);
+    });
+    $('#statusFilter').off('change.upc').on('change.upc', function(){
+      currentPage = 1; renderTablePage(getFilteredList(), currentPage);
+    });
+  };
+  window.Upcoming.destroy = function(){
+    $('#searchInput').off('keyup.upc');
+    $('#statusFilter').off('change.upc');
+    if (fp && typeof fp.destroy === 'function'){ try { fp.destroy(); } catch(_){} fp = null; }
+    if (es && typeof es.close === 'function'){ try { es.close(); } catch(_){} es = null; }
+    stopPolling();
+    window.Upcoming._inited = false;
+  };
+})();
+
+/* ===== Limit control logic + SweetAlert (above top bar) ===== */
+(function(){
+  function ensureSwal(cb){
+    if (window.Swal) return cb();
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/sweetalert2@11';
+    s.onload = cb;
+    document.head.appendChild(s);
+  }
+
+  // compute offset so toast shows below fixed top bar + subnav
+  function setSwalTopOffset(){
+    const top = (document.getElementById('topbar')?.offsetHeight || 56);
+    const sub = (document.getElementById('sub-nav')?.offsetHeight || 44);
+    const offset = top + sub;
+    document.documentElement.style.setProperty('--swal-top-offset', offset + 'px');
+  }
+
+  const $limitInput = $('#followupLimitInput');
+  const $btn        = $('#saveFollowupLimitBtn');
+
+  function lockBtn(txt){ $btn.prop('disabled', true).data('old', $btn.text()).text(txt||'Saving…'); }
+  function unlockBtn(){ $btn.prop('disabled', false).text($btn.data('old')||'Update'); }
+
+  function toast(type, title, text){
+    ensureSwal(function(){
+      setSwalTopOffset();
+      const Toast = Swal.mixin({
+        toast: true,
+        position: 'top',
+        showConfirmButton: false,
+        timer: 1500,
+        timerProgressBar: true
+      });
+      Toast.fire({ icon: type, title: title || '', text: text || '' });
+    });
+  }
+
+  function loadLimit(){
+    $.get('/admin/followup-limit')
+      .done(function(r){
+        if (r && r.success){
+          const v = Number(r.limit||0);
+          $limitInput.val(v);
+          window.FOLLOWUP_LIMIT = v;
+        } else {
+          $limitInput.attr('placeholder','Failed to load');
+        }
+      })
+      .fail(function(){ $limitInput.attr('placeholder','Failed to load'); });
+  }
+
+  $btn.on('click', function(){
+    let v = parseInt($limitInput.val(), 10);
+    if (Number.isNaN(v) || v < 0) { v = 0; $limitInput.val(v); }
+
+    lockBtn('Updating…');
+    $.post('/admin/followup-limit', { limit: v })
+      .done(function(r){
+        if (r && r.success){
+          window.FOLLOWUP_LIMIT = r.limit;
+          toast('success', 'Limit updated', 'Daily limit is now ' + r.limit + '/day');
+        } else {
+          ensureSwal(() => { setSwalTopOffset(); Swal.fire({icon:'error', title:'Error', text:(r && r.message) || 'Failed to save', position:'top'}); });
+        }
+      })
+      .fail(function(){ ensureSwal(() => { setSwalTopOffset(); Swal.fire({icon:'error', title:'Error', text:'Server error while saving', position:'top'}); }); })
+      .always(function(){ unlockBtn(); });
+  });
+
+  loadLimit();
+})();
+
+$(function(){
+  if (window.Upcoming && typeof window.Upcoming.init === 'function'){
+    window.Upcoming.init();
+  }
+});
+</script>
