@@ -9,4 +9,3 @@ function broadcast(payload) {
 }
 
 module.exports = { addClient, removeClient, broadcast };
-
