@@ -73,6 +73,19 @@ const pic = typeof profilePic !== 'undefined'
     #topbar .topbar-title { display: none; }
     #topbar .menu-toggle { display: inline-block; }
   }
+/* right-side logo (HR) */
+.topbar-actions { display: flex; align-items: center; gap: 12px; height: 100%; }
+.topbar-logo{
+  height: 36px;
+  max-height: 44px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.15));
+}
+@media (max-width: 991.98px){
+  .topbar-logo{ height: 32px; max-height: 40px; }
+}
 
   body {
     font-family: 'Roboto', sans-serif;
@@ -215,12 +228,10 @@ const pic = typeof profilePic !== 'undefined'
     <i id="menu-toggle" class="fas fa-bars menu-toggle" aria-label="Toggle sidebar"></i>
     <i class="fas fa-paw topbar-paw"></i>
     <span class="topbar-title">SmartVet</span>
-    <div class="topbar-actions">
-      <div class="message-icon" id="messageButton" title="Messages">
-        <i class="fas fa-envelope"></i>
-        <div class="badge" id="messageBadge">2</div>
-      </div>
-    </div>
+   <div class="topbar-actions">
+  <img src="/images/casi.png" alt="SmartVet Logo" class="topbar-logo">
+</div>
+
   </header>
 
   <!-- Sub-nav -->
@@ -495,16 +506,6 @@ const pic = typeof profilePic !== 'undefined'
     // keep sidebar responsive on resize
     $(window).on('resize', () => {
       isMobile() ? hideSidebar() : showSidebar();
-    });
-
-    // messages popup
-    $('#messageButton').on('click', () => {
-      Swal.fire({
-        title: 'Messages',
-        text: 'You have new messages.',
-        icon: 'info',
-        confirmButtonText: 'View'
-      });
     });
 
     // keep session alive
