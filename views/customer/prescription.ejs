@@ -4,148 +4,140 @@
   <meta charset="UTF-8">
   <title>Prescription - Casa Animalia</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
-    .prescription { width: 800px; margin: 20px auto; padding: 20px; box-sizing: border-box; position: relative; }
-    .header { display: flex; align-items: center; }
-    .rx {
-      font-family: 'Times New Roman', serif;
-      font-size: 72px;
-      font-weight: bold;
-      margin-right: 20px;
-      color: #333;
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; color:#222; }
+    .prescription { width: 800px; max-width: 100%; margin: 20px auto; padding: 24px; }
+
+    /* Letterhead */
+    .letterhead { display:flex; align-items:center; gap:16px; }
+    .letterhead .logo { height:58px; width:auto; }
+    .clinic-info { line-height:1.25; }
+    .clinic-info .name { font-size: 20px; font-weight: 700; text-transform: uppercase; }
+    .clinic-info .meta { font-size: 12px; color: #555; }
+
+    .rule { border: 0; border-top: 2px solid #111; margin: 12px 0 18px; }
+
+    /* Title */
+    .doc-title {
+      font-size: 18px; font-weight: 800; letter-spacing: .6px;
+      text-align: center; margin: 6px 0 16px; text-transform: uppercase;
     }
-    .clinic-info {
-      flex: 1;
-      text-align: center;
-      line-height: 1.2;
-    }
-    .clinic-info img.logo {
-      height: 60px;
-      margin-bottom: 5px;
-    }
-    .clinic-info .name {
-      font-size: 20px;
-      font-weight: bold;
-      text-transform: uppercase;
-    }
-    .clinic-info .address,
-    .clinic-info .contacts {
-      font-size: 12px;
-      color: #555;
-    }
-    .separator {
-      border-top: 2px solid #000;
-      margin: 10px 0 20px;
-    }
-    .patient-details { margin-bottom: 20px; }
-    .patient-details .row { margin: 6px 0; font-size: 14px; }
-    .patient-details .label {
-      display: inline-block;
-      width: 100px;
-      font-weight: bold;
-    }
-    .med-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 30px;
-    }
-    .med-table th,
-    .med-table td {
-      border: 1px solid #333;
-      padding: 8px;
-      text-align: left;
-      font-size: 14px;
+
+    /* Patient / date */
+    .patient-details { margin: 6px 0 18px; font-size: 14px; }
+    .row { display:flex; gap:10px; margin: 6px 0; }
+    .label { width: 130px; font-weight: 700; color:#333; }
+
+    /* Meds table */
+    .med-table { width:100%; border-collapse: collapse; margin: 8px 0 26px; }
+    .med-table th, .med-table td {
+      border: 1px solid #333; padding: 8px 10px; text-align: left; font-size: 14px;
     }
     .med-table th { background: #f2f2f2; }
-    /* Signature Section */
-    .signature {
-      margin-top: 60px;
-      display: flex;
-      justify-content: flex-end;
+
+    /* Issuer / IDs row */
+    .issuer { display:flex; justify-content:flex-end; margin-top:22px; }
+    .id-row { font-size:14px; color:#222; white-space:nowrap; }
+    .id-row .id-label { font-weight:700; margin-right:6px; }
+    .id-row .line {
+      display:inline-block; vertical-align:baseline;
+      min-width: 140px; border-bottom: 1px solid #000;
+      line-height: 1.15; padding-bottom: 2px; text-align:left;
     }
-    .signature-content {
-      text-align: right;
-      min-width: 340px;
+    .id-row .spacer { display:inline-block; width:18px; }
+    .id-row .underline {
+      display:inline-block; border-bottom:1px solid #000;
+      line-height:1.15; padding:0 2px 2px;
     }
-    .signature-name {
-      font-weight: bold;
-      font-size: 16px;
-      margin-bottom: 8px;
-      letter-spacing: 1px;
-    }
-    .signature-info {
-      font-size: 14px;
-      white-space: nowrap;
-    }
-    .line {
-      display: inline-block;
-      min-width: 120px;
-      border-bottom: 1px solid #000;
-      vertical-align: middle;
-      margin-left: 4px;
-      margin-right: 4px;
-    }
+
+    /* Footer */
     .footer {
-      margin-top: 30px;
-      font-size: 12px;
-      text-align: center;
-      color: #555;
+      margin-top: 24px; font-size: 12px; text-align: center; color: #555;
+      border-top: 1px solid #ddd; padding-top: 10px;
     }
   </style>
 </head>
 <body>
   <div class="prescription">
-    <!-- header with big Rx and clinic info -->
-    <div class="header">
-      <div class="rx">Rx</div>
+    <!-- Letterhead -->
+    <div class="letterhead">
+<img src="<%= logoSrc %>" alt="Casa Animalia Logo" class="logo">
+
       <div class="clinic-info">
-        <img src="/images/logo.png" alt="Casa Animalia Logo" class="logo">
         <div class="name">Casa Animalia Veterinary Clinic &amp; Grooming Center</div>
-        <div class="address">Km. 111 Maharlika Highway, Cabanatuan City</div>
-        <div class="contacts">Tel: 803-6935 • 0915-081-1294</div>
+        <div class="meta">Km. 111 Maharlika Highway, Cabanatuan City</div>
+        <div class="meta">0915-081-1294</div>
       </div>
     </div>
-    <div class="separator"></div>
+    <hr class="rule">
 
-    <!-- patient and date info (without owner/doctor) -->
+    <div class="doc-title">Prescription</div>
+
+    <!-- Sensible issue date + doctor info -->
+    <%
+      var issuedAt = (reservation && (
+        (reservation.schedule && reservation.schedule.scheduleDate) ||
+        reservation.date || reservation.createdAt
+      )) || Date.now();
+
+      var doctorName = (reservation && reservation.doctor && reservation.doctor.username)
+        ? reservation.doctor.username
+        : '________________';
+
+      // Keep LICENSE number (fill from doctor if available, otherwise show a blank line)
+      var licenseNo = (reservation && reservation.doctor &&
+        (reservation.doctor.licenseNo || reservation.doctor.license || reservation.doctor.prc)) || '';
+    %>
+
+    <!-- Patient & date -->
     <div class="patient-details">
-      <div class="row"><span class="label">Date:</span> <%= new Date().toLocaleDateString() %></div>
-      <div class="row"><span class="label">Name of Pet:</span> <%= reservation.pets.map(p=>p.petName).join(', ') %></div>
-    </div>
-
-  <!-- medication table -->
-<table class="med-table">
-  <thead>
-    <tr>
-      <th>Medicine</th>
-      <th>Qty</th>
-    </tr>
-  </thead>
-  <tbody>
-    <% reservation.medications.forEach(m => { %>
-      <tr>
-        <td><%= m.name || m.medicationName %></td>
-        <td><%= m.quantity || '—' %></td>
-      </tr>
-    <% }) %>
-  </tbody>
-</table>
-
-    <!-- doctor signature, fully aligned -->
-    <div class="signature">
-      <div class="signature-content">
-        <div class="signature-name">Dr. <%= reservation.doctor.username %>, DVM</div>
-        <div class="signature-info">
-          License #: <span class="line"></span>
-          <span style="display:inline-block; width: 18px;"></span>
-          PTR #: <span class="line"></span>
-        </div>
+      <div class="row">
+        <span class="label">Date:</span>
+        <span><%= new Date(issuedAt).toLocaleDateString() %></span>
+      </div>
+      <div class="row">
+        <span class="label">Name of Pet:</span>
+        <span><%= reservation.pets.map(function(p){ return p.petName; }).join(', ') %></span>
       </div>
     </div>
 
-    <!-- footer note -->
+    <!-- Medications -->
+    <% if (Array.isArray(reservation.medications) && reservation.medications.length) { %>
+      <table class="med-table">
+        <thead>
+          <tr>
+            <th>Medicine</th>
+            <th>Qty</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% reservation.medications.forEach(function(m){ %>
+            <tr>
+              <td><%= m.name || m.medicationName %></td>
+              <td><%= (m.quantity != null ? m.quantity : '—') %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } else { %>
+      <div style="font-size:14px; margin-bottom:22px;">No medications recorded.</div>
+    <% } %>
+
+    <!-- IDs row: keep License #, and show PTR #: Dr. Name (underlined) -->
+    <div class="issuer">
+      <div class="id-row">
+        <span class="id-label">License #:</span>
+        <span class="line"><%= licenseNo %></span>
+        <span class="spacer"></span>
+        <span class="id-label">PTR #:</span>
+        <span class="underline">Dr. <%= doctorName %>, DVM</span>
+      </div>
+    </div>
+
+    <!-- Policy / note -->
     <div class="footer">
-      This prescription is valid for 30 days from the date above. Please follow the instructions carefully.
+      This prescription is generated by Casa Animalia and is valid for 30 days from the date issued.
+      For verification, please contact the clinic using the numbers above.
     </div>
   </div>
 </body>
