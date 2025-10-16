@@ -976,6 +976,9 @@ $('#deletePetBtn')
     const physical = r.physical || r.physicalExam || {};
     const diagnosis = r.diagnosis || r.diagnose || '';
     const notes = r.notes || r.consultationNotes || r.concerns || '';
+ // ⬇️ ADD THIS
+  const diseases = Array.isArray(r.diseases) ? r.diseases
+                  : (r.disease ? [r.disease] : []);
 
     const services = Array.isArray(r.services) ? r.services.map(s => ({
       category: (s.category || 'Uncategorized'),
@@ -996,7 +999,8 @@ $('#deletePetBtn')
       || (r.schedule ? { date: r.schedule.scheduleDate, details: r.schedule.scheduleDetails } : null);
     const reservationId = (r.reservation && r.reservation._id) || r.reservationId || null;
 
-    return { date, doctorUsername, notes, physical, diagnosis, services, medications, confinement, nextSchedule, reservationId };
+
+  return { date, doctorUsername, notes, physical, diagnosis, diseases, services, medications, confinement, nextSchedule, reservationId };
   }
   function escapeHtml(str){
     return String(str ?? '')
@@ -1050,6 +1054,8 @@ $('#deletePetBtn')
           const weight = rec.physical.weight || '—';
           const temp   = rec.physical.temperature || '—';
           const obs    = rec.physical.observations || '—';
+          const diseaseList = Array.isArray(rec.diseases) ? rec.diseases.filter(Boolean) : [];
+
 
           html += `
             <div class="history-item">
@@ -1086,89 +1092,83 @@ $('#deletePetBtn')
                           </table>
                         </div>
                       </div>` : ''}
+${diseaseList.length ? `
+  <div class="rv-section">
+    <div class="rv-label" style="margin-bottom:6px;">
+      <i class="fa-solid fa-virus"></i> Disease(s)
+    </div>
+    <div class="rv-note">${diseaseList.map(safe).join(', ')}</div>
+  </div>` : ''}
 
-                    ${rec.diagnosis ? `
-                      <div class="rv-section">
-                        <div class="rv-label" style="margin-bottom:6px;">
-                          <i class="fa-solid fa-dna"></i> Diagnosis
-                        </div>
-                        <div class="rv-note">${safe(rec.diagnosis)}</div>
-                      </div>` : ''}
 
-                    ${(Array.isArray(rec.services) && rec.services.length) ? `
-                      <div class="rv-section">
-                        <div class="rv-label" style="margin-bottom:6px;">
-                          <i class="fa-solid fa-stethoscope"></i> Services
-                        </div>
-                        <div class="table-responsive">
-                          <table class="rv-table">
-                            <thead><tr><th>Category</th><th>Service</th><th>Details</th><th>File</th></tr></thead>
-                            <tbody>
-                              ${rec.services.map(s => {
-                                let fileUrl = s.file || '';
-                                if (fileUrl) {
-                                  fileUrl = String(fileUrl).replace(/^public/, '');
-                                  if (!fileUrl.startsWith('/')) fileUrl = '/' + fileUrl;
-                                }
-                                return `
-                                  <tr>
-                                    <td>${safe(s.category || '—')}</td>
-                                    <td><span class="rv-chip">${safe(s.serviceName || '—')}</span></td>
-                                    <td>${safe(s.details || '—')}</td>
-                                    <td>${fileUrl ? `<a href="${safe(fileUrl)}" download>Download</a>` : '—'}</td>
-                                  </tr>`;
-                              }).join('')}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>` : ''}
+${(Array.isArray(rec.services) && rec.services.length) ? `
+  <div class="rv-section">
+    <div class="rv-label" style="margin-bottom:6px;">
+      <i class="fa-solid fa-stethoscope"></i> Services
+    </div>
+    <div class="table-responsive">
+      <table class="rv-table">
+        <thead><tr><th>Service</th></tr></thead>
+        <tbody>
+          ${rec.services.map(s => `
+            <tr>
+              <td><span class="rv-chip">${safe(s.serviceName || '—')}</span></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>` : ''}
 
-                    ${(Array.isArray(rec.medications) && rec.medications.length) ? `
-                      <div class="rv-section">
-                        <div class="rv-header" style="margin-bottom:6px;">
-                          <div class="rv-label" style="margin:0;">
-                            <i class="fa-solid fa-pills"></i> Medications
-                          </div>
-                          ${rec.reservationId ? `
-                            <button class="btn btn-outline-secondary btn-sm"
-                                    onclick="window.open('/customer/prescription/${safe(rec.reservationId)}','_blank')">
-                              <i class="fas fa-file-download"></i> Prescription
-                            </button>` : ''}
-                        </div>
-                        <div class="table-responsive">
-                          <table class="rv-table">
-                            <thead><tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr></thead>
-                            <tbody>
-                              ${rec.medications.map(m => `
-                                <tr>
-                                  <td>${safe(m.name || '—')}</td>
-                                  <td>${safe(m.quantity ?? '—')}</td>
-                                  <td>${safe(m.dosage || '—')}</td>
-                                  <td>${safe(m.remarks || '—')}</td>
-                                </tr>`).join('')}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>` : ''}
+${(Array.isArray(rec.medications) && rec.medications.length) ? `
+  <div class="rv-section">
+    <div class="rv-label" style="margin-bottom:6px;">
+      <i class="fa-solid fa-pills"></i> Medications
+    </div>
 
+    ${rec.reservationId ? `
+      <!-- Prescription document tile -->
+      <div class="d-flex align-items-center justify-content-between"
+           style="border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;margin-bottom:10px;background:#f7fafc;">
+        <div>
+          <div style="font-weight:700;color:#213a63;">Prescription</div>
+          <div style="font-size:.85rem;color:#5b6b82;">
+            Prescribed by Dr. ${safe(doctor)} • ${safe(dateStr)} • ${rec.medications.length} item${rec.medications.length>1?'s':''}
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm"
+                onclick="window.open('/customer/prescription/${safe(rec.reservationId)}','_blank')">
+          <i class="fa-solid fa-download"></i> Download
+        </button>
+      </div>` : ''}
+
+    <div class="table-responsive">
+      <table class="rv-table">
+        <thead><tr><th>Name</th><th>Qty</th></tr></thead>
+        <tbody>
+          ${rec.medications.map(m => `
+            <tr>
+              <td>${safe(m.name || '—')}</td>
+              <td>${safe(m.quantity ?? '—')}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>` : ''}
+
+
+
+                                   
                     <div class="rv-section">
-                      <div class="rv-grid">
-                        <div class="rv-kv">
-                          <div class="rv-label"><i class="fa-solid fa-hospital"></i> Confinement</div>
-                          <div class="rv-value" style="white-space:normal;">
-                            ${safe((Array.isArray(rec.confinement) && rec.confinement.length) ? rec.confinement.join(', ') : 'N/A')}
-                          </div>
-                        </div>
-                        <div class="rv-kv">
-                          <div class="rv-label"><i class="fa-solid fa-calendar-plus"></i> Next Follow-Up</div>
-                          <div class="rv-value" style="white-space:normal;">
-                            ${rec.nextSchedule
-                              ? `${safe(formatDateLong(rec.nextSchedule.date))}${rec.nextSchedule.details ? ' — ' + safe(rec.nextSchedule.details) : ''}`
-                              : 'N/A'}
-                          </div>
+                      <div class="rv-kv">
+                        <div class="rv-label"><i class="fa-solid fa-calendar-plus"></i> Next Follow-Up</div>
+                        <div class="rv-value" style="white-space:normal;">
+                          ${rec.nextSchedule
+                            ? `${safe(formatDateLong(rec.nextSchedule.date))}${rec.nextSchedule.details ? ' — ' + safe(rec.nextSchedule.details) : ''}`
+                            : 'N/A'}
                         </div>
                       </div>
                     </div>
+
                   </div><!-- /.rv-card -->
                 </div><!-- /.history-content -->
               </div><!-- /.collapse -->
