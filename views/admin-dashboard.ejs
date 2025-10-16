@@ -563,7 +563,9 @@ $('.submenu-item').on('click', function(e){
   $('.dropdown-toggle').attr('aria-expanded','true');
 
   // Load the partial at /admin/pet-details
-  loadContent(key);
+ // NEW (explicit base path safeguard)
+loadContent(key, '/admin/');
+
 
   if (isMobile()) hideSidebar();
 });
