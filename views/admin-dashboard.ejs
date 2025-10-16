@@ -13,7 +13,12 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <!-- Daterangepicker -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"/>
+<!-- Flatpickr (load once, globally) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.js"></script>
+
 <style>
+
   :root{
     --primary:#1E88E5;
     --primary-dark:#0D47A1;
@@ -154,6 +159,34 @@
   }
 
   #sidebar, #topbar{ -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+/* --- Modal / overlay hygiene (global) --- */
+.modal-backdrop { 
+  z-index: 5000 !important;          /* above shell */
+  background-color: #000; 
+  opacity: .45 !important;            /* stable dim, no “pure black” */
+}
+.modal { z-index: 5100 !important; }
+
+/* When a modal is open, completely hide the mobile drawer overlay
+   so you never get two dark layers at once. */
+body.modal-open #sidebarOverlay { 
+  display: none !important; 
+}
+.topbar-actions { display: flex; align-items: center; gap: 12px; height: 100%; }
+
+.topbar-logo{
+  height: 36px;              /* was 28px */
+  max-height: 44px;          /* keeps ~6px top/bottom breathing in a 56px bar */
+  width: auto;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.15));
+}
+
+/* slightly smaller on narrow screens so it doesn't crowd the menu */
+@media (max-width: 991.98px){
+  .topbar-logo{ height: 32px; max-height: 40px; }
+}
 </style>
 
 </head>
@@ -177,6 +210,7 @@
     <i class="fas fa-paw topbar-paw"></i>
     <span class="topbar-title">SmartVet</span>
     <div class="topbar-actions"></div>
+  <img src="/images/casi.png" alt="SmartVet Logo" class="topbar-logo">
   </header>
 
   <!-- Sub-nav -->
@@ -198,30 +232,43 @@
         <span class="sidebar-title">Casa Animalia</span>
       </div>
 
-      <ul class="sidebar-menu nav flex-column">
-        <li><a href="#" class="menu-item active" data-content="dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
-        <li><a href="#" class="menu-item" data-content="accounts"><i class="fas fa-users"></i> Accounts</a></li>
-        <li><a href="#" class="menu-item" data-content="petlist"><i class="fas fa-paw"></i> Pet List</a></li>
-        <li><a href="#" class="menu-item" data-content="inventory"><i class="fas fa-boxes"></i> Inventory</a></li>
-        <li><a href="#" class="menu-item" data-content="sales-report"><i class="fas fa-file-alt"></i> Sales Report</a></li>
-        <li><a href="#" class="menu-item" data-content="services"><i class="fas fa-concierge-bell"></i> Services</a></li>
-        <li><a href="#" class="menu-item" data-content="profile"><i class="fas fa-user"></i> Profile</a></li>
+   <ul class="sidebar-menu nav flex-column">
+  <!-- 1) Dashboard -->
+  <li><a href="#" class="menu-item active" data-content="dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
 
-        <!-- Settings submenu -->
-        <li>
-          <a href="#settingsSubmenu" data-target="#settingsSubmenu" aria-expanded="false" class="dropdown-toggle">
-            <i class="fas fa-cog"></i> Settings
-          </a>
-          <ul class="collapse list-unstyled" id="settingsSubmenu" style="padding-left:28px;">
-            <li><a href="#" class="submenu-item" data-content="pet-details">Pet Details</a></li>
-            <li><a href="#" class="submenu-item" data-content="about">About</a></li>
-            <li><a href="#" class="submenu-item" data-content="contact">Contact</a></li>
-            <li><a href="#" class="submenu-item" data-content="dashboardsetting">Dashboard Settings</a></li>
-          </ul>
-        </li>
+  <!-- 2) Inventory -->
+  <li><a href="#" class="menu-item" data-content="inventory"><i class="fas fa-boxes"></i> Inventory</a></li>
 
-        <li class="logout mt-3"><a href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-      </ul>
+  <!-- 3) Sales Report -->
+  <li><a href="#" class="menu-item" data-content="sales-report"><i class="fas fa-file-alt"></i> Sales Report</a></li>
+<!-- 4) Upcoming -->
+<li><a href="#" class="menu-item" data-content="upcoming"><i class="fas fa-calendar-check"></i> Upcoming</a></li>
+
+  <!-- 4) Pet List -->
+  <li><a href="#" class="menu-item" data-content="petlist"><i class="fas fa-paw"></i> Pet List</a></li>
+
+  <!-- 5) Accounts -->
+  <li><a href="#" class="menu-item" data-content="accounts"><i class="fas fa-users"></i> Accounts</a></li>
+
+  <!-- 6) Profile -->
+  <li><a href="#" class="menu-item" data-content="profile"><i class="fas fa-user"></i> Profile</a></li>
+
+  <!-- 7) Services -->
+  <li><a href="#" class="menu-item" data-content="services"><i class="fas fa-concierge-bell"></i> Services</a></li>
+
+  <!-- 8) Settings (submenu) -->
+  <li>
+    <a href="#settingsSubmenu" data-target="#settingsSubmenu" aria-expanded="false" class="dropdown-toggle">
+      <i class="fas fa-cog"></i> Settings
+    </a>
+    <ul class="collapse list-unstyled" id="settingsSubmenu" style="padding-left:28px;">
+      <li><a href="#" class="submenu-item" data-content="pet-details">Pet Details</a></li>
+    </ul>
+  </li>
+
+  <!-- 9) Logout -->
+  <li class="logout mt-3"><a href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+</ul>
 
       <!-- Bottom profile -->
       <div class="sidebar-bottom-profile mt-auto">
@@ -253,6 +300,9 @@
 <script src="/js/sales-overview.js"></script>
 <script src="/js/inventory-overview.js"></script>
 <script src="/js/appointments.js"></script>
+<!-- Sales Report module (load once globally; we will init/destroy on navigation) -->
+<script src="/js/sales-report.js"></script>
+
 
 
 
@@ -364,6 +414,7 @@
         page === 'petlist' ? 'Pet List' :
         page === 'inventory' ? 'Inventory' :
         page === 'sales-report' ? 'Sales Report' :
+         page === 'upcoming'      ? 'Upcoming' :      // <-- add this line
         page === 'services' ? 'Services' :
         page === 'profile' ? 'Profile' : 'Settings';
       $('#subnav-title').text(title).show();
@@ -374,28 +425,31 @@
 
     // ===== Lifecycle glue for SPA partial reloads =====
   let __currentPage = null;
+  let __navBusy = false;
 
-  function runPageInit(page){
-    if (page === 'dashboard'){
-      window.SalesOverview && window.SalesOverview.init();
-      window.InventoryOverview && window.InventoryOverview.init && window.InventoryOverview.init();
-      window.Appointments && window.Appointments.init && window.Appointments.init();
-
-      // when switching tabs inside the dashboard, refresh the right module
-      wireDashboardTabRefreshes();
-    }
+function runPageInit(page){
+  if (page === 'dashboard'){
+    window.SalesOverview && window.SalesOverview.init();
+    window.InventoryOverview && window.InventoryOverview.init && window.InventoryOverview.init();
+    window.Appointments && window.Appointments.init && window.Appointments.init();
+    wireDashboardTabRefreshes();
   }
-
-  function runPageDestroy(page){
-    if (page === 'dashboard'){
-      window.SalesOverview && window.SalesOverview.destroy && window.SalesOverview.destroy();
-      window.InventoryOverview && window.InventoryOverview.destroy && window.InventoryOverview.destroy();
-      window.Appointments && window.Appointments.destroy && window.Appointments.destroy();
-      // remove delegated tab handler
-      $('#main-content').off('shown.bs.tab.dashboardTabs');
-    }
+  if (page === 'upcoming'){
+    // upcoming.ejs attaches a module to window.Upcoming
+    window.Upcoming && window.Upcoming.init && window.Upcoming.init();
   }
-
+}
+function runPageDestroy(page){
+  if (page === 'dashboard'){
+    window.SalesOverview && window.SalesOverview.destroy && window.SalesOverview.destroy();
+    window.InventoryOverview && window.InventoryOverview.destroy && window.InventoryOverview.destroy();
+    window.Appointments && window.Appointments.destroy && window.Appointments.destroy();
+    $('#main-content').off('shown.bs.tab.dashboardTabs');
+  }
+  if (page === 'upcoming'){
+    window.Upcoming && window.Upcoming.destroy && window.Upcoming.destroy();
+  }
+}
   function wireDashboardTabRefreshes() {
     // Delegated — works for content loaded via .load()
     $('#main-content').on('shown.bs.tab.dashboardTabs', 'a[data-toggle="tab"]', function (e) {
@@ -408,23 +462,62 @@
       }
     });
   }
+// --- Silent access-token refresh helper (coalesces concurrent calls) ---
+let __refreshInFlight = null;
+function refreshToken() {
+  if (__refreshInFlight) return __refreshInFlight;
+  __refreshInFlight = $.ajax({
+    url: '/refresh-token',
+    type: 'POST',
+    xhrFields: { withCredentials: true }
+  })
+  .then(() => true)
+  .catch(() => false)
+  .always(() => { __refreshInFlight = null; });
+
+  return __refreshInFlight;
+}
 
   // ===== Content loader (AJAX) =====
-  function loadContent(page, basePath = '/admin/'){
-    if (__currentPage) runPageDestroy(__currentPage);
+// ===== Content loader (AJAX) =====
+function loadContent(page, basePath = '/admin/'){
+  // No-op if already showing this page
+  if (__currentPage === page) return;
 
-    $("#main-content").load(`${basePath}${page}`, function(_res, status, xhr){
+  // Prevent stacking loads
+  if (__navBusy) return;
+  __navBusy = true;
+  $('.menu-item').css('pointer-events','none').addClass('disabled');
+
+  if (__currentPage) runPageDestroy(__currentPage);
+
+  const url = `${basePath}${page}`;
+  const doLoad = () => {
+    $("#main-content").load(url, function(_res, status, xhr){
+      __navBusy = false;
+      $('.menu-item').css('pointer-events','').removeClass('disabled');
+
       if (status === 'error'){
+        if (xhr && xhr.status === 401) {
+          return refreshToken().then(ok => {
+            if (ok) doLoad();
+            else window.location.href = '/login';
+          });
+        }
         $("#main-content").html(
           `<div class="alert alert-danger mt-3">Failed to load <b>${page}</b>. ${xhr?.status || ''} ${xhr?.statusText || ''}</div>`
         );
       } else {
         runPageInit(page);
+        setSubNavFor(page);
+        __currentPage = page;
       }
-      setSubNavFor(page);
-      __currentPage = page;
     });
-  }
+  };
+  doLoad();
+}
+
+
     $(document).ready(function(){
       if (isMobile()) hideSidebar(); else showSidebar();
 
@@ -445,30 +538,24 @@
         .on('shown.bs.collapse', ()=>$('.dropdown-toggle').attr('aria-expanded','true'))
         .on('hidden.bs.collapse', ()=>$('.dropdown-toggle').attr('aria-expanded','false'));
 
-      // top-level menu
-      $('.menu-item').on('click', function(e){
-        const href = $(this).attr('href');
-        if (href && href !== '#') return; // allow /logout
-        e.preventDefault();
+    $('.menu-item').on('click', function(e){
+  const href = $(this).attr('href');
+  if (href && href !== '#') return; // allow /logout
+  e.preventDefault();
 
-        $('.menu-item').removeClass('active');
-        $(this).addClass('active');
+  if (__navBusy) return; // drop rapid clicks
 
-        const key = $(this).data('content');
-        const route = (key === 'accounts') ? 'accounts-view' : key;
-        loadContent(route);
-        if (isMobile()) hideSidebar();
-      });
+  const key = $(this).data('content');
+  if (key === __currentPage) return; // already here
 
-      // submenu items
-      $('.submenu-item').on('click', function(e){
-        e.preventDefault();
-        $('#settingsSubmenu li a').removeClass('active');
-        $(this).addClass('active');
-        const key = $(this).data('content');
-        loadContent(key, '/settings/');
-        if (isMobile()) hideSidebar();
-      });
+  $('.menu-item').removeClass('active');
+  $(this).addClass('active');
+
+  const route = (key === 'accounts') ? 'accounts-view' : key;
+  loadContent(route);
+  if (isMobile()) hideSidebar();
+});
+
 
       // initial load
       loadContent('dashboard');
@@ -509,6 +596,70 @@
       }).done(r => console.log('Access token refreshed:', r?.message || 'ok'))
         .fail(xhr => console.error('Error refreshing token:', xhr.responseJSON ? xhr.responseJSON.message : xhr.statusText));
     }, 50 * 60 * 1000);
+    // --- Global Bootstrap modal hygiene (works for all loaded pages) ---
+(function modalHygiene(){
+  // Before any modal shows: close others, clear stray backdrops, hide mobile overlay
+  $(document).on('show.bs.modal', '.modal', function () {
+    // If some modal is already open, close it (Bootstrap 4 doesn't like multiple)
+    $('.modal.show').not(this).modal('hide');
+
+    // Kill any orphan/double backdrops that might've been left by SPA reloads
+    // (use a tiny timeout so Bootstrap can insert the new backdrop first)
+    setTimeout(function(){
+      // keep the topmost one, remove older ones
+      $('.modal-backdrop').slice(0, -1).remove();
+    }, 0);
+
+    // Ensure drawer overlay isn't stacked under the modal on mobile
+    $('#sidebarOverlay').removeClass('show');
+  });
+// --- Global 401 handler for API calls (NOT page loads handled by loadContent) ---
+$(document).ajaxError(function (_evt, jqxhr, settings) {
+  if (jqxhr.status !== 401 || !settings || !settings.url) return;
+  if (settings.url.indexOf('/refresh-token') !== -1) return;
+
+  // Let loadContent handle GET page partials like /admin/* or /settings/*.
+  if ((settings.type || settings.method || 'GET').toUpperCase() === 'GET' &&
+      /^\/(admin|settings)\//.test(settings.url)) {
+    return;
+  }
+
+  // Prevent infinite loops
+  if (settings.__retry) return;
+
+  refreshToken().then(ok => {
+    if (ok) { settings.__retry = true; $.ajax(settings); }
+    else { window.location.href = '/login'; }
+  });
+});
+// Keep token fresh when user comes back to the tab/window
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshToken();
+});
+window.addEventListener('focus', refreshToken);
+
+  // After a modal hides: if none left, remove any leftover backdrops and body lock
+  $(document).on('hidden.bs.modal', function () {
+    if ($('.modal.show').length) {
+      $('body').addClass('modal-open');           // keep scroll lock if another is open
+    } else {
+      $('.modal-backdrop').remove();              // nuke leftovers
+      $('body').removeClass('modal-open');
+    }
+  });
+
+  // Bonus: when switching SPA pages, make sure no modal/backdrop lingers
+  const _loadContent = window.loadContent;
+  window.loadContent = function(page, basePath){
+    try {
+      $('.modal.show').modal('hide');
+      $('.modal-backdrop').remove();
+      $('body').removeClass('modal-open');
+    } catch(e){}
+    _loadContent(page, basePath);
+  };
+})();
+
   </script>
 </body>
 </html>
