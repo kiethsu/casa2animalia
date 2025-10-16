@@ -446,17 +446,101 @@
 /* Brand green for success buttons */
 .btn-success { background-color:#28a745; border:none; }
 .btn-success:hover { background-color:#218838; }
+/* Spinner inside the category <select> while loading services */
+.select-wrap{ position:relative; width:80%; }
+.select-wrap .select-spinner{
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  display:none;
+  font-size:14px;
+  color:#6b7280;
+  pointer-events:none;
+}
+.select-wrap.loading .select-spinner{ display:inline-block; }
+.select-wrap.loading select{ padding-right:34px; } /* room for the spinner */
+/* Disease chips */
+#diseaseChips .d-chip{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 10px; border:1px solid #e5e7eb; border-radius:999px;
+  background:#f8fafc; font-size:13px; margin:4px 6px 0 0;
+}
+#diseaseChips .remove-chip{
+  border:0; background:transparent; line-height:1; cursor:pointer;
+  font-size:16px; color:#6b7280;
+}
+#diseaseChips .remove-chip:hover{ color:#ef4444; }
+/* Full/blocked date (capacity reached): paint red + disable */
+/* Full/blocked date (capacity reached): paint red + disable completely */
+/* Full date: keep clickable, just paint red */
+#scheduleModal .ui-datepicker td.full-date > a,
+#scheduleModal .ui-datepicker td.full-date > span{
+  background:#ef4444 !important;
+  border-color:#ef4444 !important;
+  color:#ffffff !important;
+  cursor:pointer !important;          /* was not-allowed */
+  pointer-events:auto !important;      /* was none */
+  opacity:1 !important;
+}
+/* Keep hover from changing red */
+#scheduleModal .ui-datepicker td.full-date > a:hover,
+#scheduleModal .ui-datepicker td.full-date > span:hover{
+  background:#ef4444 !important;
+  border-color:#ef4444 !important;
+}
+/* FORCE red for full dates — wins over active/highlight/other-month */
+#scheduleModal .ui-datepicker td.full-date a.ui-state-default,
+#scheduleModal .ui-datepicker td.full-date span.ui-state-default,
+#scheduleModal .ui-datepicker td.full-date a.ui-state-active,
+#scheduleModal .ui-datepicker td.full-date span.ui-state-active,
+#scheduleModal .ui-datepicker td.full-date a.ui-state-highlight,
+#scheduleModal .ui-datepicker td.full-date span.ui-state-highlight {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
+}
+/* === Full/blocked date (limit reached): hard red, always === */
+#scheduleModal .ui-datepicker td.full-date,
+#scheduleModal .ui-datepicker td.full-date a.ui-state-default,
+#scheduleModal .ui-datepicker td.full-date span.ui-state-default,
+#scheduleModal .ui-datepicker td.full-date a.ui-state-active,
+#scheduleModal .ui-datepicker td.full-date span.ui-state-active,
+#scheduleModal .ui-datepicker td.full-date a.ui-state-highlight,
+#scheduleModal .ui-datepicker td.full-date span.ui-state-highlight {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
+}
+
+/* keep hover from changing the red */
+#scheduleModal .ui-datepicker td.full-date a:hover,
+#scheduleModal .ui-datepicker td.full-date span:hover {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+/* keep it clickable + clear affordance */
+#scheduleModal .ui-datepicker td.full-date a,
+#scheduleModal .ui-datepicker td.full-date span {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+}
+
 
  </style>
 
 
   <!-- Expose data to client -->
- <script>
+<script>
   var rowsData = <%- JSON.stringify(typeof rows !== 'undefined' ? rows : []) %>;
   var serviceCategoriesClient = <%- JSON.stringify(typeof serviceCategories !== 'undefined' ? serviceCategories : []) %>;
   var simpleServices = <%- JSON.stringify(typeof simpleServices !== 'undefined' ? simpleServices : []) %>;
+  var diseases = <%- JSON.stringify(typeof diseases !== 'undefined' ? diseases : []) %>; <!-- NEW -->
   window.DOCTOR_ID = '<%= doctor && doctor.userId ? doctor.userId : "" %>';
 </script>
+
 
 
   <div id="dpatient" class="container-fluid reservation-container">
@@ -610,52 +694,87 @@
                   <h6 class="mb-0">Diagnosis</h6>
                   <button type="button" class="close" aria-label="Close" onclick="closeDiagnosis(event);"><span aria-hidden="true">&times;</span></button>
                 </div>
-                <div id="diagnosisCollapse" class="collapse">
-                  <div class="card-body">
-                    <textarea class="form-control" id="diagnosis" name="diagnosis" rows="3" placeholder="Enter diagnosis"></textarea>
-                  </div>
-                </div>
-              </div>
+      <div id="diagnosisCollapse" class="collapse">
+  <div class="card-body">
+    <textarea class="form-control" id="diagnosis" name="diagnosis" rows="3" placeholder="Enter diagnosis"></textarea>
 
-              <!-- Medication -->
-              <div class="card mt-3">
-                <div class="card-header d-flex justify-content-between align-items-center" data-toggle="collapse" data-target="#medicationCollapse" aria-expanded="false" style="cursor: pointer;">
-                  <h6 class="mb-0">Medication</h6>
-                  <button type="button" class="close" aria-label="Close" onclick="closeMedication(event);"><span aria-hidden="true">&times;</span></button>
-                </div>
-                <div id="medicationCollapse" class="collapse">
-                  <div class="card-body">
-                    <table class="table table-bordered" id="medicationTable">
-                      <thead>
-                        <tr>
-                          <th>Medication</th>
-                          <th>Dosage</th>
-                          <th>Remarks</th>
-                          <th>Quantity</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody></tbody>
-                    </table>
-                    <button type="button" class="btn btn-secondary mb-2" id="btnAddMedicationRow">Add Medication Row</button>
-                    <button type="button" class="btn btn-info mb-2" id="btnSelectMedication">Select Medication</button>
-                    <div id="medicationSelectorArea" class="mt-2" style="display:none;">
-                      <div class="form-group">
-                        <label for="medicationCategorySelect">Select Category:</label>
-                        <select id="medicationCategorySelect" class="form-control">
-                          <option value="">-- Choose a category --</option>
-                        </select>
-                      </div>
-                      <div class="form-group">
-                        <label for="medicationProductSelect">Select Product:</label>
-                        <select id="medicationProductSelect" class="form-control">
-                          <option value="">-- Choose a product --</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+    <!-- Disease dropdown: options will be loaded dynamically based on species -->
+   <!-- Disease picker (multi): options are still loaded dynamically based on species -->
+<div class="form-group mt-3">
+  <label for="diseaseSelect">Disease (add one or more)</label>
+  <div class="d-flex">
+    <select class="form-control mr-2" id="diseaseSelect" disabled>
+      <option value="">Loading…</option>
+    </select>
+    <button type="button" class="btn btn-outline-primary" id="addDiseaseBtn">Add</button>
+  </div>
+  <small id="diseaseSpeciesHint" class="form-text text-muted"></small>
+</div>
+
+<!-- Optional: add a custom disease that isn't in the list -->
+<div class="form-group">
+  <div class="input-group">
+    <input type="text" class="form-control" id="diseaseCustomInput" placeholder="Type custom disease…">
+    <div class="input-group-append">
+      <button type="button" class="btn btn-outline-secondary" id="addCustomDiseaseBtn">Add</button>
+    </div>
+  </div>
+  <small class="form-text text-muted">Use this if the disease isn’t in the list.</small>
+</div>
+
+<!-- Selected diseases (chips) -->
+<ul id="diseaseChips" class="list-inline mb-0"></ul>
+
+<!-- Hidden payload for submit (JS fills these) -->
+<!-- Hidden payload for submit (JS fills these) -->
+<input type="hidden" id="diseasesJson" name="diseasesJson">
+<input type="hidden" id="diseaseSingle"><!-- NO name: prevents duplicate -->
+
+
+</div> <!-- /.card-body -->
+</div> <!-- /#diagnosisCollapse -->
+</div> <!-- /.card (Diagnosis) -->
+
+<!-- Medication -->
+<div class="card mt-3">
+  <div class="card-header d-flex justify-content-between align-items-center" data-toggle="collapse" data-target="#medicationCollapse" aria-expanded="false" style="cursor: pointer;">
+    <h6 class="mb-0">Medication</h6>
+    <button type="button" class="close" aria-label="Close" onclick="closeMedication(event);"><span aria-hidden="true">&times;</span></button>
+  </div>
+  <div id="medicationCollapse" class="collapse">
+    <div class="card-body">
+      <table class="table table-bordered" id="medicationTable">
+        <thead>
+          <tr>
+            <th>Medication</th>
+            <th>Dosage</th>
+            <th>Remarks</th>
+            <th>Quantity</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button type="button" class="btn btn-secondary mb-2" id="btnAddMedicationRow">Add Medication Row</button>
+      <button type="button" class="btn btn-info mb-2" id="btnSelectMedication">Select Medication</button>
+      <div id="medicationSelectorArea" class="mt-2" style="display:none;">
+        <div class="form-group">
+          <label for="medicationCategorySelect">Select Category:</label>
+          <select id="medicationCategorySelect" class="form-control">
+            <option value="">-- Choose a category --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="medicationProductSelect">Select Product:</label>
+          <select id="medicationProductSelect" class="form-control">
+            <option value="">-- Choose a product --</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 
               <!-- Notes -->
               <div class="card mt-3">
@@ -669,18 +788,17 @@
                   </div>
                 </div>
               </div>
+<!-- Confinement -->
+<div class="card mt-3">
+  <div class="card-header"><h6 class="mb-0">Confinement Status</h6></div>
+  <div class="card-body">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="confinementStatus[]" value="outpatient" id="statusOutpatient">
+      <label class="form-check-label" for="statusOutpatient">Outpatient</label>
+    </div>
+  </div>
+</div>
 
-              <!-- Confinement -->
-              <div class="card mt-3">
-                <div class="card-header"><h6 class="mb-0">Confinement Status</h6></div>
-                <div class="card-body">
-                  <div class="form-check"><input class="form-check-input" type="checkbox" name="confinementStatus[]" value="inpatient" id="statusInpatient"><label class="form-check-label" for="statusInpatient">Inpatient</label></div>
-                  <div class="form-check"><input class="form-check-input" type="checkbox" name="confinementStatus[]" value="outpatient" id="statusOutpatient"><label class="form-check-label" for="statusOutpatient">Outpatient</label></div>
-                  <div class="form-check"><input class="form-check-input" type="checkbox" name="confinementStatus[]" value="for release" id="statusForRelease"><label class="form-check-label" for="statusForRelease">For Release</label></div>
-                  <div class="form-check"><input class="form-check-input" type="checkbox" name="confinementStatus[]" value="surgical" id="statusSurgical"><label class="form-check-label" for="statusSurgical">Surgical</label></div>
-                  <div class="form-check"><input class="form-check-input" type="checkbox" name="confinementStatus[]" value="refuse confinement" id="statusRefuseConfinement"><label class="form-check-label" for="statusRefuseConfinement">Refuse Confinement</label></div>
-                </div>
-              </div>
 
               <!-- Overview -->
               <button type="button" id="btnPreviewOverview" class="btn btn-info mb-3">Preview Overview</button>
@@ -732,6 +850,7 @@
   <div class="svc-hint">Choose what the patient should return for.</div>
 
   <!-- hidden fields (unchanged) -->
+  <input type="hidden" id="scheduleDetails" name="scheduleDetails">
   <input type="hidden" id="scheduleServiceName"  name="scheduleServiceName">
   <input type="hidden" id="scheduleServiceId"    name="scheduleServiceId">
   <input type="hidden" id="scheduleCategoryId"   name="scheduleCategoryId">
@@ -827,6 +946,50 @@ function padToSixWeeks($dp){
   }
   $tbody.append($tr);
 }
+// Safer date keys
+function ymdLocal(d){
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0');
+}
+function ymdUTC(d){
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString().slice(0,10);
+}
+// Load stats for prev/cur/next months so padded cells can paint red too
+function loadNeighborhoodStats(year, monthIndex){ // monthIndex 0..11
+  const cur  = loadFollowupStatsForMonth(year, monthIndex);
+  const p    = new Date(year, monthIndex-1, 1);
+  const n    = new Date(year, monthIndex+1, 1);
+  const prev = loadFollowupStatsForMonth(p.getFullYear(), p.getMonth());
+  const next = loadFollowupStatsForMonth(n.getFullYear(), n.getMonth());
+  return $.when(cur, prev, next);
+}
+
+function repaintFullCells($dp, isFull, keepISO /* rowScheduleISO or "" */){
+  const $cells = $dp.find('.ui-datepicker-calendar td');
+  $cells.each(function(){
+    const $td  = $(this);
+    const y    = parseInt($td.attr('data-year'), 10);
+    const m    = parseInt($td.attr('data-month'), 10);
+    const $btn = $td.find('a,span').first();
+    const dnum = parseInt($btn.text(), 10);
+    if (isNaN(y) || isNaN(m) || isNaN(dnum)) return;
+
+    const d   = new Date(y, m, dnum);
+    const iso = ymd(d);
+
+    if (isFull(d) && iso !== (keepISO || '')) {
+      // mark BOTH the cell and the inner button so CSS can easily target either
+      $td.addClass('full-date');
+      $btn.addClass('full-date ui-state-default'); // ensure it has the state class
+      // IMPORTANT: do NOT replace <a> with <span>; keep it clickable
+      $td.removeClass('ui-datepicker-unselectable'); // in case older code added it
+    } else {
+      $td.removeClass('full-date ui-datepicker-unselectable');
+      $btn.removeClass('full-date');
+    }
+  });
+}
+
 
 function initSixWeekDatepicker($el, extraOptions){
   if (!$.fn.datepicker) { console.warn('jQuery UI datepicker missing'); return; }
@@ -891,6 +1054,78 @@ function escapeHtml(s){
     }
     return resv.service || '—';
   }
+function populateDiseaseSelect(reservationId, petId, petName, preselected){
+  const $sel  = $("#diseaseSelect");
+  const $hint = $("#diseaseSpeciesHint");
+
+  $sel.prop("disabled", true).html('<option value="">Loading…</option>');
+  $hint.text('');
+
+  $.get('/doctor/settings/diseasesBySpecies', { reservationId, petId, petName })
+    .done(function(resp){
+      let opts = '<option value="">-- Select disease --</option>';
+      if (resp && resp.success) {
+        if (resp.species) {
+          $hint.text('Showing diseases for species: ' + resp.species);
+        }
+        const arr = Array.isArray(resp.diseases) ? resp.diseases : [];
+        if (arr.length) {
+          arr.forEach(function(d){
+            const label = escHTML(d);
+            const val   = escAttr(d);
+            opts += `<option value="${val}">${label}</option>`;
+          });
+        } else {
+          opts += '<option value="">(No diseases configured)</option>';
+        }
+      } else {
+        opts += '<option value="">(Error loading diseases)</option>';
+      }
+      $sel.html(opts);
+      if (preselected) $sel.val(preselected);
+    })
+    .fail(function(){
+      $sel.html('<option value="">(Error loading diseases)</option>');
+    })
+    .always(function(){
+      $sel.prop("disabled", false);
+    });
+}
+// --- Multi-disease state + helpers ---
+window.__dz = { map: new Map() }; // key = lowercase, value = display label
+
+function dzAdd(label){
+  const t = String(label || '').trim();
+  if (!t) return;
+  const k = t.toLowerCase();
+  if (!window.__dz.map.has(k)) window.__dz.map.set(k, t);
+  dzRender();
+}
+function dzRemove(key){
+  window.__dz.map.delete(key);
+  dzRender();
+}
+function dzClear(){
+  window.__dz.map.clear();
+  dzRender();
+}
+function dzValues(){
+  return Array.from(window.__dz.map.values());
+}
+function dzRender(){
+  const $chips = $("#diseaseChips").empty();
+  dzValues().forEach(v => {
+    const k = v.toLowerCase();
+    $chips.append(
+      `<li class="list-inline-item d-chip" data-k="${k}">
+         ${escHTML(v)}
+         <button type="button" class="remove-chip" title="Remove" aria-label="Remove">&times;</button>
+       </li>`
+    );
+  });
+  // keep hidden payload ready for submit
+  $("#diseasesJson").val(JSON.stringify(dzValues()));
+}
 
   // Insert one row that matches your table markup & handlers
   function insertAssignedRow(r){
@@ -1072,84 +1307,147 @@ function unlockBtn($btn){
     function closeDiagnosis(e){ e.stopPropagation(); $("#diagnosisCollapse").collapse("hide"); }
 
     // ----------------- Dynamic Services Section -----------------
-    function addServiceCategoryBlock() {
-      var optionsHtml = '<option value="">Select Category</option>';
-      (serviceCategoriesClient || []).forEach(function(cat) {
-        optionsHtml += '<option value="' + cat._id + '">' + cat.name + '</option>';
-      });
-      var block = $(`
-        <div class="service-category-block">
-          <div class="d-flex justify-content-between align-items-center">
-            <select class="form-control service-category-select" style="width:80%;">${optionsHtml}</select>
-            <button type="button" class="close remove-service-category-block" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-          </div>
-          <div class="services-list mt-2"></div>
-        </div>
-      `);
-      $("#consultationModal #serviceCategoriesContainer").append(block);
+function addServiceCategoryBlock() {
+  var optionsHtml = '<option value="">Select Category</option>';
+  (serviceCategoriesClient || []).forEach(function (cat) {
+    optionsHtml += '<option value="' + cat._id + '">' + cat.name + '</option>';
+  });
 
+  var block = $(`
+    <div class="service-category-block">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="select-wrap">
+          <select class="form-control service-category-select w-100">${optionsHtml}</select>
+          <i class="fas fa-circle-notch fa-spin select-spinner" aria-hidden="true"></i>
+        </div>
+        <button type="button" class="close remove-service-category-block" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="services-list mt-2"></div>
+    </div>
+  `);
+
+  $("#consultationModal #serviceCategoriesContainer").append(block);
+}
+
+$(document).ready(function () {
+  $("#btnAddServiceCategory").on("click", function () {
+    const $btn = $(this);
+    lockBtn($btn, "Adding");
+    try {
+      addServiceCategoryBlock();
+    } finally {
+      // tiny delay so spinner is visible even if super fast
+      setTimeout(() => unlockBtn($btn), 250);
     }
-   // Add Category button can stay as-is:
-$(document).ready(function(){
-  $("#btnAddServiceCategory").click(addServiceCategoryBlock);
+  });
+});
+// Add from dropdown
+$(document).on("click", "#addDiseaseBtn", function(){
+  const val = $("#diseaseSelect").val();
+  if (!val) return;
+  dzAdd(val);
+  // keep the dropdown on the same option (user can add more)
+});
+
+// Add from custom input
+$(document).on("click", "#addCustomDiseaseBtn", function(){
+  const custom = $("#diseaseCustomInput").val();
+  dzAdd(custom);
+  $("#diseaseCustomInput").val('');
+});
+$("#diseaseCustomInput").on("keydown", function(e){
+  if (e.key === "Enter"){
+    e.preventDefault();
+    $("#addCustomDiseaseBtn").click();
+  }
+});
+
+// Remove chip
+$(document).on("click", "#diseaseChips .remove-chip", function(){
+  const k = $(this).closest(".d-chip").data("k");
+  dzRemove(String(k));
 });
 
 // Load services for selected category (SCOPED)
-$('#consultationModal').on('change', '.service-category-select', function(e){
+// Load services for selected category (with spinner INSIDE the select)
+$('#consultationModal').off('change', '.service-category-select')
+.on('change', '.service-category-select', function (e) {
   e.stopPropagation();
-  var categoryId = $(this).val();
-  var container = $(this).closest('.service-category-block').find('.services-list');
+
+  var $select   = $(this);
+  var $wrap     = $select.closest('.select-wrap');
+  var categoryId = $select.val();
+  var container = $select.closest('.service-category-block').find('.services-list');
+
   container.empty();
-  if(!categoryId) return;
+  if (!categoryId) return;
+
+  // show spinner in the select + lock it
+  $wrap.addClass('loading');
+  $select.prop('disabled', true);
+
+  // optional: tiny inline placeholder below the select while loading
+  container.html(
+    '<div class="text-muted" style="font-size:13px;">' +
+      '<i class="fas fa-circle-notch fa-spin"></i> Loading services…' +
+    '</div>'
+  );
 
   $.ajax({
     url: '/doctor/services/listByCategory',
     method: 'GET',
     data: { categoryId },
-    success: function(response){
-      if(response.success && response.services && response.services.length){
-response.services.forEach(function(service){
-  // namespaced id so labels never bind outside the modal
-  var uid = `cm_service_${service._id}`;
-  var html = `
-    <div class="form-group service-item">
-      <div class="form-check">
-        <input class="form-check-input" type="checkbox" id="${uid}" name="services[]" value="${service._id}">
-        <label class="form-check-label" for="${uid}" data-service-id="${service._id}">${service.serviceName}</label>
-      </div>
-      <div class="service-extra-fields" style="display:none; margin-left:20px;">
-        <input type="text" class="form-control mb-2" name="serviceText_${service._id}" placeholder="Enter details for ${service.serviceName}">
-        <div class="d-flex align-items-center">
-          <input type="file" class="form-control-file" name="serviceFile_${service._id}" data-service-id="${service._id}" style="flex:1;">
-          <button type="button" class="remove-file-btn">&times;</button>
-        </div>
-      </div>
-    </div>`;
-  container.append(html);
-});
+  }).done(function (response) {
+    container.empty();
 
-        // prefill (unchanged)
-        const selectedCatName = $(container).closest('.service-category-block')
-          .find('select.service-category-select option:selected').text();
-        if (window.__prefill && window.__prefill.services && window.__prefill.services[selectedCatName]) {
-          const items = window.__prefill.services[selectedCatName];
-          items.forEach(function(it){
-            const $label = container.find('.form-check-label')
-              .filter(function(){ return $(this).text().trim() === it.serviceName; }).first();
-            if ($label.length) {
-              const $wrap = $label.closest('.service-item');
-              $wrap.find('input.form-check-input').prop('checked', true).trigger('change');
-              if (it.details) $wrap.find('input[type="text"]').val(it.details);
-            }
-          });
-        }
-      } else {
-        container.html("<p>No services available for this category.</p>");
+    if (response.success && response.services && response.services.length) {
+      response.services.forEach(function (service) {
+        var uid = `cm_service_${service._id}`;
+        var html = `
+          <div class="form-group service-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="${uid}" name="services[]" value="${service._id}">
+              <label class="form-check-label" for="${uid}" data-service-id="${service._id}">${service.serviceName}</label>
+            </div>
+            <div class="service-extra-fields" style="display:none; margin-left:20px;">
+              <input type="text" class="form-control mb-2" name="serviceText_${service._id}" placeholder="Enter details for ${service.serviceName}">
+              <div class="d-flex align-items-center">
+                <input type="file" class="form-control-file" name="serviceFile_${service._id}" data-service-id="${service._id}" style="flex:1;">
+                <button type="button" class="remove-file-btn">&times;</button>
+              </div>
+            </div>
+          </div>`;
+        container.append(html);
+      });
+
+      // prefill (unchanged)
+      const selectedCatName = $select.find('option:selected').text();
+      if (window.__prefill && window.__prefill.services && window.__prefill.services[selectedCatName]) {
+        const items = window.__prefill.services[selectedCatName];
+        items.forEach(function (it) {
+          const $label = container.find('.form-check-label')
+            .filter(function () { return $(this).text().trim() === it.serviceName; }).first();
+          if ($label.length) {
+            const $wrapItem = $label.closest('.service-item');
+            $wrapItem.find('input.form-check-input').prop('checked', true).trigger('change');
+            if (it.details) $wrapItem.find('input[type="text"]').val(it.details);
+          }
+        });
       }
-    },
-    error: function(){ container.html("<p>Error loading services.</p>"); }
+    } else {
+      container.html("<p>No services available for this category.</p>");
+    }
+  }).fail(function () {
+    container.html("<p class='text-danger'>Error loading services.</p>");
+  }).always(function () {
+    // hide spinner + unlock select
+    $wrap.removeClass('loading');
+    $select.prop('disabled', false);
   });
 });
+
 
 // Toggle service details (SCOPED)
 $('#consultationModal').on('change', '.service-item .form-check-input', function(e){
@@ -1213,6 +1511,13 @@ $("#consultationForm").submit(function(e){
     });
   });
   formData.append("servicesData", JSON.stringify(services));
+  // Diseases payload (array)
+const diseases = dzValues();
+formData.append("diseasesData", JSON.stringify(diseases));
+
+// Back-compat for code that still expects a single 'disease'
+formData.append("disease", diseases[0] || "");
+
 
   $.ajax({
     url: '/doctor/add-consultation',
@@ -1241,9 +1546,11 @@ $("#consultationForm").submit(function(e){
     } else {
       Swal.fire('Error', resp.message || 'Error saving consultation details.', 'error');
     }
-  }).fail(function(){
-    Swal.fire('Error', 'Server error while saving consultation details.', 'error');
-  }).always(function(){
+  }).fail(function(xhr){
+  const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Server error while saving consultation details.';
+  Swal.fire('Error', msg, 'error');
+})
+.always(function(){
     // release the button no matter what
     unlockBtn($saveBtn);
   });
@@ -1277,49 +1584,129 @@ $("#consultationForm").submit(function(e){
     });
 
     // ----------------- Med table rows -----------------
-    $("#btnAddMedicationRow").click(function(){
-      $("#medicationTable tbody").append(`
-        <tr>
-          <td><input type="text" name="medications[][name]" class="form-control medication-name" placeholder="Medication"></td>
-          <td><input type="text" name="medications[][dosage]" class="form-control" placeholder="Dosage"></td>
-          <td><input type="text" name="medications[][remarks]" class="form-control" placeholder="Remarks"></td>
-          <td><input type="number" name="medications[][quantity]" class="form-control" placeholder="Quantity" min="0"></td>
-          <td><button type="button" class="btn btn-danger btn-sm removeMedicationRow">Remove</button></td>
-        </tr>`);
-    });
-    $("#medicationTable").on("click", ".removeMedicationRow", function(){
-      var $row = $(this).closest("tr");
-      Swal.fire({ icon: 'warning', title: 'Remove Medication', text: 'Remove this row?', showCancelButton: true, confirmButtonText: 'Remove' })
-        .then((r)=>{ if(r.isConfirmed){ $row.remove(); Swal.fire({icon:'success',title:'Removed'}); } });
-    });
+  // ----------------- Med table rows -----------------
+$("#btnAddMedicationRow").off("click").on("click", function () {
+  const $btn = $(this);
+  lockBtn($btn, "Adding");
+  try {
+    $("#medicationTable tbody").append(`
+      <tr>
+        <td><input type="text" name="medications[][name]" class="form-control medication-name" placeholder="Medication"></td>
+        <td><input type="text" name="medications[][dosage]" class="form-control" placeholder="Dosage"></td>
+        <td><input type="text" name="medications[][remarks]" class="form-control" placeholder="Remarks"></td>
+        <td><input type="number" name="medications[][quantity]" class="form-control" placeholder="Quantity" min="0"></td>
+        <td><button type="button" class="btn btn-danger btn-sm removeMedicationRow">Remove</button></td>
+      </tr>`);
+  } finally {
+    // tiny delay so the spinner is perceptible even on fast devices
+    setTimeout(() => unlockBtn($btn), 250);
+  }
+});
 
-    // ----------------- Inventory helpers -----------------
-    $("#btnSelectMedication").click(function(){
-      $("#medicationSelectorArea").toggle();
-      $("#medicationCategorySelect").html('<option value="">-- Choose a category --</option>');
-      $("#medicationProductSelect").html('<option value="">-- Choose a product --</option>');
-      $.get('/doctor/inventory/categories').done(function(resp){
-        if(resp.success && resp.categories && resp.categories.length){
-          resp.categories.forEach(function(cat){ $("#medicationCategorySelect").append(`<option value="${cat}">${cat}</option>`); });
-        }
-      });
+ $("#medicationTable").off("click", ".removeMedicationRow").on("click", ".removeMedicationRow", function () {
+  const $btn = $(this);
+  const $row = $btn.closest("tr");
+
+  // lock the red button while we confirm
+  lockBtn($btn, "Confirm…");
+
+  Swal.fire({
+    icon: "warning",
+    title: "Remove Medication",
+    text: "Remove this row?",
+    showCancelButton: true,
+    confirmButtonText: "Remove"
+  }).then((r) => {
+    if (!r.isConfirmed) return;
+
+    // show removing spinner briefly while we animate out
+    lockBtn($btn, "Removing");
+    $row.fadeOut(150, function () {
+      $(this).remove();
+      Swal.fire({ icon: "success", title: "Removed" });
     });
-    $("#medicationCategorySelect").change(function(){
-      var cat = $(this).val();
-      $("#medicationProductSelect").html('<option value="">-- Choose a product --</option>');
-      if(!cat) return;
-      $.get('/doctor/inventory/listByCategory', { category: cat }).done(function(resp){
-        if(resp.success && resp.products && resp.products.length){
-          resp.products.forEach(function(p){ $("#medicationProductSelect").append(`<option value="${p.name}">${p.name}</option>`); });
-        }
-      });
+  }).finally(() => {
+    // if the row was removed, this safely no-ops
+    unlockBtn($btn);
+  });
+});
+
+    // ----------------- Inventory helpers (with spinners) -----------------
+$("#btnSelectMedication").off("click").on("click", function () {
+  const $btn = $(this);
+  const $area = $("#medicationSelectorArea");
+
+  const willShow = !$area.is(":visible");
+  $area.toggle();
+
+  // Only fetch when revealing the selector
+  if (!willShow) return;
+
+  lockBtn($btn, "Loading");
+  $("#medicationCategorySelect").html('<option value="">Loading…</option>');
+  $("#medicationProductSelect")
+    .prop("disabled", true)
+    .html('<option value="">-- Choose a product --</option>');
+
+  $.get("/doctor/inventory/categories")
+    .done(function (resp) {
+      if (resp.success && resp.categories && resp.categories.length) {
+        const $cat = $("#medicationCategorySelect").empty();
+        $cat.append('<option value="">-- Choose a category --</option>');
+        resp.categories.forEach(function (cat) {
+          $cat.append(`<option value="${cat}">${cat}</option>`);
+        });
+      } else {
+        $("#medicationCategorySelect").html('<option value="">(No categories)</option>');
+      }
+    })
+    .fail(function () {
+      $("#medicationCategorySelect").html('<option value="">(Error loading)</option>');
+    })
+    .always(function () {
+      unlockBtn($btn);
     });
-    $("#medicationProductSelect").change(function(){
-      var name = $(this).val(); if(!name) return;
-      var $last = $("#medicationTable tbody tr").last();
-      if($last.length === 0) $("#btnAddMedicationRow").click();
-      $("#medicationTable tbody tr").last().find(".medication-name").val(name);
+});
+
+// Load products: show "Loading…" and disable until ready
+$("#medicationCategorySelect").off("change").on("change", function () {
+  var cat = $(this).val();
+  const $prod = $("#medicationProductSelect");
+  $prod.prop("disabled", true).html('<option value="">Loading…</option>');
+
+  if (!cat) {
+    $prod.prop("disabled", true).html('<option value="">-- Choose a product --</option>');
+    return;
+  }
+
+  $.get("/doctor/inventory/listByCategory", { category: cat })
+    .done(function (resp) {
+      if (resp.success && resp.products && resp.products.length) {
+        $prod.empty().append('<option value="">-- Choose a product --</option>');
+        resp.products.forEach(function (p) {
+          $prod.append(`<option value="${p.name}">${p.name}</option>`);
+        });
+      } else {
+        $prod.html('<option value="">(No products)</option>');
+      }
+    })
+    .fail(function () {
+      $prod.html('<option value="">(Error loading)</option>');
+    })
+    .always(function () {
+      $prod.prop("disabled", false);
     });
+});
+
+$("#medicationProductSelect").off("change").on("change", function () {
+  var name = $(this).val();
+  if (!name) return;
+
+  var $last = $("#medicationTable tbody tr").last();
+  if ($last.length === 0) $("#btnAddMedicationRow").click();
+  $("#medicationTable tbody tr").last().find(".medication-name").val(name);
+});
+
     $("#medicationTable").on("input", "input[name='medications[][quantity]']", function(){
       var $qty = $(this);
       var n = parseInt($qty.val(), 10);
@@ -1342,57 +1729,126 @@ $("#consultationForm").submit(function(e){
     $("#examTemperature").on('blur', function(){ var v=$(this).val().trim(); if(v && !v.toLowerCase().endsWith("°c")) $(this).val(v + " °C"); });
 
     // ----------------- Overview preview -----------------
-    $("#btnPreviewOverview").click(function(){
-      let examWeight = $("#examWeight").val(), examTemperature = $("#examTemperature").val(), examOthers = $("#examOthers").val();
-      let diagnosis = $("#diagnosis").val(), notes = $("#notes").val();
-      let confinementStatus = []; $("input[name='confinementStatus[]']:checked").each(function(){ confinementStatus.push($(this).val()); });
-      let medications = [];
-      $("#medicationTable tbody tr").each(function(){
-        let medName  = $(this).find(".medication-name").val();
-        let dosage   = $(this).find("input[name='medications[][dosage]']").val();
-        let remarks  = $(this).find("input[name='medications[][remarks]']").val();
-        let quantity = $(this).find("input[name='medications[][quantity]']").val();
-        if(medName || dosage || remarks || quantity) medications.push({ name: medName, dosage, remarks, quantity });
-      });
+  $("#btnPreviewOverview").on("click", function () {
+  const $btn = $(this);
+  lockBtn($btn, "Building");
+  try {
+    let examWeight = $("#examWeight").val(),
+        examTemperature = $("#examTemperature").val(),
+        examOthers = $("#examOthers").val();
+   let diagnosis = $("#diagnosis").val(),
+    notes = $("#notes").val();
+const diseases = dzValues();
 
-      let servicesOverview = [];
-      $("#serviceCategoriesContainer .service-category-block").each(function(){
-        let category = $(this).find("select.service-category-select option:selected").text();
-        let selected = [];
-        $(this).find(".service-item").each(function(){
-          if($(this).find("input[type='checkbox']").is(":checked")){
-            let serviceName = $(this).find("label").text();
-            let details     = $(this).find("input[type='text']").val();
-            selected.push({ serviceName, details });
-          }
-        });
-        servicesOverview.push({ category, selected });
-      });
 
-      let html = `<h6>Physical Examination</h6>
-        <p><strong>Weight:</strong> ${examWeight || 'N/A'}</p>
-        <p><strong>Temperature:</strong> ${examTemperature || 'N/A'}</p>
-        <p><strong>Other Observations:</strong> ${examOthers || 'N/A'}</p>
-        <hr><h6>Services</h6>`;
-      servicesOverview.forEach(function(b){
-        html += `<p><strong>Category:</strong> ${b.category}</p>`;
-        if(b.selected.length){
-          html += `<ul>`;
-          b.selected.forEach(function(s){ html += `<li>${s.serviceName}${s.details ? ' - ' + s.details : ''}</li>`; });
-          html += `</ul>`;
-        } else { html += `<p>N/A</p>`; }
-      });
-      html += `<hr><h6>Diagnosis</h6><p>${diagnosis || 'N/A'}</p>
-               <hr><h6>Medications</h6>`;
-      if(medications.length){
-        html += `<table class="table table-sm"><thead><tr><th>Medication</th><th>Dosage</th><th>Remarks</th><th>Quantity</th></tr></thead><tbody>`;
-        medications.forEach(function(m){ html += `<tr><td>${m.name||'N/A'}</td><td>${m.dosage||'N/A'}</td><td>${m.remarks||'N/A'}</td><td>${m.quantity||'N/A'}</td></tr>`; });
-        html += `</tbody></table>`;
-      } else { html += `<p>N/A</p>`; }
-      html += `<hr><h6>Notes</h6><p>${notes || 'N/A'}</p>
-               <hr><h6>Confinement Status</h6><p>${confinementStatus.length ? confinementStatus.join(', ') : 'N/A'}</p>`;
-      $("#overviewContent").html(html);
+
+    // Only Outpatient remains, but this code still works generically
+    let confinementStatus = [];
+    $("input[name='confinementStatus[]']:checked").each(function () {
+      confinementStatus.push($(this).val());
     });
+
+    let medications = [];
+    $("#medicationTable tbody tr").each(function () {
+      let medName  = $(this).find(".medication-name").val();
+      let dosage   = $(this).find("input[name='medications[][dosage]']").val();
+      let remarks  = $(this).find("input[name='medications[][remarks]']").val();
+      let quantity = $(this).find("input[name='medications[][quantity]']").val();
+      if (medName || dosage || remarks || quantity)
+        medications.push({ name: medName, dosage, remarks, quantity });
+    });
+
+    let servicesOverview = [];
+    $("#serviceCategoriesContainer .service-category-block").each(function () {
+      let category = $(this).find("select.service-category-select option:selected").text();
+      let selected = [];
+      $(this).find(".service-item").each(function () {
+        if ($(this).find("input[type='checkbox']").is(":checked")) {
+          let serviceName = $(this).find("label").text();
+          let details     = $(this).find("input[type='text']").val();
+          selected.push({ serviceName, details });
+        }
+      });
+      servicesOverview.push({ category, selected });
+    });
+
+    let html = `<h6>Physical Examination</h6>
+      <p><strong>Weight:</strong> ${examWeight || 'N/A'}</p>
+      <p><strong>Temperature:</strong> ${examTemperature || 'N/A'}</p>
+      <p><strong>Other Observations:</strong> ${examOthers || 'N/A'}</p>
+      <hr><h6>Services</h6>`;
+
+    servicesOverview.forEach(function (b) {
+      html += `<p><strong>Category:</strong> ${b.category}</p>`;
+      if (b.selected.length) {
+        html += `<ul>`;
+        b.selected.forEach(function (s) {
+          html += `<li>${s.serviceName}${s.details ? ' - ' + s.details : ''}</li>`;
+        });
+        html += `</ul>`;
+      } else {
+        html += `<p>N/A</p>`;
+      }
+    });
+
+   servicesOverview.forEach(function (b) {
+  const cat = escHTML(b.category || '—');
+  html += `<p><strong>Category:</strong> ${cat}</p>`;
+  if (Array.isArray(b.selected) && b.selected.length) {
+    html += `<ul>`;
+    b.selected.forEach(function (s) {
+      const name = escHTML(s.serviceName || '—');
+      const det  = s.details ? ' - ' + escHTML(s.details) : '';
+      html += `<li>${name}${det}</li>`;
+    });
+    html += `</ul>`;
+  } else {
+    html += `<p>N/A</p>`;
+  }
+});
+
+html += `<hr><h6>Diagnosis</h6><p>${escHTML(diagnosis || 'N/A')}</p>`;
+if (diseases.length){
+  html += `<p><strong>Diseases:</strong></p><ul>`;
+  diseases.forEach(d => { html += `<li>${escHTML(d)}</li>`; });
+  html += `</ul>`;
+} else {
+  html += `<p><strong>Diseases:</strong> N/A</p>`;
+}
+html += `<hr><h6>Medications</h6>`;
+
+
+if (Array.isArray(medications) && medications.length) {
+  html += `<table class="table table-sm">
+    <thead><tr><th>Medication</th><th>Dosage</th><th>Remarks</th><th>Quantity</th></tr></thead>
+    <tbody>`;
+  medications.forEach(function (m) {
+    html += `<tr>
+      <td>${escHTML(m.name || 'N/A')}</td>
+      <td>${escHTML(m.dosage || 'N/A')}</td>
+      <td>${escHTML(m.remarks || 'N/A')}</td>
+      <td>${escHTML(String(m.quantity ?? 'N/A'))}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+} else {
+  html += `<p>N/A</p>`;
+}
+
+const confText = (Array.isArray(confinementStatus) && confinementStatus.length)
+  ? confinementStatus.map(escHTML).join(', ')
+  : 'N/A';
+
+html += `<hr><h6>Notes</h6><p>${escHTML(notes || 'N/A')}</p>
+         <hr><h6>Confinement Status</h6><p>${confText}</p>`;
+
+$("#overviewContent").html(html);
+
+  } finally {
+    unlockBtn($btn);
+  }
+});
+
 
     // ----------------- Reservation pets helper -----------------
     function fetchReservationPets(reservationId){
@@ -1418,8 +1874,10 @@ function resetConsultationForm(){
   $("#serviceCategoriesContainer").empty();
   $("#overviewContent").empty();
   $("input[name='confinementStatus[]']").prop('checked', false);
-}
 
+  // NEW: clear diseases UI/state
+  dzClear();
+}
 function prefillConsultation(c){
   if (!c) return;
 
@@ -1431,6 +1889,12 @@ function prefillConsultation(c){
   // Diagnosis / notes
   $("#diagnosis").val(c.diagnosis || '');
   $("#notes").val(c.notes || '');
+
+  // Diseases (multi): clear current chips, then add from saved data
+  dzClear(); // requires the helpers from the multi-disease block
+  const dArr = Array.isArray(c.diseases) ? c.diseases
+              : (c.disease ? [c.disease] : []);
+  dArr.forEach(dzAdd);
 
   // Confinement
   $("input[name='confinementStatus[]']").prop('checked', false);
@@ -1445,7 +1909,9 @@ function prefillConsultation(c){
     $row.find(".medication-name").val(m.name || m.medicationName || '');
     $row.find("input[name='medications[][dosage]']").val(m.dosage || '');
     $row.find("input[name='medications[][remarks]']").val(m.remarks || '');
-    if (typeof m.quantity !== 'undefined') $row.find("input[name='medications[][quantity]']").val(m.quantity);
+    if (typeof m.quantity !== 'undefined') {
+      $row.find("input[name='medications[][quantity]']").val(m.quantity);
+    }
   });
 
   // Services (prefill by category + service name)
@@ -1466,6 +1932,7 @@ function prefillConsultation(c){
     $sel.trigger('change'); // will load services and the change handler will apply prefill
   });
 }
+
 
   // ----------------- Add Consultation (UPDATED: set both id+name) -----------------
 // ----------------- Add/Edit Consultation (prefill if exists) -----------------
@@ -1490,6 +1957,7 @@ async function addConsultation(reservationId, petId, petName, btnEl){
 
   // reset UI
   resetConsultationForm();
+  populateDiseaseSelect(reservationId, targetId, targetName, null);
 
   // open modal immediately with a body spinner (like History)
   var $cBody = $("#consultationModal .modal-body");
@@ -1500,14 +1968,19 @@ async function addConsultation(reservationId, petId, petName, btnEl){
   $("#consultationModal").modal("show");
 
   // fetch previous consultation to prefill (if any)
-  $.get('/doctor/consultation/one', { reservationId, petId: targetId, petName: targetName })
-    .done(function(r){
-      if (r.success && r.consultation) prefillConsultation(r.consultation);
-    })
-    .always(function(){
-      $("#consultationLoadingPlaceholder").remove();
-      if($btn) unlockBtn($btn);
-    });
+$.get('/doctor/consultation/one', { reservationId, petId: targetId, petName: targetName })
+  .done(function(r){
+    if (r.success && r.consultation) {
+      prefillConsultation(r.consultation);
+      // Re-populate with preselected disease so the option is selected
+      populateDiseaseSelect(reservationId, targetId, targetName, r.consultation.disease || '');
+    }
+  })
+  .always(function(){
+    $("#consultationLoadingPlaceholder").remove();
+    if($btn) unlockBtn($btn);
+  });
+
 }
 
 function flipConsultButton(reservationId, petId, petName){
@@ -1526,8 +1999,71 @@ function flipConsultButton(reservationId, petId, petName){
       .removeClass('btn-primary btn-secondary')
       .addClass('btn-success');
 }
+// Cache month stats per YYYY-MM
+window.__followupStats = { /* '2025-10': { limit: 10, counts: {'2025-10-02': 7, ...} } */ };
 
-// ----------------- Schedule (updated: button + modal spinners) -----------------
+function yyyymm(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+function ymd(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+
+/**
+ * Loads once per month (cached). Server should return:
+ * { limit: <number>, counts: { 'YYYY-MM-DD': <count>, ... } }
+ * GET /doctor/followup/stats?year=YYYY&month=1..12
+ */
+function loadFollowupStatsForMonth(year, monthIndex /*0-11*/){
+  const key = year + '-' + String(monthIndex+1).padStart(2,'0');
+  if (window.__followupStats[key]) {
+    return $.Deferred().resolve(window.__followupStats[key]).promise();
+  }
+
+  return $.get('/doctor/followup/stats', { year, month: (monthIndex+1) }) // month is 1..12
+    .then(function(resp){
+      const data = {
+        limit: Number((resp && resp.limit) || 0),
+        counts: (resp && resp.counts) || {}
+      };
+      window.__followupStats[key] = data;
+      return data;
+    }, function(){
+      const data = { limit: 0, counts: {} }; // fail-open (no cap)
+      window.__followupStats[key] = data;
+      return data;
+    });
+}
+// Safe-define helpers once (won’t overwrite if you already added them elsewhere)
+window.__followupStats = window.__followupStats || {}; // cache: { 'YYYY-MM': { limit, counts } }
+
+if (typeof window.yyyymm !== 'function') {
+  window.yyyymm = function(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); };
+}
+if (typeof window.ymd !== 'function') {
+  window.ymd = function(d){ return d.getFullYear() + '-' + String(d.getDate()).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+  // whoops, fixed: month/day
+  window.ymd = function(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+}
+if (typeof window.loadFollowupStatsForMonth !== 'function') {
+  // Expects server endpoint: GET /doctor/followup/stats?year=YYYY&month=1..12
+  window.loadFollowupStatsForMonth = function(year, monthIndex /*0-11*/){
+    const key = year + '-' + String(monthIndex+1).padStart(2,'0');
+    if (window.__followupStats[key]) {
+      return $.Deferred().resolve(window.__followupStats[key]).promise();
+    }
+    return $.get('/doctor/followup/stats', { year, month: (monthIndex+1) })
+      .then(function(resp){
+        const data = {
+          limit: Number((resp && resp.limit) || 0),
+          counts: (resp && resp.counts) || {}
+        };
+        window.__followupStats[key] = data;
+        return data;
+      }, function(){
+        const data = { limit: 0, counts: {} };
+        window.__followupStats[key] = data;
+        return data;
+      });
+  };
+}
+
 async function openScheduleModal(btnEl, reservationId, petId, petName){
   var $btn = btnEl ? $(btnEl) : null;
   if ($btn) lockBtn($btn, 'Opening');
@@ -1536,14 +2072,11 @@ async function openScheduleModal(btnEl, reservationId, petId, petName){
                                   : await choosePet(reservationId, 'Select pet to schedule');
   if (!target){ if($btn) unlockBtn($btn); return; }
 
-  // reset form first
+  // reset form + show spinner placeholder
   $("#scheduleForm")[0].reset();
-
-  // Temporary loading block inside the modal body (match History style)
   var $sBody = $("#scheduleModal .modal-body");
   var $busy  = $('<div id="scheduleLoadingPlaceholder">'+ modalLoadingHtml('Preparing scheduler…') +'</div>');
   setTimeout(function(){ $('#scheduleLoadingPlaceholder').remove(); }, 15000);
-
   $sBody.prepend($busy);
 
   // identifiers
@@ -1551,14 +2084,96 @@ async function openScheduleModal(btnEl, reservationId, petId, petName){
   $("#schedulePetId").val(target.id || '');
   $("#schedulePetName").val(target.name || '');
 
- // datepicker -> hidden input
-// datepicker -> hidden input (always 6 rows + jump-to-month on click)
-initSixWeekDatepicker($("#scheduleDatePicker"), {
-  onSelect: function(dateText){
-    $("#scheduleDate").val(dateText);
-    const d = $.datepicker.parseDate('yy-mm-dd', dateText);
-    $("#scheduleDatePicker").datepicker('setDate', d);
-    setTimeout(() => padToSixWeeks($("#scheduleDatePicker")), 0);
+  // find current row + existing schedule (if any)
+  const row = findRow(reservationId, target.id, target.name);
+  const rowSchedule = (row && row.petSchedule && row.petSchedule.scheduleDate)
+                        ? new Date(row.petSchedule.scheduleDate)
+                        : null;
+  const rowScheduleISO = rowSchedule ? rowSchedule.toISOString().slice(0,10) : null;
+
+  // keep the existing ISO on the form for submit-side guard
+  $("#scheduleForm").attr('data-existing-iso', rowScheduleISO || '');
+
+  // decide which month to show first
+  const today = new Date();
+  const firstShown = rowSchedule
+    ? new Date(rowSchedule.getFullYear(), rowSchedule.getMonth(), 1)
+    : new Date(today.getFullYear(), today.getMonth(), 1);
+
+loadNeighborhoodStats(firstShown.getFullYear(), firstShown.getMonth()).always(function(){
+
+function isFull(date){
+  const mKey  = yyyymm(date);                         // e.g., "2025-10"
+  const stats = window.__followupStats[mKey];
+  if (!stats || Number(stats.limit || 0) <= 0) return false;
+
+  // Try local key first, then UTC key (handles server/storage TZ differences)
+  const kLocal = ymdLocal(date);
+  const kUTC   = ymdUTC(date);
+  const cnt    = Number(
+    (stats.counts && (stats.counts[kLocal] ?? stats.counts[kUTC])) ?? 0
+  );
+
+  const sameAsCurrent = (rowScheduleISO && kLocal === rowScheduleISO);
+  return !sameAsCurrent && cnt >= Number(stats.limit);
+}
+
+
+  initSixWeekDatepicker($("#scheduleDatePicker"), {
+    defaultDate: rowSchedule || null,
+
+    // keep full days clickable but red
+    beforeShowDay: function(date){
+      return isFull(date)
+        ? [true, "full-date", "Full (limit reached)"]
+        : [true, "", ""];
+    },
+
+    onSelect: function(dateText){
+      const d = $.datepicker.parseDate('yy-mm-dd', dateText);
+      if (isFull(d)) {
+        if (window.Swal) Swal.fire('Date full', 'This date has reached the daily limit.', 'warning');
+        if (rowSchedule) {
+          $("#scheduleDatePicker").datepicker('setDate', rowSchedule);
+          $("#scheduleDate").val(rowScheduleISO);
+        } else {
+          $("#scheduleDatePicker").datepicker('setDate', null);
+          $("#scheduleDate").val('');
+        }
+        return;
+      }
+      $("#scheduleDate").val(dateText);
+      $("#scheduleDatePicker").datepicker('setDate', d);
+      setTimeout(() => {
+        const $dp = $("#scheduleDatePicker");
+        padToSixWeeks($dp);
+        repaintFullCells($dp, isFull, rowScheduleISO);
+      }, 0);
+    },
+
+  onChangeMonthYear: function(y, m /*1..12*/){
+  loadNeighborhoodStats(y, m-1).always(function(){
+    const $dp = $("#scheduleDatePicker");
+    $dp.datepicker('refresh');
+    setTimeout(() => {
+      padToSixWeeks($dp);
+      repaintFullCells($dp, isFull, rowScheduleISO);
+    }, 0);
+  });
+}
+
+  });
+
+  // initial pass (handles padded 6th row too)
+  setTimeout(() => {
+    const $dp = $("#scheduleDatePicker");
+    padToSixWeeks($dp);
+    repaintFullCells($dp, isFull, rowScheduleISO);
+  }, 0);
+
+  if (rowSchedule) {
+    $("#scheduleDate").val(rowScheduleISO);
+    $("#scheduleDatePicker").datepicker('setDate', rowSchedule);
   }
 });
 
@@ -1569,25 +2184,13 @@ initSixWeekDatepicker($("#scheduleDatePicker"), {
     (simpleServices || []).forEach(s => $sel.append($('<option>').val(s).text(s)));
   })();
 
-  // try to preselect from the row's Service column
+  // preselect service (schedule.service.name -> scheduleDetails -> row cell)
   const rowId = buildRowId(reservationId, target.id, target.name);
   const currentServiceOnRow = $("#"+rowId).find("td:nth-child(3)").text().trim();
-
-  // Prefill from rowsData if schedule exists
-  const row = findRow(reservationId, target.id, target.name);
-  const existing = row && row.petSchedule ? row.petSchedule : null;
-
-  if (existing && existing.scheduleDate){
-    const dt = new Date(existing.scheduleDate);
-    $("#scheduleDate").val(dt.toISOString().slice(0,10));
-    $("#scheduleDatePicker").datepicker('setDate', dt);
-  }
-
-  // pick service name (prefer schedule.service.name, else scheduleDetails, else row’s column)
   const preService =
-      (existing && existing.service && existing.service.name) ? existing.service.name
-    : (existing && existing.scheduleDetails)                  ? existing.scheduleDetails
-    : (currentServiceOnRow && currentServiceOnRow !== '—')    ? currentServiceOnRow
+      (row && row.petSchedule && row.petSchedule.service && row.petSchedule.service.name) ? row.petSchedule.service.name
+    : (row && row.petSchedule && row.petSchedule.scheduleDetails)                          ? row.petSchedule.scheduleDetails
+    : (currentServiceOnRow && currentServiceOnRow !== '—')                                 ? currentServiceOnRow
     : '';
 
   if (preService){
@@ -1596,25 +2199,25 @@ initSixWeekDatepicker($("#scheduleDatePicker"), {
   } else {
     $("#scheduleServiceName").val('');
   }
+  $("#scheduleDetails").val(preService || '');
 
-  // keep hidden name in sync
+  // keep hidden fields synced with visible select
   $("#scheduleServiceSelect").off('change').on('change', function(){
-    $("#scheduleServiceName").val(this.value || '');
+    const v = this.value || '';
+    $("#scheduleServiceName").val(v);
+    $("#scheduleDetails").val(v);
   });
 
-  // show modal (centered, no animation per CSS)
+  // open modal + remove placeholder + unlock button
   $("#scheduleModal").modal("show");
-
-  // remove loading placeholder and release button
   $("#scheduleLoadingPlaceholder").remove();
   if ($btn) unlockBtn($btn);
 }
 
-// ===== Save Schedule (with spinner) =====
-$("#scheduleForm").submit(function(e){
+// ===== Save Schedule (with spinner + best-effort "full date" guard) =====
+$("#scheduleForm").off('submit').on('submit', function(e){
   e.preventDefault();
 
-  // spin + lock the primary footer button
   const $saveBtn = $('#scheduleForm .modal-footer .btn.btn-primary').first();
   lockBtn($saveBtn, 'Saving');
 
@@ -1622,6 +2225,23 @@ $("#scheduleForm").submit(function(e){
   const svcVal  = $("#scheduleServiceName").val().trim();
   if (!dateVal){ unlockBtn($saveBtn); return Swal.fire('Missing date', 'Please pick a follow-up date.', 'warning'); }
   if (!svcVal) { unlockBtn($saveBtn); return Swal.fire('Missing service', 'Please select a follow-up service.', 'warning'); }
+
+  // Best-effort guard: if stats are available and selected date is full (and not the pet’s existing date), block save
+  try{
+    const existingIso = $("#scheduleForm").attr('data-existing-iso') || '';
+    const d = $.datepicker.parseDate('yy-mm-dd', dateVal);
+    if (!isNaN(d)){
+      const key = yyyymm(d);
+      const stats = window.__followupStats[key];
+      if (stats && Number(stats.limit || 0) > 0) {
+        const cnt = Number(stats.counts[ymd(d)] || 0);
+        if (dateVal !== existingIso && cnt >= Number(stats.limit)) {
+          unlockBtn($saveBtn);
+          return Swal.fire('Date full', 'This date has reached the daily limit. Please choose another date.', 'warning');
+        }
+      }
+    }
+  } catch(_) { /* ignore guard errors; server should still validate */ }
 
   const payload = $(this).serialize();
 
@@ -1637,16 +2257,12 @@ $("#scheduleForm").submit(function(e){
     const petName = $("#schedulePetName").val();
     const rowId   = buildRowId(resId, petId, petName);
 
-    const info = (response.saved && response.saved.service && response.saved.service.name)
-                   ? response.saved.service.name
-                   : (response.saved.scheduleDetails || '');
-$("#"+rowId).find(".scheduleCell").html(`
-  <button class="btn btn-success btn-sm fixed-width"
-          onclick="openScheduleModal(this,'${resId}','${petId}','${petName}')">
-    <i class="fas fa-edit"></i> Edit
-  </button>
-`);
-
+    $("#"+rowId).find(".scheduleCell").html(`
+      <button class="btn btn-success btn-sm fixed-width"
+              onclick="openScheduleModal(this,'${resId}','${petId}','${petName}')">
+        <i class="fas fa-edit"></i> Edit
+      </button>
+    `);
 
     setRowSchedule(resId, petId, petName, response.saved);
 
@@ -1655,7 +2271,6 @@ $("#"+rowId).find(".scheduleCell").html(`
   }).fail(function(){
     Swal.fire('Error', 'Server error while saving schedule.', 'error');
   }).always(function(){
-    // release the button no matter what
     unlockBtn($saveBtn);
   });
 });
@@ -1822,6 +2437,17 @@ if (!history.length) {
               }).join('') +
             '</tbody></table>';
         }
+// Disease(s) block (shown under Diagnosis)
+var diseasesHtml = '';
+if (Array.isArray(rec.diseases) && rec.diseases.length) {
+  diseasesHtml =
+    '<p class="mb-2"><strong>Disease(s):</strong></p>' +
+    '<ul>' +
+      rec.diseases.map(function(d){ return '<li>' + escapeHtml(d) + '</li>'; }).join('') +
+    '</ul>';
+} else {
+  diseasesHtml = '<p class="mb-2"><strong>Disease(s):</strong> N/A</p>';
+}
 
         // Confinement + next schedule
         var conf = (Array.isArray(rec.confinement) && rec.confinement.length) ? rec.confinement.join(', ') : 'N/A';
@@ -1855,6 +2481,7 @@ if (!history.length) {
                 '<p class="mb-2"><strong>Notes:</strong> ' + (rec.notes || '—') + '</p>' +
                 examHtml +
                 '<p class="mb-2"><strong>Diagnosis:</strong> ' + (rec.diagnosis || '—') + '</p>' +
+                   diseasesHtml + 
                 srvHtml +
                 medHtml +
                 '<p class="mb-2"><strong>Confinement:</strong> ' + conf + '</p>' +
