@@ -1,16 +1,8 @@
 <%
-  // Ensure petDetails is defined.
-  // (Your document should have species, speciesBreeds, diseases, services.)
-  var petDetails = typeof petDetails !== 'undefined'
-    ? petDetails
-    : { species: [], speciesBreeds: {}, diseases: [], speciesDiseases: {}, services: [] };
-
-%>
-<<%
-  // Ensure petDetails is defined for the partial.
-  var petDetails = typeof petDetails !== 'undefined'
-    ? petDetails
-    : { species: [], speciesBreeds: {}, diseases: [], speciesDiseases: {}, services: [] };
+// Ensure petDetails is defined for the partial.
+var petDetails = (typeof petDetails !== 'undefined' && petDetails) 
+  ? petDetails 
+  : { species: [], speciesBreeds: {}, diseases: [], speciesDiseases: {}, services: [] };
 %>
 
 <!-- START: Pet Details Partial (no <html>, no <head>, no <body>) -->
@@ -18,7 +10,6 @@
 <div class="container py-4">
   <h2 class="mb-4">Pet Details Settings</h2>
 
-  <!-- (Optional) keep your styles here so they apply only to this partial) -->
   <style>
     .section-header { display:flex; align-items:center; justify-content:space-between; }
     .section-header h4 { margin:0; }
@@ -42,234 +33,157 @@
     .swal2-container{ z-index: 6000 !important; }
   </style>
 
-    <!-- ===================== 1) SPECIES/BREED SECTION ===================== -->
-    <div class="card mb-4">
-      <div class="card-header section-header">
-        <h4><i class="fas fa-dog mr-2"></i>Species / Breed</h4>
-      </div>
-      <div class="card-body">
-        <!-- Input + Add Button for Species -->
-        <div class="input-group mb-3">
-          <input type="text" class="form-control" id="newSpeciesInput" placeholder="Add new species..." />
-          <div class="input-group-append">
-            <button class="btn btn-primary" id="addSpeciesBtn">Add Species</button>
-          </div>
-        </div>
-        <!-- Search box -->
-        <div class="form-group d-flex">
-          <input type="text" class="form-control search-box" id="speciesSearch" placeholder="Search species...">
-        </div>
-        <!-- Species Table -->
-        <div class="table-container">
-          <table class="table table-bordered" id="speciesTable">
-            <thead>
-              <tr>
-                <th>Species</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody id="speciesTableBody">
-              <% if (petDetails.species && petDetails.species.length > 0) { %>
-                <% petDetails.species.forEach(function(sp) { %>
-                  <tr>
-                    <td><%= sp %></td>
-                    <td>
-                      <button class="btn btn-info btn-sm addBreedBtn" data-species="<%= sp %>" data-breeds='<%= JSON.stringify(petDetails.speciesBreeds[sp] || []) %>'>
-                        Add Breed
-                      </button>
-                      <button class="btn btn-danger btn-sm deleteSpeciesBtn" data-species="<%= sp %>">
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                <% }); %>
-              <% } %>
-            </tbody>
-          </table>
-        </div>
-      </div>
+  <!-- ===================== 1) SPECIES/BREED SECTION ===================== -->
+  <div class="card mb-4">
+    <div class="card-header section-header">
+      <h4><i class="fas fa-dog mr-2"></i>Species / Breed</h4>
     </div>
-<!-- ===================== 2) DISEASES SECTION ===================== -->
-<div class="card mb-4">
-  <div class="card-header section-header">
-    <h4><i class="fas fa-virus mr-2"></i>Diseases</h4>
-  </div>
+    <div class="card-body">
+      <div class="input-group mb-3">
+        <input type="text" class="form-control" id="newSpeciesInput" placeholder="Add new species..." />
+        <div class="input-group-append">
+          <button class="btn btn-primary" id="addSpeciesBtn">Add Species</button>
+        </div>
+      </div>
 
-  <div class="card-body">
-    <!-- A) GLOBAL diseases (fallback for all species) -->
-    <h5 class="mb-3">Global Diseases (fallback)</h5>
-    <div class="input-group mb-3">
-      <input type="text" class="form-control" id="newDiseaseInput" placeholder="Add new global disease..." />
-      <div class="input-group-append">
-        <button class="btn btn-primary" id="addDiseaseBtn">Add Global Disease</button>
+      <div class="form-group d-flex">
+        <input type="text" class="form-control search-box" id="speciesSearch" placeholder="Search species...">
       </div>
-    </div>
-    <div class="form-group d-flex">
-      <input type="text" class="form-control search-box" id="diseaseSearch" placeholder="Search global disease...">
-    </div>
-    <div class="table-container mb-4">
-      <table class="table table-bordered" id="diseaseTable">
-        <thead>
-          <tr>
-            <th>Disease Name</th>
-            <th style="width:120px;">Action</th>
-          </tr>
-        </thead>
-        <tbody id="diseaseTableBody">
-          <% if (petDetails.diseases && petDetails.diseases.length > 0) { %>
-            <% petDetails.diseases.forEach(function(ds) { %>
+
+      <div class="table-container">
+        <table class="table table-bordered" id="speciesTable">
+          <thead>
+            <tr><th>Species</th><th>Action</th></tr>
+          </thead>
+          <tbody id="speciesTableBody">
+            <% (petDetails.species || []).forEach(function(sp){ %>
               <tr>
-                <td><%= ds %></td>
+                <td><%= sp %></td>
                 <td>
-                  <button class="btn btn-danger btn-sm deleteDiseaseBtn" data-disease="<%= ds %>">
-                    Delete
-                  </button>
+                  <button class="btn btn-info btn-sm addBreedBtn" data-species="<%= sp %>" data-breeds='<%= JSON.stringify(petDetails.speciesBreeds[sp] || []) %>'>Add Breed</button>
+                  <button class="btn btn-danger btn-sm deleteSpeciesBtn" data-species="<%= sp %>">Delete</button>
                 </td>
               </tr>
-            <% }); %>
-          <% } %>
-        </tbody>
-      </table>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 2) DISEASES SECTION ===================== -->
+  <div class="card mb-4">
+    <div class="card-header section-header">
+      <h4><i class="fas fa-virus mr-2"></i>Diseases</h4>
     </div>
 
-    <hr>
-
-    <!-- B) PER-SPECIES diseases -->
-    <h5 class="mb-3">Diseases by Species</h5>
-
-    <div class="form-row align-items-center">
-      <div class="col-md-6 mb-2">
-        <label for="speciesForDisease" class="mb-1">Select Species</label>
-        <select id="speciesForDisease" class="form-control">
-          <option value="">-- choose species --</option>
-          <% (petDetails.species || []).forEach(function(sp){ %>
-            <option value="<%= sp %>"><%= sp %></option>
-          <% }); %>
-        </select>
+    <div class="card-body">
+      <h5 class="mb-3">Global Diseases (fallback)</h5>
+      <div class="input-group mb-3">
+        <input type="text" class="form-control" id="newDiseaseInput" placeholder="Add new global disease..." />
+        <div class="input-group-append">
+          <button class="btn btn-primary" id="addDiseaseBtn">Add Global Disease</button>
+        </div>
       </div>
-      <div class="col-md-6 mb-2">
-        <label class="mb-1">Add Disease to Selected Species</label>
-        <div class="input-group">
-          <input type="text" class="form-control" id="newSpeciesDiseaseInput" placeholder="Enter disease name...">
-          <div class="input-group-append">
-            <button class="btn btn-success" id="addSpeciesDiseaseBtn" disabled>Add</button>
+
+      <div class="form-group d-flex">
+        <input type="text" class="form-control search-box" id="diseaseSearch" placeholder="Search global disease...">
+      </div>
+
+      <div class="table-container mb-4">
+        <table class="table table-bordered" id="diseaseTable">
+          <thead>
+            <tr><th>Disease Name</th><th style="width:120px;">Action</th></tr>
+          </thead>
+          <tbody id="diseaseTableBody">
+            <% (petDetails.diseases || []).forEach(function(ds){ %>
+              <tr>
+                <td><%= ds %></td>
+                <td><button class="btn btn-danger btn-sm deleteDiseaseBtn" data-disease="<%= ds %>">Delete</button></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <hr>
+
+      <h5 class="mb-3">Diseases by Species</h5>
+      <div class="form-row align-items-center">
+        <div class="col-md-6 mb-2">
+          <label class="mb-1" for="speciesForDisease">Select Species</label>
+          <select id="speciesForDisease" class="form-control">
+            <option value="">-- choose species --</option>
+            <% (petDetails.species || []).forEach(function(sp){ %>
+              <option value="<%= sp %>"><%= sp %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="col-md-6 mb-2">
+          <label class="mb-1">Add Disease to Selected Species</label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="newSpeciesDiseaseInput" placeholder="Enter disease name...">
+            <div class="input-group-append">
+              <button class="btn btn-success" id="addSpeciesDiseaseBtn" disabled>Add</button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="d-flex mt-3 mb-2">
-      <input type="text" class="form-control search-box" id="speciesDiseaseSearch" placeholder="Search diseases in selected species...">
-    </div>
+      <div class="d-flex mt-3 mb-2">
+        <input type="text" class="form-control search-box" id="speciesDiseaseSearch" placeholder="Search diseases in selected species...">
+      </div>
 
-    <div class="table-container">
-      <table class="table table-bordered" id="speciesDiseaseTable">
-        <thead>
-          <tr>
-            <th style="width:40%;">Species</th>
-            <th>Disease</th>
-            <th style="width:120px;">Action</th>
-          </tr>
-        </thead>
-        <tbody id="speciesDiseaseTableBody">
-          <!-- rows injected by JS -->
-        </tbody>
-      </table>
-      <div id="speciesDiseaseEmpty" class="text-muted" style="display:none;">No diseases for this species yet.</div>
+      <div class="table-container">
+        <table class="table table-bordered" id="speciesDiseaseTable">
+          <thead>
+            <tr><th style="width:40%;">Species</th><th>Disease</th><th style="width:120px;">Action</th></tr>
+          </thead>
+          <tbody id="speciesDiseaseTableBody"></tbody>
+        </table>
+        <div id="speciesDiseaseEmpty" class="text-muted" style="display:none;">No diseases for this species yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 3) SERVICES SECTION ===================== -->
+  <div class="card mb-4">
+    <div class="card-header section-header">
+      <h4><i class="fas fa-briefcase-medical mr-2"></i>Services</h4>
+    </div>
+    <div class="card-body">
+      <div class="input-group mb-3">
+        <input type="text" class="form-control" id="newServiceInput" placeholder="Add new service..." />
+        <div class="input-group-append">
+          <button class="btn btn-primary" id="addServiceBtn">Add Service</button>
+        </div>
+      </div>
+      <div class="form-group d-flex">
+        <input type="text" class="form-control search-box" id="serviceSearch" placeholder="Search service...">
+      </div>
+      <div class="table-container">
+        <table class="table table-bordered" id="serviceTable">
+          <thead>
+            <tr><th>Service Name</th><th>Action</th></tr>
+          </thead>
+          <tbody id="serviceTableBody">
+            <% (petDetails.services || []).forEach(function(svc){ %>
+              <tr>
+                <td><%= svc %></td>
+                <td><button class="btn btn-danger btn-sm deleteServiceBtn" data-service="<%= svc %>">Delete</button></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
 
-    <!-- ===================== 3) SERVICES SECTION ===================== -->
-    <div class="card mb-4">
-      <div class="card-header section-header">
-        <h4><i class="fas fa-briefcase-medical mr-2"></i>Services</h4>
-      </div>
-      <div class="card-body">
-        <div class="input-group mb-3">
-          <input type="text" class="form-control" id="newServiceInput" placeholder="Add new service..." />
-          <div class="input-group-append">
-            <button class="btn btn-primary" id="addServiceBtn">Add Service</button>
-          </div>
-        </div>
-        <div class="form-group d-flex">
-          <input type="text" class="form-control search-box" id="serviceSearch" placeholder="Search service...">
-        </div>
-        <div class="table-container">
-          <table class="table table-bordered" id="serviceTable">
-            <thead>
-              <tr>
-                <th>Service Name</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody id="serviceTableBody">
-              <% if (petDetails.services && petDetails.services.length > 0) { %>
-                <% petDetails.services.forEach(function(svc) { %>
-                  <tr>
-                    <td><%= svc %></td>
-                    <td>
-                      <button class="btn btn-danger btn-sm deleteServiceBtn" data-service="<%= svc %>">
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                <% }); %>
-              <% } %>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
+<!-- Keep SweetAlert (shell doesn’t load it globally) -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  <!-- ===================== MODAL: ADD BREED ===================== -->
-  <div class="modal fade" id="addBreedModal" tabindex="-1" role="dialog" aria-labelledby="addBreedModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="addBreedModalLabel">Add Breed</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span>&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          <!-- Display species name -->
-          <div class="form-group">
-            <label class="modal-label" for="breedSpeciesInput">Species</label>
-            <input type="text" class="form-control" id="breedSpeciesInput" readonly />
-          </div>
-          <!-- Input for new breed -->
-          <div class="form-group">
-            <label class="modal-label" for="newBreedInput">Breed Name</label>
-            <input type="text" class="form-control" id="newBreedInput" placeholder="Enter breed name..." />
-          </div>
-          <!-- Button to add breed to the temporary list -->
-          <button type="button" class="btn btn-secondary mb-3" id="addBreedToListBtn">Add Breed to List</button>
-          <!-- Breed Modal Filter Box -->
-          <div class="breed-search-container mb-2">
-            <div id="breedStatusMsg" class="breed-status-msg"></div>
-            <input type="text" class="form-control breed-search-box" id="breedListSearch" placeholder="Search">
-          </div>
-          <!-- List of added breeds -->
-          <ul id="breedList" class="list-group"></ul>
-        </div>
-        <div class="modal-footer">
-          <!-- Save Changes button -->
-          <button type="button" class="btn btn-primary" id="saveBreedsBtn">Save Changes</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- jQuery and Bootstrap JS -->
-  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-  
-  <!-- SweetAlert2 JS -->
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
- <script>
+<script>
 (function petDetailsInit(){
   // ===== clear previous handlers for hot re-entry via SPA =====
   $(document).off('.petdetails');
@@ -312,123 +226,99 @@
   setupSearchFilter('#speciesSearch', '#speciesTableBody');
   setupSearchFilter('#diseaseSearch', '#diseaseTableBody');
   setupSearchFilter('#serviceSearch', '#serviceTableBody');
-// NEW: search filter for per-species diseases table
-setupSearchFilter('#speciesDiseaseSearch', '#speciesDiseaseTableBody');
+  setupSearchFilter('#speciesDiseaseSearch', '#speciesDiseaseTableBody');
 
-// ===== Per-species diseases: helpers =====
-function renderSpeciesDiseases(species, diseases) {
-  const $tbody = $('#speciesDiseaseTableBody').empty();
-  const $empty = $('#speciesDiseaseEmpty');
-  if (!species) {
-    $empty.text('Select a species to view its diseases.').show();
-    return;
+  // ===== Per-species diseases: helpers & events =====
+  function renderSpeciesDiseases(species, diseases) {
+    const $tbody = $('#speciesDiseaseTableBody').empty();
+    const $empty = $('#speciesDiseaseEmpty');
+    if (!species) { $empty.text('Select a species to view its diseases.').show(); return; }
+    if (!Array.isArray(diseases) || diseases.length === 0) { $empty.text('No diseases for this species yet.').show(); return; }
+    $empty.hide();
+    diseases.forEach(function(d) {
+      const row =
+        '<tr>' +
+          '<td>' + species + '</td>' +
+          '<td>' + d + '</td>' +
+          '<td><button class="btn btn-danger btn-sm deleteSpeciesDiseaseBtn" data-species="'+species+'" data-disease="'+d+'">Delete</button></td>' +
+        '</tr>';
+      $tbody.append(row);
+    });
   }
-  if (!Array.isArray(diseases) || diseases.length === 0) {
-    $empty.text('No diseases for this species yet.').show();
-    return;
+
+  function loadSpeciesDiseases(species) {
+    $('#speciesDiseaseTableBody').empty();
+    $('#speciesDiseaseEmpty').text('Loading…').show();
+    $.get('/admin/settings/species-diseases', { species: species })
+      .done(function(res){
+        if (res && res.success) renderSpeciesDiseases(species, res.diseases || []);
+        else $('#speciesDiseaseEmpty').text('Error loading diseases.').show();
+      })
+      .fail(function(){ $('#speciesDiseaseEmpty').text('Server error loading diseases.').show(); });
   }
-  $empty.hide();
-  diseases.forEach(function(d) {
-    const row =
-      '<tr>' +
-        '<td>' + species + '</td>' +
-        '<td>' + d + '</td>' +
-        '<td>' +
-          '<button class="btn btn-danger btn-sm deleteSpeciesDiseaseBtn" data-species="'+species+'" data-disease="'+d+'">Delete</button>' +
-        '</td>' +
-      '</tr>';
-    $tbody.append(row);
+
+  $(document).on('change.petdetails', '#speciesForDisease', function(){
+    const species = ($(this).val() || '').trim();
+    $('#addSpeciesDiseaseBtn').prop('disabled', !species);
+    $('#newSpeciesDiseaseInput').val('');
+    if (species) loadSpeciesDiseases(species);
+    else renderSpeciesDiseases('', []);
   });
-}
 
-function loadSpeciesDiseases(species) {
-  $('#speciesDiseaseTableBody').empty();
-  $('#speciesDiseaseEmpty').text('Loading…').show();
-  $.get('/admin/settings/species-diseases', { species: species })
-   .done(function(res){
-     if (res && res.success) {
-       renderSpeciesDiseases(species, res.diseases || []);
-     } else {
-       $('#speciesDiseaseEmpty').text('Error loading diseases.').show();
-     }
-   })
-   .fail(function(){
-     $('#speciesDiseaseEmpty').text('Server error loading diseases.').show();
-   });
-}
+  $(document).on('click.petdetails', '#addSpeciesDiseaseBtn', function(){
+    const species = ($('#speciesForDisease').val() || '').trim();
+    const disease = ($('#newSpeciesDiseaseInput').val() || '').trim();
+    if (!species) { Swal.fire('Select Species','Please choose a species first.','warning'); return; }
+    if (!disease) { $('#newSpeciesDiseaseInput').addClass('is-invalid'); return; }
+    $('#newSpeciesDiseaseInput').removeClass('is-invalid');
 
-// ===== Per-species diseases: events =====
-$(document).on('change.petdetails', '#speciesForDisease', function(){
-  const species = ($(this).val() || '').trim();
-  $('#addSpeciesDiseaseBtn').prop('disabled', !species);
-  $('#newSpeciesDiseaseInput').val('');
-  if (species) loadSpeciesDiseases(species);
-  else renderSpeciesDiseases('', []);
-});
-
-$(document).on('click.petdetails', '#addSpeciesDiseaseBtn', function(){
-  const species = ($('#speciesForDisease').val() || '').trim();
-  const disease = ($('#newSpeciesDiseaseInput').val() || '').trim();
-  if (!species) { Swal.fire('Select Species','Please choose a species first.','warning'); return; }
-  if (!disease) { $('#newSpeciesDiseaseInput').addClass('is-invalid'); return; }
-  $('#newSpeciesDiseaseInput').removeClass('is-invalid');
-
-  const $btn = $(this).prop('disabled', true)
-    .html('<span class="spinner-border spinner-border-sm mr-2" role="status"></span>Adding...');
- $.post('/admin/settings/species-disease/add', { species, disease })
-   .done(function(res){
-     if (res && res.success) {
-       $('#newSpeciesDiseaseInput').val('');
-       renderSpeciesDiseases(species, res.diseases || []);
-       Swal.fire({icon:'success', title:'Added', text:'Disease added to '+species+'.'});
-     } else {
-       Swal.fire('Error', res.message || 'Error adding disease.','error');
-     }
-   })
-   .fail(function(){
-     Swal.fire('Error','Server error while adding disease.','error');
-   })
-   .always(function(){
-     $btn.prop('disabled', false).text('Add');
-   });
-});
-
-$(document).on('click.petdetails', '.deleteSpeciesDiseaseBtn', function(){
-  const species = $(this).data('species');
-  const disease = $(this).data('disease');
-  Swal.fire({
-    title:'Delete Disease?',
-    text:'Remove "'+disease+'" from '+species+'?',
-    icon:'warning', showCancelButton:true,
-    confirmButtonText:'Yes, delete', cancelButtonText:'Cancel'
-  }).then(function(r){
-    if (!r.isConfirmed) return;
-    $.post('/admin/settings/species-disease/delete', { species, disease })
-     .done(function(res){
-       if (res && res.success) {
-         renderSpeciesDiseases(species, res.diseases || []);
-         Swal.fire({icon:'success', title:'Deleted', text:'Disease removed from '+species+'.'});
-       } else {
-         Swal.fire('Error', res.message || 'Error deleting disease.','error');
-       }
-     })
-     .fail(function(){
-       Swal.fire('Error','Server error while deleting disease.','error');
-     });
+    const $btn = $(this).prop('disabled', true)
+      .html('<span class="spinner-border spinner-border-sm mr-2" role="status"></span>Adding...');
+    $.post('/admin/settings/species-disease/add', { species, disease })
+      .done(function(res){
+        if (res && res.success) {
+          $('#newSpeciesDiseaseInput').val('');
+          renderSpeciesDiseases(species, res.diseases || []);
+          Swal.fire({icon:'success', title:'Added', text:'Disease added to '+species+'.'});
+        } else {
+          Swal.fire('Error', res.message || 'Error adding disease.','error');
+        }
+      })
+      .fail(function(){ Swal.fire('Error','Server error while adding disease.','error'); })
+      .always(function(){ $btn.prop('disabled', false).text('Add'); });
   });
-});
 
-// Optional: auto-select first species on load
-$(function(){
-  const first = ($('#speciesForDisease option:eq(1)').val() || '');
-  if (first) { $('#speciesForDisease').val(first).trigger('change'); }
-});
-
-  // ===== breed modal live filter / lifecycle =====
-  $(document).on('input.petdetails', '#breedListSearch', filterBreedList);
-  $(document).on('shown.bs.modal.petdetails', '#addBreedModal', function(){
-    $('#breedListSearch').trigger('input');
+  $(document).on('click.petdetails', '.deleteSpeciesDiseaseBtn', function(){
+    const species = $(this).data('species');
+    const disease = $(this).data('disease');
+    Swal.fire({
+      title:'Delete Disease?',
+      text:'Remove "'+disease+'" from '+species+'?',
+      icon:'warning', showCancelButton:true,
+      confirmButtonText:'Yes, delete', cancelButtonText:'Cancel'
+    }).then(function(r){
+      if (!r.isConfirmed) return;
+      $.post('/admin/settings/species-disease/delete', { species, disease })
+        .done(function(res){
+          if (res && res.success) {
+            renderSpeciesDiseases(species, res.diseases || []);
+            Swal.fire({icon:'success', title:'Deleted', text:'Disease removed from '+species+'.'});
+          } else {
+            Swal.fire('Error', res.message || 'Error deleting disease.','error');
+          }
+        })
+        .fail(function(){ Swal.fire('Error','Server error while deleting disease.','error'); });
+    });
   });
+
+  // Optional: auto-select first species on load
+  $(function(){
+    const first = ($('#speciesForDisease option:eq(1)').val() || '');
+    if (first) { $('#speciesForDisease').val(first).trigger('change'); }
+  });
+
+  // ===== Breed modal & species/services handlers (unchanged from your code) =====
+  // ... (your existing IIFE handlers below remain the same) ...
 
   // ===== 1) Add Species =====
   $(document).on('click.petdetails', '#addSpeciesBtn', function(){
@@ -438,32 +328,30 @@ $(function(){
 
     const $btn = $(this).prop('disabled', true)
       .html('<span class="spinner-border spinner-border-sm mr-2" role="status"></span>Adding...');
-
-    $.ajax({
-      url:'/settings/add-species', method:'POST', data:{ species:newSpecies }
-    }).done(function(res){
-      if(res.success){
-        $('#speciesTableBody').append(
-          '<tr>'+
-            '<td>'+newSpecies+'</td>'+
-            '<td>'+
-              '<button class="btn btn-info btn-sm addBreedBtn" data-species="'+newSpecies+'" data-breeds="[]">Add Breed</button> '+
-              '<button class="btn btn-danger btn-sm deleteSpeciesBtn" data-species="'+newSpecies+'">Delete</button>'+
-            '</td>'+
-          '</tr>'
-        );
-        $('#newSpeciesInput').val('');
-        Swal.fire({icon:'success', title:'Added', text:'Successfully added "'+newSpecies+'".'});
-      } else {
+    $.ajax({ url:'/settings/add-species', method:'POST', data:{ species:newSpecies } })
+      .done(function(res){
+        if(res.success){
+          $('#speciesTableBody').append(
+            '<tr>'+
+              '<td>'+newSpecies+'</td>'+
+              '<td>'+
+                '<button class="btn btn-info btn-sm addBreedBtn" data-species="'+newSpecies+'" data-breeds="[]">Add Breed</button> '+
+                '<button class="btn btn-danger btn-sm deleteSpeciesBtn" data-species="'+newSpecies+'">Delete</button>'+
+              '</td>'+
+            '</tr>'
+          );
+          $('#newSpeciesInput').val('');
+          Swal.fire({icon:'success', title:'Added', text:'Successfully added "'+newSpecies+'".'});
+        } else {
+          $('#newSpeciesInput').addClass('is-invalid');
+          Swal.fire('Error', res.message || 'Error adding species.', 'error');
+        }
+      })
+      .fail(function(){
         $('#newSpeciesInput').addClass('is-invalid');
-        Swal.fire('Error', res.message || 'Error adding species.', 'error');
-      }
-    }).fail(function(){
-      $('#newSpeciesInput').addClass('is-invalid');
-      Swal.fire('Error','Server error while adding species.','error');
-    }).always(function(){
-      $btn.prop('disabled', false).html('Add Species');
-    });
+        Swal.fire('Error','Server error while adding species.','error');
+      })
+      .always(function(){ $btn.prop('disabled', false).html('Add Species'); });
   });
 
   // ===== 1a) Open Add Breed modal =====
@@ -519,22 +407,17 @@ $(function(){
     const species = $('#breedSpeciesInput').val();
     const $btn = $(this).prop('disabled', true)
       .html('<span class="spinner-border spinner-border-sm mr-2" role="status"></span>Saving...');
-
-    $.ajax({
-      url:'/settings/update-breeds', method:'POST',
-      data:{ species:species, breeds: JSON.stringify(tempBreedList) }
-    }).done(function(res){
-      if(res.success){
-        Swal.fire({icon:'success', title:'Saved', text:'Breeds updated for '+species+'.'});
-        $('.addBreedBtn[data-species="'+species+'"]').attr('data-breeds', JSON.stringify(tempBreedList));
-      } else {
-        Swal.fire('Error', res.message || 'Error saving breeds.', 'error');
-      }
-    }).fail(function(){
-      Swal.fire('Error','Server error while updating breeds.','error');
-    }).always(function(){
-      $btn.prop('disabled', false).html('Save Changes');
-    });
+    $.ajax({ url:'/settings/update-breeds', method:'POST', data:{ species:species, breeds: JSON.stringify(tempBreedList) } })
+      .done(function(res){
+        if(res.success){
+          Swal.fire({icon:'success', title:'Saved', text:'Breeds updated for '+species+'.'});
+          $('.addBreedBtn[data-species="'+species+'"]').attr('data-breeds', JSON.stringify(tempBreedList));
+        } else {
+          Swal.fire('Error', res.message || 'Error saving breeds.', 'error');
+        }
+      })
+      .fail(function(){ Swal.fire('Error','Server error while updating breeds.','error'); })
+      .always(function(){ $btn.prop('disabled', false).html('Save Changes'); });
   });
 
   // ===== 1e) Delete species =====
@@ -546,22 +429,21 @@ $(function(){
     }).then(function(r){
       if(!r.isConfirmed) return;
       $.post('/settings/delete-species', { species: species })
-       .done(function(res){
-         if(res.success){
-           Swal.fire({icon:'success', title:'Deleted', text:'Species "'+species+'" has been removed.'});
-           $('#speciesTableBody tr').filter(function(){
-             return $(this).find('td:first').text() === species;
-           }).remove();
-         } else {
-           Swal.fire('Error', res.message || 'Error deleting species.', 'error');
-         }
-       }).fail(function(){
-         Swal.fire('Error','Server error while deleting species.','error');
-       });
+        .done(function(res){
+          if(res.success){
+            Swal.fire({icon:'success', title:'Deleted', text:'Species "'+species+'" has been removed.'});
+            $('#speciesTableBody tr').filter(function(){
+              return $(this).find('td:first').text() === species;
+            }).remove();
+          } else {
+            Swal.fire('Error', res.message || 'Error deleting species.', 'error');
+          }
+        })
+        .fail(function(){ Swal.fire('Error','Server error while deleting species.','error'); });
     });
   });
 
-  // ===== 2) Add Disease =====
+  // ===== 2) Add / Delete Global Disease =====
   $(document).on('click.petdetails', '#addDiseaseBtn', function(){
     const newDisease = ($('#newDiseaseInput').val() || '').trim();
     if(!newDisease){ $('#newDiseaseInput').addClass('is-invalid'); return; }
@@ -569,29 +451,27 @@ $(function(){
 
     const $btn = $(this).prop('disabled', true)
       .html('<span class="spinner-border spinner-border-sm mr-2" role="status"></span>Adding...');
-
     $.post('/settings/add-disease', { disease:newDisease })
-     .done(function(res){
-       if(res.success){
-         $('#diseaseTableBody').append(
-           '<tr><td>'+newDisease+'</td>'+
-           '<td><button class="btn btn-danger btn-sm deleteDiseaseBtn" data-disease="'+newDisease+'">Delete</button></td></tr>'
-         );
-         $('#newDiseaseInput').val('');
-         Swal.fire({icon:'success', title:'Added', text:'Successfully added "'+newDisease+'".'});
-       } else {
-         $('#newDiseaseInput').addClass('is-invalid');
-         Swal.fire('Error', res.message || 'Error adding disease.', 'error');
-       }
-     }).fail(function(){
-       $('#newDiseaseInput').addClass('is-invalid');
-       Swal.fire('Error','Server error while adding disease.','error');
-     }).always(function(){
-       $btn.prop('disabled', false).html('Add Disease');
-     });
+      .done(function(res){
+        if(res.success){
+          $('#diseaseTableBody').append(
+            '<tr><td>'+newDisease+'</td>'+
+            '<td><button class="btn btn-danger btn-sm deleteDiseaseBtn" data-disease="'+newDisease+'">Delete</button></td></tr>'
+          );
+          $('#newDiseaseInput').val('');
+          Swal.fire({icon:'success', title:'Added', text:'Successfully added "'+newDisease+'".'});
+        } else {
+          $('#newDiseaseInput').addClass('is-invalid');
+          Swal.fire('Error', res.message || 'Error adding disease.', 'error');
+        }
+      })
+      .fail(function(){
+        $('#newDiseaseInput').addClass('is-invalid');
+        Swal.fire('Error','Server error while adding disease.','error');
+      })
+      .always(function(){ $btn.prop('disabled', false).html('Add Disease'); });
   });
 
-  // ===== 2b) Delete Disease =====
   $(document).on('click.petdetails', '.deleteDiseaseBtn', function(){
     const disease = $(this).data('disease');
     Swal.fire({
@@ -600,22 +480,21 @@ $(function(){
     }).then(function(r){
       if(!r.isConfirmed) return;
       $.post('/settings/delete-disease', { disease:disease })
-       .done(function(res){
-         if(res.success){
-           Swal.fire({icon:'success', title:'Deleted', text:'Disease "'+disease+'" has been removed.'});
-           $('#diseaseTableBody tr').filter(function(){
-             return $(this).find('td:first').text() === disease;
-           }).remove();
-         } else {
-           Swal.fire('Error', res.message || 'Error deleting disease.', 'error');
-         }
-       }).fail(function(){
-         Swal.fire('Error','Server error while deleting disease.','error');
-       });
+        .done(function(res){
+          if(res.success){
+            Swal.fire({icon:'success', title:'Deleted', text:'Disease "'+disease+'" has been removed.'});
+            $('#diseaseTableBody tr').filter(function(){
+              return $(this).find('td:first').text() === disease;
+            }).remove();
+          } else {
+            Swal.fire('Error', res.message || 'Error deleting disease.', 'error');
+          }
+        })
+        .fail(function(){ Swal.fire('Error','Server error while deleting disease.','error'); });
     });
   });
 
-  // ===== 3) Add Service =====
+  // ===== 3) Add / Delete Service =====
   $(document).on('click.petdetails', '#addServiceBtn', function(){
     const newService = ($('#newServiceInput').val() || '').trim();
     if(!newService){ $('#newServiceInput').addClass('is-invalid'); return; }
@@ -623,29 +502,27 @@ $(function(){
 
     const $btn = $(this).prop('disabled', true)
       .html('<span class="spinner-border spinner-border-sm mr-2" role="status"></span>Adding...');
-
     $.post('/settings/add-service', { service:newService })
-     .done(function(res){
-       if(res.success){
-         $('#serviceTableBody').append(
-           '<tr><td>'+newService+'</td>'+
-           '<td><button class="btn btn-danger btn-sm deleteServiceBtn" data-service="'+newService+'">Delete</button></td></tr>'
-         );
-         $('#newServiceInput').val('');
-         Swal.fire({icon:'success', title:'Added', text:'Successfully added "'+newService+'".'});
-       } else {
-         $('#newServiceInput').addClass('is-invalid');
-         Swal.fire('Error', res.message || 'Error adding service.', 'error');
-       }
-     }).fail(function(){
-       $('#newServiceInput').addClass('is-invalid');
-       Swal.fire('Error','Server error while adding service.','error');
-     }).always(function(){
-       $btn.prop('disabled', false).html('Add Service');
-     });
+      .done(function(res){
+        if(res.success){
+          $('#serviceTableBody').append(
+            '<tr><td>'+newService+'</td>'+
+            '<td><button class="btn btn-danger btn-sm deleteServiceBtn" data-service="'+newService+'">Delete</button></td></tr>'
+          );
+          $('#newServiceInput').val('');
+          Swal.fire({icon:'success', title:'Added', text:'Successfully added "'+newService+'".'});
+        } else {
+          $('#newServiceInput').addClass('is-invalid');
+          Swal.fire('Error', res.message || 'Error adding service.', 'error');
+        }
+      })
+      .fail(function(){
+        $('#newServiceInput').addClass('is-invalid');
+        Swal.fire('Error','Server error while adding service.','error');
+      })
+      .always(function(){ $btn.prop('disabled', false).html('Add Service'); });
   });
 
-  // ===== 3b) Delete Service =====
   $(document).on('click.petdetails', '.deleteServiceBtn', function(){
     const service = $(this).data('service');
     Swal.fire({
@@ -654,30 +531,30 @@ $(function(){
     }).then(function(r){
       if(!r.isConfirmed) return;
       $.post('/settings/delete-service', { service:service })
-       .done(function(res){
-         if(res.success){
-           Swal.fire({icon:'success', title:'Deleted', text:'Service "'+service+'" has been removed.'});
-           $('#serviceTableBody tr').filter(function(){
-             return $(this).find('td:first').text() === service;
-           }).remove();
-         } else {
-           Swal.fire('Error', res.message || 'Error deleting service.', 'error');
-         }
-       }).fail(function(){
-         Swal.fire('Error','Server error while deleting service.','error');
-       });
+        .done(function(res){
+          if(res.success){
+            Swal.fire({icon:'success', title:'Deleted', text:'Service "'+service+'" has been removed.'});
+            $('#serviceTableBody tr').filter(function(){
+              return $(this).find('td:first').text() === service;
+            }).remove();
+          } else {
+            Swal.fire('Error', res.message || 'Error deleting service.', 'error');
+          }
+        })
+        .fail(function(){ Swal.fire('Error','Server error while deleting service.','error'); });
     });
   });
 
-  // ===== (optional) leftover “My Pet” handlers as delegated =====
+  // ===== Optional leftover “My Pet” handlers (unchanged) =====
   $(document).on('change.petdetails', '#species', function(){
     const selectedSpecies = $(this).val();
     const $breed = $('#petBreed').empty().append('<option value="">Select breed</option>');
     if(!selectedSpecies) return;
     $.get('/customer/get-pet-details')
-     .done(function(data){
-       (data.speciesBreeds[selectedSpecies] || []).forEach(function(b){ $breed.append('<option value="'+b+'">'+b+'</option>'); });
-     }).fail(function(){ Swal.fire('Error','Server error fetching pet details.','error'); });
+      .done(function(data){
+        (data.speciesBreeds[selectedSpecies] || []).forEach(function(b){ $breed.append('<option value="'+b+'">'+b+'</option>'); });
+      })
+      .fail(function(){ Swal.fire('Error','Server error fetching pet details.','error'); });
   });
 
   $(document).on('change.petdetails', '#existingDisease', function(){
@@ -693,11 +570,5 @@ $(function(){
     };
     rd.readAsDataURL(f);
   });
-
-  // (You can similarly convert add/save/delete pet buttons to delegated if you still use them here.)
-
 })(); // end IIFE
 </script>
-
-</body>
-</html>
