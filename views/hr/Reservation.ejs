@@ -888,7 +888,76 @@ var ongoingReservations = (reservations||[]).filter(function(r){
 #paymentPanel .btn-icon.spinning i { animation: spin .8s linear infinite; }
 
 </style>
+<script>
+// === RESERVATION PAGE LIFECYCLE (strong unmount) ===
+// If a previous reservation page instance exists, unmount it first.
+if (window.__RESV_UNMOUNT) { try { window.__RESV_UNMOUNT(); } catch(e){} }
 
+(function(){
+  const activeXhrs = new Set();
+  const observers  = new Set();
+  const timers     = new Set();
+
+  // Track all jQuery AJAX requests while this page is mounted
+  $(document).on('ajaxSend.resv', function(_evt, jqXHR){
+    activeXhrs.add(jqXHR);
+    jqXHR.always(function(){ activeXhrs.delete(jqXHR); });
+  });
+
+  // Optional watchdogs: hide page-level spinners if they ever get stuck
+  function watchdog(selector, ms){ 
+    const t = setTimeout(() => $(selector).addClass('d-none'), ms);
+    timers.add(t); 
+    return t; 
+  }
+  watchdog('#pendingSpinner', 1800);
+  watchdog('#aoSpinner', 1800);
+  watchdog('#paymentSpinner', 1800);
+
+  // Let inner code register resources for cleanup (timers/observers)
+  window.__RESV_REG = {
+    timer(t){ timers.add(t); return t; },
+    observer(o){ observers.add(o); return o; },
+    beforeNav: null            // <— new: keep a handle to remove later
+  };
+
+  // Expose a robust unmount for this page
+  window.__RESV_UNMOUNT = function(){
+    // Abort any in-flight AJAX from this page
+    for (const x of Array.from(activeXhrs)) { try { x.abort(); } catch(_){} }
+    activeXhrs.clear();
+
+    // Disconnect MutationObservers
+    for (const o of Array.from(observers)) { try { o.disconnect(); } catch(_){} }
+    observers.clear();
+
+    // Clear timers
+    for (const t of Array.from(timers)) { clearTimeout(t); }
+    timers.clear();
+
+    // Remove ONLY this page's handlers
+    $(document).off('.resv');
+    $(window).off('.resv');                     // <— IMPORTANT: kill window handlers too
+
+    // Remove the beforeNavigate hook if we added one
+    if (window.__RESV_REG.beforeNav) {
+      window.removeEventListener('app:beforeNavigate', window.__RESV_REG.beforeNav);
+      window.__RESV_REG.beforeNav = null;
+    }
+
+    // Kill Flatpickr instance safely
+    try { if (window.fp && typeof window.fp.destroy === 'function') window.fp.destroy(); } catch(_){}
+
+    // Ensure page spinners are hidden
+    $('#pendingSpinner,#paymentSpinner,#aoSpinner').addClass('d-none');
+  };
+
+  // When the shell says "we're about to navigate", unmount this page
+  const __beforeNav = () => { window.__RESV_UNMOUNT(); };
+  window.addEventListener('app:beforeNavigate', __beforeNav);
+  window.__RESV_REG.beforeNav = __beforeNav;    // <— so we can remove it on unmount
+})();
+</script>
 
 
    <!-- Optional debug output -->
@@ -1493,6 +1562,45 @@ var ongoingReservations = (reservations||[]).filter(function(r){
                 <div id="walkinTimeError" class="mt-1" style="min-height:18px;"></div>
               </div>
             </div>
+           <!-- Contact info — show ONLY for NEW owner -->
+<div class="form-row-grid mt-2 d-none" id="ownerContactRow">
+  <div class="form-group">
+    <label for="walkinEmail">Email (optional)</label>
+    <div class="input-icon">
+      <i class="fa-solid fa-envelope"></i>
+      <input
+        type="email"
+        id="walkinEmail"
+        name="contactEmail"
+        class="form-control"
+        placeholder="e.g. name@gmail.com"
+        autocomplete="off"
+        disabled
+      />
+    </div>
+    <div class="helper">We’ll email updates here if no account email is available.</div>
+  </div>
+
+  <div class="form-group">
+    <label for="walkinMobile">Mobile (optional)</label>
+    <div class="input-icon">
+      <i class="fa-solid fa-phone"></i>
+      <input
+        type="tel"
+        id="walkinMobile"
+        name="contactMobile"
+        class="form-control"
+        placeholder="e.g. 09171234567 or +639171234567"
+        autocomplete="off"
+        pattern="^(\+?63|0)9\d{9}$"
+        disabled
+      />
+    </div>
+    <div class="helper">PH format only: 09XXXXXXXXX or +639XXXXXXXXX.</div>
+  </div>
+</div>
+
+
           </div>
         </div>
 
@@ -1512,6 +1620,23 @@ var ongoingReservations = (reservations||[]).filter(function(r){
 
 <script>window.petDetails = <%- JSON.stringify(petDetails) %>;</script>
 <script>window.petsData   = <%- JSON.stringify(pets) %>;</script>
+<script>window.petlistEntries = <%- JSON.stringify(petlistEntries || []) %>;</script>
+<script>
+  // Build a quick lookup so we can fall back to petlist contact numbers
+  (function buildOwnerMobileMap(){
+    const map = Object.create(null);
+    (window.petlistEntries || []).forEach(e => {
+      const accName = e?.owner?.username;
+      const accMob  = e?.owner?.cellphone || e?.owner?.mobile || e?.owner?.phone || '';
+      const wiName  = e?.ownerName;
+      const wiMob   = e?.contactMobile || '';
+      if (accName && accMob) map[accName.trim()] = accMob;
+      if (wiName  && wiMob)  map[wiName.trim()]  = wiMob;
+    });
+    window.ownerMobileMap = map;
+  })();
+</script>
+
 <script>
   window.doctors = <%- JSON.stringify(doctors || []) %>;
 </script>
@@ -1519,7 +1644,8 @@ var ongoingReservations = (reservations||[]).filter(function(r){
 
 <script>
   // on species change, re-populate "Breed"
-  $('#walkinSpecies').on('change', function() {
+$(document).off('change.resv', '#walkinSpecies').on('change.resv', '#walkinSpecies', function () {
+
     const sp = this.value;
     const breeds = (window.petDetails?.speciesBreeds?.[sp]) || [];
     const $b = $('#walkinBreed').empty().append('<option disabled selected>Select…</option>');
@@ -1527,7 +1653,7 @@ var ongoingReservations = (reservations||[]).filter(function(r){
   });
 
   // show "Other" disease text input  ✅ FIXED: close the handler properly
-  $('#walkinDisease').on('change', function(){
+$(document).off('change.resv', '#walkinDisease').on('change.resv', '#walkinDisease', function () {
     const isOther = this.value === 'Other';
     const $od = $('#walkinOtherDisease');
     $od.toggleClass('d-none', !isOther)
@@ -1674,6 +1800,27 @@ function setOngoingActionButtons(reservationId, flags) {
 }
 
 </script>
+<script>
+  // Show contact fields ONLY when "+ New Owner…" is selected
+  function toggleOwnerContactUI() {
+    const v = $('#walkinOwnerSelect').val();
+    const isNewOwner = (v === '_NEW_');
+    $('#ownerContactRow').toggleClass('d-none', !isNewOwner);
+    $('#walkinEmail, #walkinMobile').prop('disabled', !isNewOwner);
+  }
+
+  // When the Owner select changes
+  $(document).off('change.resv', '#walkinOwnerSelect')
+    .on('change.resv', '#walkinOwnerSelect', function(){
+      toggleOwnerContactUI();
+    });
+
+  // Ensure correct state when the modal opens
+  $('#plusModal').on('shown.bs.modal', function(){
+    toggleOwnerContactUI();
+  });
+</script>
+
 <script>
 // Append a fresh Pending row + refresh highlights/counter (browser-safe, with pet count & correct day)
 function appendPendingRow(res) {
@@ -2066,7 +2213,7 @@ $(document).on('click', '#printReceiptBtn', function () {
   // Plus button -> POS mode
  // Plus button -> POS mode WITH spinner (uses the existing #paymentSpinner overlay)
 // Plus button -> POS mode (no spinner, no disable)
-$(document).off('click', '#posModeBtn').on('click', '#posModeBtn', function () {
+$(document).off('click.resv', '#posModeBtn').on('click.resv', '#posModeBtn', function () {
   $(this).removeClass('spinning').prop('disabled', false); // make sure nothing spins
   enterPOSMode(); // instantly switch the Payment & Details card to POS mode
 });
@@ -2191,7 +2338,8 @@ window.filterRows = filterRows;   // ← INSERT THIS LINE
   }
 
   // keep in sync on load and resize
-  $(window).on('load resize', function(){ syncPendingHeight(); });
+  $(window).on('load.resv resize.resv', function(){ syncPendingHeight(); });
+
   let _pendingSpinStart = 0;
   function showPendingSpinner() {
     _pendingSpinStart = performance.now();
@@ -2233,6 +2381,11 @@ function hideAOSpinner() {
 
   // ---- modern inline calendar (Flatpickr) ----
 // ---- modern inline calendar (Flatpickr) ----
+// ensure we don't stack multiple calendar instances
+if (window.fp && typeof window.fp.destroy === 'function') { try { window.fp.destroy(); } catch (e) {} }
+$('#calendarMount').empty();           // fresh mount point
+$('#hrInlineCalendar').val('');        // clear any stale value
+
 var fp = flatpickr('#hrInlineCalendar', {
   inline: true,
   appendTo: document.getElementById('calendarMount'),
@@ -2245,7 +2398,6 @@ var fp = flatpickr('#hrInlineCalendar', {
     if (!selectedDates || !selectedDates[0]) return;
     showPendingSpinner();
     window.activeDate = dateKeyLocal(selectedDates[0]);
-    // filter + update UI, then hide spinner
     requestAnimationFrame(() => {
       filterRows();
       setTimeout(hidePendingSpinner, 0);
@@ -2261,11 +2413,12 @@ var fp = flatpickr('#hrInlineCalendar', {
   }
 });
 window.fp = fp;
+
   // Ensure rows are filtered on first paint
   filterRows();
 
   // ---- header buttons ----
-  $('#btnToday').on('click', function(){
+$(document).off('click.resv', '#btnToday').on('click.resv', '#btnToday', function(){
     window.activeDate = dateKeyLocal(new Date());
     fp.setDate(window.activeDate, true); // true => trigger onChange -> filterRows()
   });
@@ -2275,7 +2428,7 @@ window.fp = fp;
 
 
   // ---- search (only visible rows for selected day) ----
-  $('#searchInput').on('keyup', function(){
+ $(document).off('keyup.resv', '#searchInput').on('keyup.resv', '#searchInput', function(){
     var q = $(this).val().toLowerCase();
     $('#appointmentsTableBody tr:visible').each(function(){
       var match = $(this).find('.ownerName').text().toLowerCase().indexOf(q) > -1;
@@ -2286,14 +2439,14 @@ window.fp = fp;
   });
 
   // ---- tabs ----
-$('#approvedTab').on('click', function(e){
+$(document).off('click.resv', '#approvedTab').on('click.resv', '#approvedTab', function(e){
   e.preventDefault();
   showAOSpinner();
   $(this).addClass('active'); $('#ongoingTab').removeClass('active');
   $('#approvedView').show();  $('#ongoingView').hide();
   setTimeout(hideAOSpinner, 0);
 });
-$('#ongoingTab').on('click', function(e){
+$(document).off('click.resv', '#ongoingTab').on('click.resv', '#ongoingTab', function(e){
   e.preventDefault();
   showAOSpinner();
   $(this).addClass('active'); $('#approvedTab').removeClass('active');
@@ -2541,7 +2694,25 @@ function computeReservationFlagsFromPayload(payload) {
   }
   return null; // no flags provided — leave row as-is
 }
+  // Picks the best mobile number (Account → Walk-in on reservation → payload → petlist fallback → pet owner)
+  function resolveOwnerMobile(reservation, data){
+    const a = reservation?.owner;
+    const fromAccount = a?.cellphone || a?.mobile || a?.phone || '';
+    if (fromAccount) return fromAccount;
 
+    const fromWalkin = reservation?.contactMobile || data?.contactMobile || '';
+    if (fromWalkin) return fromWalkin;
+
+    const fromPayload = data?.ownerMobile || data?.mobile || '';
+    if (fromPayload) return fromPayload;
+
+    const name = (reservation?.ownerName || '').trim();
+    if (name && window.ownerMobileMap && window.ownerMobileMap[name]) return window.ownerMobileMap[name];
+
+    const p0Owner = reservation?.pets && reservation.pets[0]?.petId?.owner;
+    const fromPet = p0Owner?.cellphone || p0Owner?.mobile || p0Owner?.phone || '';
+    return fromPet || '—';
+  }
 // === Fetch & render the receipt ===
 window.viewReceipt = function(reservationId) {
   // ★ Always leave POS mode when opening a reservation
@@ -2629,10 +2800,14 @@ window.viewReceipt = function(reservationId) {
       // ★ Consultation-specific subtitle (replaces any POS text)
       $('#receiptSub').html(`Consultation — <strong>${reservation.ownerName || '—'}</strong> • ${visitDate}`);
 
-      let hdr  = `<p><strong>Owner:</strong> ${reservation.ownerName || '—'}</p>`;
-          hdr += `<p><strong>Pets:</strong> ${petList}</p>`;
-          hdr += `<p><strong>Date:</strong> ${visitDate}</p>`;
-      $('#receiptHeader').html(hdr);
+     const mobile = resolveOwnerMobile(reservation, data);
+
+let hdr  = `<p><strong>Owner:</strong> ${reservation.ownerName || '—'}</p>`;
+hdr += `<p><strong>Pets:</strong> ${petList}</p>`;
+hdr += `<p><strong>Mobile:</strong> ${mobile || '—'}</p>`;  // ← NEW: number shows right under Pets
+hdr += `<p><strong>Date:</strong> ${visitDate}</p>`;
+$('#receiptHeader').html(hdr);
+
       $('#paymentPanel').toggleClass('paid', paid);
 // remember for printing
 window.__activeOwnerName = reservation.ownerName || '—';
@@ -2734,7 +2909,7 @@ $('#btnMarkPaid')
 };
 
 // Refresh the Payment & Details card (NEW)
-$(document).on('click', '#refreshReceiptBtn', function () {
+$(document).off('click.resv', '#refreshReceiptBtn').on('click.resv', '#refreshReceiptBtn', function () {
   const $btn = $(this);
   const id = window.__activeReservationId; // set inside window.viewReceipt(...)
   if (!id) {
@@ -2747,9 +2922,10 @@ $(document).on('click', '#refreshReceiptBtn', function () {
   // stop spinning once the payment panel is no longer busy
   const panel = document.getElementById('paymentPanel');
   const cleanup = () => { $btn.removeClass('spinning').prop('disabled', false); observer.disconnect(); };
-  const observer = new MutationObserver(() => {
-    if (panel.getAttribute('aria-busy') !== 'true') cleanup();
-  });
+const observer = window.__RESV_REG.observer(new MutationObserver(() => {
+  if (panel.getAttribute('aria-busy') !== 'true') cleanup();
+}));
+
   observer.observe(panel, { attributes: true, attributeFilter: ['aria-busy'] });
 
   // re-use your existing loader (shows overlay, fetches, re-renders)
@@ -2757,7 +2933,7 @@ $(document).on('click', '#refreshReceiptBtn', function () {
 });
 
  // === MARK AS PAID (updates Ongoing Action cell too) ===
-$(document).on('click', '#btnMarkPaid', function () {
+$(document).off('click.resv', '#btnMarkPaid').on('click.resv', '#btnMarkPaid', function () {
   const $btn = $(this);
   const reservationId = $btn.data('id');
  // Guard: for consultation receipts, allow only when status is Done
@@ -2948,7 +3124,7 @@ $.get('/hr/get-consultation-details', { reservationId })
 
 
   // 3) Live stock check on quantity edits
-  $(document).on('input', '.edit-qty', function() {
+$(document).off('input.resv', '.edit-qty').on('input.resv', '.edit-qty', function() { 
     const $input     = $(this);
     const $row       = $input.closest('tr');
     const desiredQty = parseInt($input.val(), 10) || 0;
@@ -2985,7 +3161,7 @@ const product = $row.data('name') || $row.find('td').eq(1).text().trim();    if 
   let $currentRow = null;
 
   // 6) Open edit modal (delegated)
-  $(document).on('click', '.btn-edit', function() {
+  $(document).off('click.resv', '.btn-edit').on('click.resv', '.btn-edit', function () {
     $currentRow = $(this).closest('tr');
     $('#editMedName').val( $currentRow.data('name') );
     $('#editMedQty').val( $currentRow.find('.qty-display').text() );
@@ -2993,7 +3169,7 @@ const product = $row.data('name') || $row.find('td').eq(1).text().trim();    if 
   });
 
   // 7) Handle Save in the edit form
-$('#editMedForm').on('submit', function(e) {
+$(document).off('submit.resv', '#editMedForm').on('submit.resv', '#editMedForm', function(e){
   e.preventDefault();
   const newQty        = parseInt($('#editMedQty').val(), 10) || 0;
   const unit          = parseFloat($currentRow.data('unit')) || 0;
@@ -3019,7 +3195,7 @@ $('#editMedForm').on('submit', function(e) {
   });
 });
 // === Unified REMOVE handler for medication rows (works for POS & real receipts) ===
-$(document).off('click', '.btn-remove').on('click', '.btn-remove', function () {
+$(document).off('click.resv', '.btn-remove').on('click.resv', '.btn-remove', function () {
   const $row          = $(this).closest('tr');
   const medName       = $row.data('name') || $row.find('td').eq(1).text().trim();
   const reservationId = $('#btnMarkPaid').data('id');
@@ -3057,7 +3233,7 @@ $(document).off('click', '.btn-remove').on('click', '.btn-remove', function () {
 
 
   // 8) Handle Remove inside edit modal
-  $('#removeMedBtn').click(function() {
+  $(document).off('click.resv',  '#removeMedBtn').on('click.resv',  '#removeMedBtn', function(){
     Swal.fire({
       icon: 'warning',
       title: 'Remove this product?',
@@ -3203,7 +3379,7 @@ window.updatePetList = function(reservationId) {
 };
 
   // quantity sanity check in edit modal
-  $('#editMedQty').on('input', function() {
+$(document).off('input.resv',  '#editMedQty').on('input.resv',  '#editMedQty', function() {
     const $input    = $(this);
     const desiredQty = parseInt($input.val(), 10) || 0;
     const medName    = $currentRow?.data('name');
@@ -3230,7 +3406,7 @@ window.updatePetList = function(reservationId) {
   });
 
   // ---- Add medication flow ----
-  $('#btnAddMedReceipt').click(() => {
+$(document).off('click.resv',  '#btnAddMedReceipt').on('click.resv',  '#btnAddMedReceipt', () => { 
     $('#receiptMedSelector').toggle();
     if ($('#receiptMedSelector').is(':visible')) {
       $.get('/hr/inventory/categories')
@@ -3242,7 +3418,7 @@ window.updatePetList = function(reservationId) {
     }
   });
 
-  $('#receiptMedCategory').change(function(){
+  $(document).off('change.resv', '#receiptMedCategory').on('change.resv', '#receiptMedCategory', function(){
     const cat = this.value;
     $('#receiptMedProduct').empty().append('<option value="">-- Choose product --</option>');
     if (!cat) return;
@@ -3262,7 +3438,7 @@ window.updatePetList = function(reservationId) {
     });
 }
 
-$('#receiptMedAddConfirm').click(() => {
+$(document).off('click.resv',  '#receiptMedAddConfirm').on('click.resv',  '#receiptMedAddConfirm', () => { 
   const name = $('#receiptMedProduct').val();
   const unit = parseFloat($('#receiptMedProduct option:selected').data('unit')) || 0;
   const qty  = parseInt($('#receiptMedQtyInput').val(), 10) || 1;
@@ -4023,5 +4199,13 @@ $(document).on('submit', '#walkinForm', function(e) {
   }
   // allow your existing submit flow to proceed
   return true;
+});
+</script>
+<script>
+// Page-scoped AJAX error logger (reservation only)
+$(document).on('ajaxError.resv', function (_evt, jqXHR, settings, thrown) {
+  // Ignore intentional aborts (you abort XHRs on unmount)
+  if (jqXHR && (jqXHR.statusText === 'abort' || jqXHR.status === 0)) return;
+  console.error('[RESV] AJAX error:', settings && settings.url, jqXHR && jqXHR.status, thrown);
 });
 </script>
