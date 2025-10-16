@@ -464,12 +464,29 @@ section{padding:80px 0;}
 .doctor-card h6{margin:14px 0 4px;font-weight:600;color:var(--primary-dark);}
 .doctor-card small{color:#777;display:block;margin-bottom:16px;}
 
-/* ===== Footer ===== */
-footer{background:#0f1726;color:#c9d0e1;padding:50px 0 30px;}
-footer h6{color:#fff;font-weight:600;margin-bottom:18px;font-size:1rem;}
-footer a{color:#c9d0e1;text-decoration:none;font-size:.9rem;display:block;margin-bottom:6px;}
-footer a:hover{color:#fff;}
-.footer-bottom{border-top:1px solid rgba(255,255,255,.08);margin-top:24px;padding-top:16px;font-size:.85rem;text-align:center;}
+
+/* ===== Footer (compact) ===== */
+footer{
+  background:#0f1726;
+  color:#c9d0e1;
+  padding:10px 0;              /* reduced height */
+}
+
+/* No headings/links in the minimal footer */
+footer h6,
+footer a,
+footer a:hover{
+  display:none !important;
+}
+
+.footer-bottom{
+  border-top:0;                /* remove divider */
+  margin-top:0;
+  padding-top:0;
+  font-size:.85rem;
+  text-align:center;
+}
+
 
 /* ===== Modal/Input shared ===== */
 .input-size{height:40px;font-size:16px;}
@@ -618,24 +635,7 @@ footer a:hover{color:#fff;}
           <h2>Short Story About Our Clinic</h2>
           <p style="color:#555;">We’re dedicated to compassionate veterinary care—from preventive wellness to advanced treatments. Our team blends expertise and heart to make every visit stress‑free for pets and owners.</p>
 
-          <div class="row mt-4 g-3">
-            <div class="col-6 col-md-3 text-center">
-              <div class="stat">1200+</div>
-              <div class="stat-label">Happy Pets</div>
-            </div>
-            <div class="col-6 col-md-3 text-center">
-              <div class="stat">300+</div>
-              <div class="stat-label">Expert Staff</div>
-            </div>
-            <div class="col-6 col-md-3 text-center">
-              <div class="stat">150+</div>
-              <div class="stat-label">Awards</div>
-            </div>
-            <div class="col-6 col-md-3 text-center">
-              <div class="stat">350+</div>
-              <div class="stat-label">Rooms</div>
-            </div>
-          </div>
+    
 
           <a href="#" class="btn btn-primary mt-4 px-4 py-2" data-bs-toggle="modal" data-bs-target="#loginModal">Learn More</a>
         </div>
@@ -703,21 +703,21 @@ footer a:hover{color:#fff;}
         <div class="doctor-card">
           <img src="/images/janica.jpg" alt="Dr. Janica">
           <h6>Dr. Janica</h6>
-          <small>Neurology Specialist</small>
+          <small></small>
         </div>
       </div>
       <div class="col-md-3 col-6">
         <div class="doctor-card" style="box-shadow:0 0 0 3px var(--primary) inset;">
           <img src="/images/thirdy.jpg" alt="Dr. Thirdy">
           <h6>Dr. Thirdy</h6>
-          <small>Cardiology Specialist</small>
+          <small></small>
         </div>
       </div>
       <div class="col-md-3 col-6">
         <div class="doctor-card">
           <img src="/images/rachel.jpg" alt="Dr. Rachel">
           <h6>Dr. Rachel</h6>
-          <small>Gynecology Specialist</small>
+          <small></small>
         </div>
       </div>
      
@@ -726,46 +726,13 @@ footer a:hover{color:#fff;}
 </section>
 
 
-  <!-- Footer -->
-  <footer>
-    <div class="container">
-      <div class="row g-4">
-        <div class="col-md-3">
-          <h6>Casa Animalia</h6>
-          <p style="font-size:.9rem;opacity:.85;">The quality of our service and the professionalism of our staff are the reason for clients’ trust.</p>
-          <div class="d-flex gap-2">
-            <a href="#"><i class="bi bi-facebook"></i></a>
-            <a href="#"><i class="bi bi-instagram"></i></a>
-            <a href="#"><i class="bi bi-twitter"></i></a>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <h6>Department</h6>
-          <a href="#">Cardiology</a>
-          <a href="#">Pediatrics</a>
-          <a href="#">Gynecology</a>
-          <a href="#">Psychology</a>
-        </div>
-        <div class="col-md-3">
-          <h6>Useful Links</h6>
-          <a href="#homeSection">Home</a>
-          <a href="#servicesSection">Services</a>
-          <a href="#locationSection">Location</a>
-          <a href="#doctorsSection">Doctors</a>
-        </div>
-        <div class="col-md-3">
-          <h6>Services</h6>
-          <a href="#">General Check-up</a>
-          <a href="#">Vaccinations</a>
-          <a href="#">Surgery</a>
-          <a href="#">Laboratory Tests</a>
-        </div>
-      </div>
-      <div class="footer-bottom mt-4">
-        © 2025 Casa Animalia. All Rights Reserved.
-      </div>
+ <footer>
+  <div class="container">
+    <div class="footer-bottom text-center">
+      © 2025 Casa Animalia. All Rights Reserved.
     </div>
-  </footer>
+  </div>
+</footer>
 
   <!-- ===================== MODALS (unchanged) ===================== -->
   <!-- Admin OTP Modal -->
