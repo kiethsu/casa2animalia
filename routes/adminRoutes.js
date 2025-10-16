@@ -937,6 +937,61 @@ router.get(['/pet-details', '/settings/pet-details'], async (req, res) => {
     return res.status(500).send('Server error');
   }
 });
+// ===== BEGIN: Species / Breeds routes =====
+router.post('/settings/update-breeds', async (req, res) => {
+  try {
+    const speciesRaw = (req.body.species || '').trim();
+    if (!speciesRaw) {
+      return res.status(400).json({ success: false, message: 'species required' });
+    }
+
+    // breeds may arrive as a JSON string (from jQuery $.ajax form-encoded)
+    let incoming = req.body.breeds;
+    if (typeof incoming === 'string') {
+      try { incoming = JSON.parse(incoming); } catch (_) { incoming = []; }
+    }
+    if (!Array.isArray(incoming)) incoming = [];
+
+    // normalize: trim, drop empties, case-insensitive dedupe, sort (case-insensitive)
+    const seen = new Map();
+    for (const b of incoming) {
+      const t = String(b || '').trim();
+      if (!t) continue;
+      const key = t.toLowerCase();
+      if (!seen.has(key)) seen.set(key, t);
+    }
+    const cleanBreeds = Array.from(seen.values())
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+    // fetch or create the singleton settings doc
+    let doc = await PetDetailsSetting.findOne();
+    if (!doc) doc = await PetDetailsSetting.create({});
+
+    // ensure structures exist
+    if (!doc.speciesBreeds || typeof doc.speciesBreeds !== 'object') doc.speciesBreeds = {};
+    if (!Array.isArray(doc.species)) doc.species = [];
+
+    // upsert species into species list (case-insensitive check)
+    const exists = doc.species.some(s => String(s).toLowerCase() === speciesRaw.toLowerCase());
+    if (!exists) {
+      doc.species.push(speciesRaw);
+      doc.species.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }
+
+    // set breeds for species
+    doc.speciesBreeds[speciesRaw] = cleanBreeds;
+    // needed because speciesBreeds is a Mixed/Object field
+    doc.markModified('speciesBreeds');
+
+    await doc.save();
+
+    return res.json({ success: true, species: speciesRaw, breeds: cleanBreeds });
+  } catch (e) {
+    console.error('POST /settings/update-breeds error:', e);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// ===== END: Species / Breeds routes =====
 
 
 module.exports = router;
