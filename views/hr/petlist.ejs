@@ -14,7 +14,7 @@
     return [year, month, day].join('-');
   }
 
-  // NEW: “entries” comes from your route:
+  // From route:
   //    const entries = await PetList.find(…)…
   //    res.render('hr/petlist', { entries })
   const list = typeof entries !== 'undefined' ? entries : [];
@@ -25,24 +25,18 @@
   .petlist-container{
     background:#f8f9fa;
     min-height:100vh;
-    padding:8px 8px 10px !important; /* tight like reservation */
+    padding:8px 8px 10px !important;
   }
 
-  /* Search bar (same function, nicer look) */
+  /* Search + Filter row */
   .search-wrap{
-    display:flex; justify-content:flex-end; align-items:center; margin-bottom:10px;
-    position:relative;
+    display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;
+    gap:10px; flex-wrap:wrap;
   }
-  .search-wrap .search-icon{
-    position:absolute; right:calc(420px + 10px); /* lines up with input on wide screens */
-    display:none;
-  }
+  .search-wrap .search-icon{ position:absolute; right:calc(420px + 10px); display:none; }
   .search-box{
     width:clamp(220px, 40%, 420px);
-    height:36px;
-    border-radius:999px;
-    border:1px solid #d1d5db;
-    padding-left:14px;
+    height:36px; border-radius:999px; border:1px solid #d1d5db; padding-left:14px;
     box-shadow: inset 0 0 0 1px rgba(0,0,0,.04);
   }
   .search-box:focus{
@@ -51,145 +45,132 @@
     outline:none;
   }
 
-  /* Table wrapper: rounded card w/ shadow; also clips header corners */
+  /* Filter segmented buttons */
+  .filter-seg .btn{ border-radius:999px; padding:.25rem .6rem; }
+  .filter-seg .btn:not(.active){ background:#fff; }
+  .filter-seg .btn.active{ color:#fff; background:#0D47A1; border-color:#0D47A1; }
+
+  /* Table wrapper: only scroll when 10+ visible rows */
   .fixed-table-container{
-    height:600px;
-    overflow-y:auto;
-    overflow-x:auto;
-    border:1px solid #e9ecef;
-    border-radius:14px;
+    max-height:none; overflow-y:visible; overflow-x:auto;
+    border:1px solid #e9ecef; border-radius:14px;
     box-shadow:0 3px 12px rgba(30,34,90,0.08);
     background:#fff;
   }
+  .fixed-table-container.scrollable{ max-height:600px; overflow-y:auto; }
 
   /* Table */
   .custom-table{
     width:100%;
     table-layout:fixed;
-    border-collapse:separate;       /* necessary so radius renders cleanly */
-    border-spacing:0;               /* no gaps inside wrapper border */
+    border-collapse:separate;
+    border-spacing:0;
     margin:0;
   }
   .custom-table thead th{
     position:sticky; top:0; z-index:1;
-    background:#0D47A1;            /* requested color */
-    color:#fff;
+    background:#0D47A1; color:#fff;
     text-align:center;
     padding:12px;
-    font-weight:700;
-    letter-spacing:.02em;
-    text-transform:uppercase;
-    font-size:.75rem;
+    font-weight:700; letter-spacing:.02em; text-transform:uppercase; font-size:.75rem;
   }
   .custom-table tbody td{
     text-align:center; padding:12px; color:#0f172a;
-    border-top:1px dashed #e9edf5;
-    word-break:break-word;
+    border-top:1px dashed #e9edf5; word-break:break-word;
   }
   .custom-table tbody tr:hover{ background:#f9fbff; }
 
   /* Utility */
   .equal-btn{ width:120px; }
 
-  /* Make all Bootstrap modals sit ABOVE topbar/subnav/sidebar and be centered */
+  /* Bootstrap modals z-index */
   .modal { z-index: 5001 !important; }
   .modal-backdrop { z-index: 5000 !important; }
 
   /* Pet History modal polish */
   #petDetailsModal .modal-dialog { max-width: 900px; }
-  #petDetailsModal .modal-content {
-    border: 0;
-    border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0,0,0,.25);
-    overflow: hidden;
+  #petDetailsModal .modal-content{
+    border:0; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.25); overflow:hidden;
   }
-  #petDetailsModal .modal-header {
+  #petDetailsModal .modal-header{
     background: linear-gradient(135deg, #0D47A1, #1E88E5);
-    color: #fff;
-    padding: 14px 18px;
-    border-bottom: 0;
+    color:#fff; padding:14px 18px; border-bottom:0;
   }
-  #petDetailsModal .modal-title {
-    font-weight: 700;
-    letter-spacing: .3px;
-    font-size: 1.05rem;
-    display: flex; align-items: center; gap: 8px;
+  #petDetailsModal .modal-title{
+    font-weight:700; letter-spacing:.3px; font-size:1.05rem; display:flex; align-items:center; gap:8px;
   }
-  #petDetailsModal .modal-body {
-    background: #f9fbff;
-    padding: 1rem 1.25rem;
-  }
-  #petDetailsModal .modal-footer {
-    background: #f5f7fb;
-    border-top: 0;
-  }
+  #petDetailsModal .modal-body{ background:#f9fbff; padding:1rem 1.25rem; }
+  #petDetailsModal .modal-footer{ background:#f5f7fb; border-top:0; }
 
-  /* Keep dialog from jumping while centering */
   @media (min-width:576px){
     .modal .modal-dialog { margin-top:0; margin-bottom:0; }
   }
 
-  /* History items look nice even without color */
+  /* History items */
   .history-item { margin-bottom: 10px; }
   .history-header{
-    cursor: pointer;
-    padding: .6rem .85rem;
-    border-radius: 10px;
-    border: 1px solid #e5e7eb;
-    display: flex; align-items: center; justify-content: space-between;
-    transition: filter .15s ease;
+    cursor:pointer; padding:.6rem .85rem; border-radius:10px; border:1px solid #e5e7eb;
+    display:flex; align-items:center; justify-content:space-between; transition:filter .15s ease;
   }
-  .history-header:hover{ filter: brightness(.98); }
+  .history-header:hover{ filter:brightness(.98); }
   .history-header i{ transition: transform .2s ease; }
   .history-header[aria-expanded="true"] i { transform: rotate(180deg); }
-
   .history-content{
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-top: none;
-    border-radius: 0 0 10px 10px;
-    padding: .75rem 1rem;
+    background:#fff; border:1px solid #e5e7eb; border-top:none; border-radius:0 0 10px 10px; padding:.75rem 1rem;
   }
 
   /* ===== Spinners ===== */
-
-  /* Global full-page spinner overlay */
   .page-spinner{
-    position: fixed; inset: 0;
-    background: rgba(255,255,255,.75);
-    backdrop-filter: blur(1px);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 6000; /* above modals */
+    position:fixed; inset:0; background:rgba(255,255,255,.75); backdrop-filter:blur(1px);
+    display:flex; align-items:center; justify-content:center; z-index:6000;
   }
   .page-spinner .spin-card{
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 16px 18px;
-    box-shadow: 0 10px 40px rgba(0,0,0,.15);
-    display:flex; flex-direction:column; align-items:center; gap:8px;
+    background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; padding:16px 18px;
+    box-shadow:0 10px 40px rgba(0,0,0,.15); display:flex; flex-direction:column; align-items:center; gap:8px;
   }
   .page-spinner .spin-label{ font-size:.85rem; color:#334155; }
 
-  /* Section/Block spinner (sits over a specific container) */
   .block-spinner{
-    position:absolute; inset:0;
-    display:flex; align-items:center; justify-content:center;
-    background: rgba(255,255,255,.70);
-    z-index: 10; border-radius: inherit;
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background: rgba(255,255,255,.70); z-index:10; border-radius: inherit;
   }
 
-  /* helpers */
   .d-none{ display:none !important; }
   .position-relative{ position:relative !important; }
+
+  /* ===== Edit Contact modal styling ===== */
+  #editContactModal .modal-dialog { max-width: 420px; }
+  #editContactModal .modal-content{
+    border:0; border-radius:16px; box-shadow: 0 18px 60px rgba(13,71,161,.25); overflow:hidden;
+  }
+  #editContactModal .modal-header{
+    background: linear-gradient(135deg, #0D47A1, #1976D2);
+    color:#fff; border:0; padding:.65rem .9rem;
+  }
+  #editContactModal .modal-title{
+    font-size:.95rem; font-weight:700; letter-spacing:.2px; display:flex; align-items:center; gap:8px;
+  }
+  #editContactModal .modal-body{ background:#f9fbff; padding:12px 14px; }
+  #editContactModal .form-label{ font-size:.8rem; color:#334155; margin-bottom:.25rem; }
+  #editContactModal .input-group-text{ background:#eef2ff; border-color:#c7d2fe; }
+  #editContactModal .form-control{ border-color:#cbd5e1; }
+  #editContactModal .form-control:focus{ border-color:#93c5fd; box-shadow:0 0 0 .15rem rgba(147,197,253,.35); }
+  #editContactModal .modal-footer{ background:#f5f7fb; border:0; padding:.55rem .9rem; }
+  .btn-loading .spinner-border{ margin-right:6px; }
+  .form-hint{ font-size:.75rem; color:#64748b; }
 </style>
 
-<!-- Search -->
+<!-- Search + Filter -->
 <div class="search-wrap">
-  <input type="text"
-         class="form-control form-control-sm search-box"
-         id="petSearchInput"
-         placeholder="Search pets or owners">
+  <!-- Filter group -->
+  <div class="filter-seg btn-group" role="group" aria-label="Owner type filter">
+    <button type="button" class="btn btn-outline-primary btn-sm active" data-type="all" id="filterAll">All</button>
+    <button type="button" class="btn btn-outline-primary btn-sm" data-type="walkin" id="filterWalkin">Walk-in</button>
+    <button type="button" class="btn btn-outline-primary btn-sm" data-type="account" id="filterAccount">Account</button>
+  </div>
+
+  <!-- Search box -->
+  <input type="text" class="form-control form-control-sm search-box" id="petSearchInput" placeholder="Search pets or owners">
 </div>
 
 <!-- Table -->
@@ -206,6 +187,8 @@
     <thead>
       <tr>
         <th>Owner Name</th>
+        <th>Mobile</th>
+        <th>Email</th>
         <th>Pet Name</th>
         <th>Details</th>
       </tr>
@@ -213,29 +196,52 @@
     <tbody id="petTableBody">
       <% if (Array.isArray(list) && list.length > 0) { %>
         <% list.forEach(function(e) {
-             var hasOwner   = e && e.owner && (e.owner._id || typeof e.owner === 'object');
-             var ownerIdStr = (hasOwner && e.owner._id) ? String(e.owner._id) : null;
-             var ownerName  = (e && e.owner && e.owner.username) ? e.owner.username : (e.ownerName || '');
+          var hasOwner   = e && e.owner && (e.owner._id || typeof e.owner === 'object');
+          var ownerIdStr = (hasOwner && e.owner._id) ? String(e.owner._id) : null;
+          var ownerName  = (e && e.owner && e.owner.username) ? e.owner.username : (e.ownerName || '');
+          var displayMobile = hasOwner ? (e.owner.cellphone || '') : (e.contactMobile || '');
+          var displayEmail  = hasOwner ? (e.owner.email     || '') : (e.contactEmail  || '');
         %>
-          <tr id="pet-<%= e._id %>">
-            <td class="ownerName"><%= ownerName %></td>
-            <td class="petName"><%= e.petName %></td>
-            <td class="text-center">
-              <button
-                class="btn btn-info btn-sm equal-btn"
-                onclick='viewPetDetails(
-                  null,
-                  <%- JSON.stringify(e.petName || "") %>,
-                  <%= ownerIdStr ? `"${ownerIdStr}"` : "null" %>,
-                  <%- JSON.stringify(ownerName) %>
-                )'>
-                View History
+        <tr id="pet-<%= e._id %>" data-owner-type="<%= hasOwner ? 'account' : 'walkin' %>">
+          <td class="ownerName" data-owner="<%= (ownerName || '').toLowerCase() %>">
+            <%= ownerName %>
+            <% if (hasOwner) { %>
+              <span class="badge badge-success ml-1">Account</span>
+            <% } else { %>
+              <span class="badge badge-secondary ml-1">Walk-in</span>
+            <% } %>
+          </td>
+          <td class="ownerPhone"><%= displayMobile || '—' %></td>
+          <td class="ownerEmail"><%= displayEmail  || '—' %></td>
+          <td class="petName"><%= e.petName %></td>
+          <td class="text-center">
+           <button
+  class="btn btn-info btn-sm equal-btn"
+  onclick='viewPetDetails(
+    null,
+    <%- JSON.stringify(e.petName || "") %>,
+    <%= ownerIdStr ? `"${ownerIdStr}"` : "null" %>,
+    <%- JSON.stringify(ownerName) %>,
+    <%- JSON.stringify(e.species || "") %>
+  )'>View History</button>
+
+
+            <% if (!hasOwner) { %>
+              <button class="btn btn-secondary btn-sm equal-btn btn-edit-contact"
+                      onclick='openEditContact(
+                        "<%= e._id %>",
+                        <%- JSON.stringify(e.contactMobile || "") %>,
+                        <%- JSON.stringify(e.contactEmail  || "") %>,
+                        this
+                      )'>
+                <i class="fas fa-user-edit mr-1"></i> Edit Contact
               </button>
-            </td>
-          </tr>
+            <% } %>
+          </td>
+        </tr>
         <% }); %>
       <% } else { %>
-        <tr><td colspan="3" class="text-center">No pets added.</td></tr>
+        <tr><td colspan="5" class="text-center">No pets added.</td></tr>
       <% } %>
     </tbody>
   </table>
@@ -247,10 +253,11 @@
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="petDetailsModalLabel">
-          <i class="fas fa-notes-medical"></i> Pet Consultation History
-        </h5>
-        <!-- Removed the top-right X button -->
+     <h5 class="modal-title" id="petDetailsModalLabel">
+  <i class="fas fa-notes-medical"></i> Pet Consultation History
+  <span id="petHdrInline" class="ml-2" style="opacity:.9;"></span>
+</h5>
+
       </div>
       <div class="modal-body" id="petDetailsContent">
         <div class="d-flex align-items-center gap-2">
@@ -265,6 +272,60 @@
   </div>
 </div>
 
+<!-- Edit Contact Modal (WALK-IN ONLY) -->
+<div class="modal fade" id="editContactModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title">
+          <i class="fas fa-address-book"></i> Edit Contact (Walk-in)
+        </h6>
+        <!-- X button intentionally removed -->
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="ec_id">
+
+        <div class="form-group mb-2">
+          <label class="form-label">Mobile (PH)</label>
+          <div class="input-group input-group-sm">
+            <div class="input-group-prepend">
+              <span class="input-group-text"><i class="fas fa-mobile-alt"></i></span>
+            </div>
+            <input class="form-control" id="ec_mobile" placeholder="09XXXXXXXXX or +639XXXXXXXXX">
+          </div>
+          <div class="invalid-feedback d-block" id="ec_mobile_err" style="display:none;"></div>
+          <div class="form-hint">Leave blank to clear the saved mobile.</div>
+        </div>
+
+        <div class="form-group mb-1">
+          <label class="form-label">Email</label>
+          <div class="input-group input-group-sm">
+            <div class="input-group-prepend">
+              <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+            </div>
+            <input class="form-control" id="ec_email" placeholder="name@example.com">
+          </div>
+          <div class="invalid-feedback d-block" id="ec_email_err" style="display:none;"></div>
+          <div class="form-hint">Leave blank to clear the saved email.</div>
+        </div>
+
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="ec_applyAll">
+          <label class="form-check-label small" for="ec_applyAll">
+            Apply to all pets of this walk-in
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-light btn-sm" data-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="ec_save">
+          <i class="fas fa-save mr-1"></i> Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Global page spinner (moved to <body> at runtime) -->
 <div id="globalSpinner" class="page-spinner d-none">
   <div class="spin-card">
@@ -272,6 +333,9 @@
     <div class="spin-label">Loading…</div>
   </div>
 </div>
+
+<!-- SweetAlert2 (toast/popups) -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <!-- Include jQuery UI and Bootstrap scripts -->
 <script>
@@ -289,7 +353,7 @@ function ensureGlobalSpinner() {
     );
     $g = $('#globalSpinner');
   } else if (!$g.parent().is('body')) {
-    $g.appendTo('body'); // keep it top-level above all content
+    $g.appendTo('body');
   }
   return $g;
 }
@@ -310,33 +374,25 @@ function hidePageSpinner(){
     conn.saveData === true ||
     (typeof conn.downlink === 'number' && conn.downlink < 1.2)
   )) ? 80 : 260;
+
+  // also for filter UX
+  window.__FILTER_SPINNER_DELAY__ = window.__NAV_SPINNER_DELAY__ || 150;
 })();
 
 /* Show spinner before navigation (menu clicks / normal links / form submits) */
 (function bindPreNavigationSpinner(){
   var navTimer;
-
   function preNavSpin(){
     clearTimeout(navTimer);
     navTimer = setTimeout(function(){ showPageSpinner(true); }, window.__NAV_SPINNER_DELAY__ || 200);
   }
-
-  // Any link that actually navigates the browser
-  $(document).on('click', 'a[href]:not([target="_blank"]):not([download]):not([data-toggle]):not([data-bs-toggle])', function(ev){
+  $(document).on('click', 'a[href]:not([target="_blank"]):not([download]):not([data-toggle]):not([data-bs-toggle])', function(){
     var href = $(this).attr('href') || '';
-    // ignore hashes and JS no-ops
     if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
-    // allow opt-out
     if ($(this).is('[data-skip-spinner="true"]')) return;
     preNavSpin();
   });
-
-  // Forms
-  $(document).on('submit', 'form:not([data-skip-spinner="true"])', function(){
-    preNavSpin();
-  });
-
-  // In case navigation is canceled (rare), hide after a short while
+  $(document).on('submit', 'form:not([data-skip-spinner="true"])', function(){ preNavSpin(); });
   window.addEventListener('pageshow', function(){ hidePageSpinner(); });
 })();
 
@@ -344,37 +400,74 @@ function hidePageSpinner(){
 function showTableSpinner(){ $('#tableSpin').removeClass('d-none'); }
 function hideTableSpinner(){ $('#tableSpin').addClass('d-none'); }
 
-/* Option A: Global AJAX hooks (covers any $.get/$.post on this page) */
+/* Global AJAX hooks (covers any $.get/$.post on this page) */
 $(document).ajaxStart(function(){ showTableSpinner(); });
 $(document).ajaxStop(function(){ hideTableSpinner(); });
 $(document).ajaxError(function(){ hideTableSpinner(); });
 
-/* ========= MODAL HANDLING (UNCHANGED + small loader tweak) ========= */
+/* ========= UTIL: SweetAlert toast ========= */
+const Toast = (window.Swal && Swal.mixin) ? Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 1700,
+  timerProgressBar: true
+}) : null;
+
+function swalSuccess(msg){
+  if (Toast) Toast.fire({ icon: 'success', title: msg });
+  else alert(msg);
+}
+function swalError(msg){
+  if (window.Swal) Swal.fire({ icon: 'error', title: 'Oops…', text: msg });
+  else alert(msg);
+}
+
+/* ========= UTIL: Button loading state ========= */
+function toggleBtnLoading($btn, isLoading, loadingText){
+  if (!$btn || !$btn.length) return;
+  if (isLoading) {
+    if (!$btn.data('orig-html')) $btn.data('orig-html', $btn.html());
+    $btn.addClass('btn-loading').prop('disabled', true)
+      .html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>' + (loadingText || 'Processing…'));
+  } else {
+    const html = $btn.data('orig-html');
+    if (html) $btn.html(html);
+    $btn.removeClass('btn-loading').prop('disabled', false);
+  }
+}
+
+/* ========= MODAL HANDLING (details modal) ========= */
 function getPetDetailsModal() {
   let $modal = $('body > #petDetailsModal').first();
   if (!$modal.length) {
     $modal = $('#main-content #petDetailsModal').first();
     if ($modal.length) { $modal.appendTo('body'); }
     else {
-      $modal = $(`
-        <div class="modal fade" id="petDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
-          <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-notes-medical"></i> Pet Consultation History</h5>
-              </div>
-              <div class="modal-body" id="petDetailsContent">
-                <div class="d-flex align-items-center gap-2">
-                  <div class="spinner-border text-primary mr-2" role="status" aria-label="Loading"></div>
-                  <span>Loading…</span>
-                </div>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
-              </div>
-            </div>
-          </div>
-        </div>`);
+      $modal = $(
+        '<div class="modal fade" id="petDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">' +
+          '<div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">' +
+            '<div class="modal-content">' +
+              '<div class="modal-header">' +
+               '<h5 class="modal-title"><i class="fas fa-notes-medical"></i> Pet Consultation History <span id="petHdrInline" class="ml-2" style="opacity:.9;"></span></h5>' +
+
+'  <span id="petHdrInline" class="ml-2" style="opacity:.9;"></span>' +
+'</h5>' +
+
+              '</div>' +
+              '<div class="modal-body" id="petDetailsContent">' +
+                '<div class="d-flex align-items-center gap-2">' +
+                  '<div class="spinner-border text-primary mr-2" role="status" aria-label="Loading"></div>' +
+                  '<span>Loading…</span>' +
+                '</div>' +
+              '</div>' +
+              '<div class="modal-footer">' +
+                '<button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
       $('body').append($modal);
     }
   }
@@ -388,18 +481,21 @@ function colorForKey(key) {
   let hash = 0;
   for (let i = 0; i < key.length; i++) { hash = ((hash << 5) - hash) + key.charCodeAt(i); hash |= 0; }
   const hue    = Math.abs(hash) % 360;
-  const bg     = `hsl(${hue}, 85%, 93%)`;
-  const fg     = `hsl(${hue}, 60%, 24%)`;
-  const border = `hsl(${hue}, 45%, 75%)`;
-  return { bg, fg, border };
+  return {
+    bg: `hsl(${hue}, 85%, 93%)`,
+    fg: `hsl(${hue}, 60%, 24%)`,
+    border: `hsl(${hue}, 45%, 75%)`
+  };
 }
 
-/* ========= VIEW PET DETAILS (shows modal + internal loader) ========= */
-function viewPetDetails(petId, petName, ownerId, ownerName) {
+/* ========= VIEW PET DETAILS ========= */
+function viewPetDetails(petId, petName, ownerId, ownerName, species) {
+
   const $modal   = getPetDetailsModal();
   const $content = $modal.find('#petDetailsContent');
-
-  // Inline loader for modal body
+// ⬇️ NEW: update the inline header (Pet name — Species)
+const inline = [petName, species].filter(Boolean).join(' — ');
+$modal.find('#petHdrInline').text(inline);
   $content.html(
     '<div class="d-flex align-items-center gap-2">' +
       '<div class="spinner-border text-primary mr-2" role="status" aria-label="Loading"></div>' +
@@ -411,10 +507,16 @@ function viewPetDetails(petId, petName, ownerId, ownerName) {
   const params = { petId, petName };
   if (ownerId) params.ownerId = ownerId;
   if (!ownerId && ownerName) params.ownerName = ownerName;
+$.get('/hr/get-pet-history', params)
+  .done(({ success, pet, history }) => {
+// Always update the header first
+const inlineHeader = [petName, (pet && pet.species) || species || '']
+  .filter(Boolean)
+  .join(' — ');
+$modal.find('#petHdrInline').text(inlineHeader);
 
-  $.get('/hr/get-pet-history', params)
-    .done(({ success, history }) => {
       if (!success) return $content.html('<p>Error loading details.</p>');
+      
       if (!history.length) return $content.html('<p>No consultations found.</p>');
 
       let html = '';
@@ -424,6 +526,10 @@ function viewPetDetails(petId, petName, ownerId, ownerName) {
 
         const notes = rec.notes || '—';
         const diag  = rec.diagnosis || '—';
+        const diseaseText = (Array.isArray(rec.diseases) && rec.diseases.length)
+  ? rec.diseases.join(', ')
+  : '—';
+
 
         const { weight = '—', temperature = '—', observations = '—' } = rec.physical || {};
         const examHtml = `
@@ -486,6 +592,7 @@ function viewPetDetails(petId, petName, ownerId, ownerName) {
                 <p><strong>Notes:</strong> ${notes}</p>
                 ${examHtml}
                 <p><strong>Diagnosis:</strong> ${diag}</p>
+                <p><strong>Disease(s):</strong> ${diseaseText}</p>
                 ${srvHtml}
                 ${medHtml}
                 <p><strong>Confinement:</strong> ${conf}</p>
@@ -502,18 +609,189 @@ function viewPetDetails(petId, petName, ownerId, ownerName) {
     });
 }
 
+/* ===== Walk-in Contact Editor ===== */
+let __ecRowBtn = null;
+
+/* Open modal with trigger button spinner */
+function openEditContact(id, mobile, email, btn){
+  __ecRowBtn = btn || null;
+
+  const $trigger = $(btn);
+  if ($trigger.length) toggleBtnLoading($trigger, true, 'Opening…');
+
+  // populate
+  $('#ec_id').val(id);
+  $('#ec_mobile').val(mobile || '');
+  $('#ec_email').val(email || '');
+  $('#ec_applyAll').prop('checked', false);
+
+  // reset validation messages
+  $('#ec_mobile_err, #ec_email_err').hide().text('');
+  $('#ec_mobile, #ec_email').removeClass('is-invalid');
+
+  // show modal then release button
+  $('#editContactModal')
+    .one('shown.bs.modal', function(){ if ($trigger.length) toggleBtnLoading($trigger, false); })
+    .one('hidden.bs.modal', function(){ if ($trigger.length) toggleBtnLoading($trigger, false); })
+    .modal('show');
+}
+
+/* Client-side validation */
+function validateContactInputs(){
+  let ok = true;
+  const mobile = $('#ec_mobile').val().trim();
+  const email  = $('#ec_email').val().trim();
+
+  const phRe   = /^(\+?63|0)9\d{9}$/;
+  const emRe   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  $('#ec_mobile_err, #ec_email_err').hide().text('');
+  $('#ec_mobile, #ec_email').removeClass('is-invalid');
+
+  if (mobile && !phRe.test(mobile)) {
+    $('#ec_mobile').addClass('is-invalid');
+    $('#ec_mobile_err').text('Mobile must be PH format (09XXXXXXXXX or +639XXXXXXXXXX)').show();
+    ok = false;
+  }
+  if (email && !emRe.test(email)) {
+    $('#ec_email').addClass('is-invalid');
+    $('#ec_email_err').text('Please enter a valid email address.').show();
+    ok = false;
+  }
+  return ok;
+}
+
+/* Save click with button spinner + SweetAlert feedback */
+$('#ec_save').on('click', function(){
+  if (!validateContactInputs()) {
+    swalError('Please fix the highlighted fields.');
+    return;
+  }
+
+  const $saveBtn = $('#ec_save');
+  toggleBtnLoading($saveBtn, true, 'Saving…');
+
+  const id       = $('#ec_id').val();
+  const mobile   = $('#ec_mobile').val().trim();
+  const email    = $('#ec_email').val().trim();
+  const applyAll = $('#ec_applyAll').is(':checked');
+
+  $.post('/hr/petlist/update-contact', {
+    id,
+    contactMobile: mobile,
+    contactEmail: email,
+    applyToAllSameWalkin: applyAll
+  })
+  .done(resp => {
+    if (!resp || resp.success !== true) {
+      swalError((resp && resp.message) ? resp.message : 'Failed to save.');
+      return;
+    }
+
+    // Update the current row’s displayed cells
+    if (__ecRowBtn) {
+      const $tr = $(__ecRowBtn).closest('tr');
+      const ownerLabel = $tr.find('.ownerName').text().trim();
+
+      if (applyAll) {
+        // Update all walk-in rows with the same owner name
+        $('#petTableBody tr').each(function(){
+          const $row = $(this);
+          const rowOwner = $row.find('.ownerName').text().trim();
+          const hasEditBtn = $row.find('.btn-edit-contact').length > 0; // walk-in rows only
+          if (hasEditBtn && rowOwner === ownerLabel) {
+            $row.find('.ownerPhone').text(mobile || '—');
+            $row.find('.ownerEmail').text(email  || '—');
+          }
+        });
+      } else {
+        $tr.find('.ownerPhone').text(mobile || '—');
+        $tr.find('.ownerEmail').text(email  || '—');
+      }
+    }
+
+    $('#editContactModal').modal('hide');
+    swalSuccess('Contact updated');
+  })
+  .fail(xhr => {
+    const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Server error.';
+    swalError(msg);
+  })
+  .always(() => {
+    toggleBtnLoading($saveBtn, false);
+  });
+});
+
+/* ========= SORT + FILTER + SCROLL ========= */
+let __ownerTypeFilter = 'all';
+
+/* Sort rows by owner name (A→Z) once, and on filter click for safety */
+function sortRows(){
+  const $tbody = $('#petTableBody');
+  const rows = $tbody.children('tr').get();
+  rows.sort(function(a, b){
+    const an = ($(a).find('.ownerName').data('owner') || '').toString();
+    const bn = ($(b).find('.ownerName').data('owner') || '').toString();
+    return an.localeCompare(bn, undefined, { sensitivity:'base' });
+  });
+  $.each(rows, function(_, r){ $tbody.append(r); });
+}
+
+function applyFilters(){
+  const q = ($('#petSearchInput').val() || '').toLowerCase();
+
+  $('#petTableBody tr').each(function(){
+    const $row  = $(this);
+    const otype = $row.data('owner-type'); // 'walkin' | 'account'
+    const owner = $row.find('.ownerName').text().toLowerCase();
+    const pet   = $row.find('.petName').text().toLowerCase();
+    const phone = $row.find('.ownerPhone').text().toLowerCase();
+    const mail  = $row.find('.ownerEmail').text().toLowerCase();
+
+    const typeOK = (__ownerTypeFilter === 'all') || (__ownerTypeFilter === otype);
+    const textOK = (!q) || owner.includes(q) || pet.includes(q) || phone.includes(q) || mail.includes(q);
+
+    $row.toggle(typeOK && textOK);
+  });
+}
+
+function adjustTableScroll(){
+  const visibleCount = $('#petTableBody tr:visible').length;
+  const $wrap = $('#petTableWrap');
+  if (visibleCount >= 10) $wrap.addClass('scrollable');
+  else $wrap.removeClass('scrollable');
+}
+
+/* Filter segmented buttons (with spinner on slow signal) */
+$('.filter-seg .btn').on('click', function(){
+  if ($(this).hasClass('active')) return;
+
+  $('.filter-seg .btn').removeClass('active');
+  $(this).addClass('active');
+  __ownerTypeFilter = $(this).data('type'); // 'all' | 'walkin' | 'account'
+
+  showTableSpinner();
+  setTimeout(function(){
+    sortRows();
+    applyFilters();
+    adjustTableScroll();
+    hideTableSpinner();
+  }, window.__FILTER_SPINNER_DELAY__ || 150);
+});
+
 /* ========= PAGE INIT ========= */
 $(function(){
   ensureGlobalSpinner();
 
-  // Simple client-side search
+  // initial sort + filter + scroll state
+  sortRows();
+  applyFilters();
+  adjustTableScroll();
+
+  // search typing
   $('#petSearchInput').on('input', function(){
-    const q = $(this).val().toLowerCase();
-    $('#petTableBody tr').each(function(){
-      const owner = $(this).find('.ownerName').text().toLowerCase();
-      const pet   = $(this).find('.petName').text().toLowerCase();
-      $(this).toggle(owner.includes(q) || pet.includes(q));
-    });
+    applyFilters();
+    adjustTableScroll();
   });
 });
 </script>
