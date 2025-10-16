@@ -165,40 +165,72 @@ exports.getSalesByService = async (req, res) => {
 /* ------------------------------------------------------------------ *
  * Expired loss breakdown (products): full/base/markup
  * ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ *
+ * Expired loss breakdown (products): full/base/markup
+ * Counts dates from BOTH expiredDates and expirationDates<=today
+ * ------------------------------------------------------------------ */
 async function expiredLossBreakdownForCategory(s, e, category /* string | '' */) {
+  const now = new Date(); now.setHours(23,59,59,999);
+
   const matchStage = category ? { $match: { category } } : { $match: {} };
 
   const rows = await Inventory.aggregate([
     matchStage,
-    { $project: {
+    {
+      $project: {
         basePrice: { $ifNull: ['$basePrice', 0] },
         price:     { $ifNull: ['$price', 0] },
-        markup:    { $ifNull: ['$markup', { $subtract: [{ $ifNull: ['$price', 0] }, { $ifNull: ['$basePrice', 0] }] }] },
-        expiredDates: { $ifNull: ['$expiredDates', []] },
-        expiredInRange: {
-          $size: {
-            $filter: {
-              input: { $ifNull: ['$expiredDates', []] },
-              as: 'd',
-              cond: { $and: [
+        markup:    {
+          $ifNull: [
+            '$markup',
+            { $subtract: [{ $ifNull: ['$price', 0] }, { $ifNull: ['$basePrice', 0] }] }
+          ]
+        },
+        // union avoids double-counting if a date exists in both arrays
+        allDates: {
+          $setUnion: [
+            { $ifNull: ['$expiredDates', []] },
+            { $ifNull: ['$expirationDates', []] }
+          ]
+        }
+      }
+    },
+    {
+      $project: {
+        basePrice: 1,
+        price: 1,
+        markup: 1,
+        inRangeDates: {
+          $filter: {
+            input: '$allDates',
+            as: 'd',
+            cond: {
+              $and: [
                 { $gte: ['$$d', s] },
-                { $lte: ['$$d', e] }
-              ] }
+                { $lte: ['$$d', e] },
+                { $lte: ['$$d', now] } // never count future dates
+              ]
             }
           }
         }
-    }},
-    { $project: {
-        fullLoss:   { $multiply: ['$expiredInRange', '$price'] },
-        baseLoss:   { $multiply: ['$expiredInRange', '$basePrice'] },
-        markupLoss: { $multiply: ['$expiredInRange', '$markup'] }
-    }},
-    { $group: {
+      }
+    },
+    {
+      $project: {
+        expiredInRange: { $size: '$inRangeDates' },
+        fullLoss:   { $multiply: [{ $size: '$inRangeDates' }, '$price' ] },
+        baseLoss:   { $multiply: [{ $size: '$inRangeDates' }, '$basePrice' ] },
+        markupLoss: { $multiply: [{ $size: '$inRangeDates' }, '$markup' ] }
+      }
+    },
+    {
+      $group: {
         _id: null,
         totalExpiredFullLoss:   { $sum: '$fullLoss' },
         totalExpiredBaseLoss:   { $sum: '$baseLoss' },
         totalExpiredMarkupLoss: { $sum: '$markupLoss' }
-    }}
+      }
+    }
   ]);
 
   const r = rows?.[0] || {};
@@ -469,41 +501,62 @@ exports.getSalesByCategory = async (req, res) => {
 exports.getExpiredProducts = async (req, res) => {
   try {
     const { s, e } = parseDates(req);
+    const now = new Date(); now.setHours(23,59,59,999);
     const category = (req.query.category || '').trim();
 
     const pipeline = [
       ...(category ? [{ $match: { category } }] : []),
-      { $project: {
-          name: 1, price:1, expiredDates:1,
-          expiredInRange: {
-            $size: {
-              $filter: {
-                input: { $ifNull: ['$expiredDates', []] },
-                as: 'd',
-                cond: { $and: [
+      {
+        $project: {
+          name: 1,
+          price: { $ifNull: ['$price', 0] },
+          // union of both arrays
+          allDates: {
+            $setUnion: [
+              { $ifNull: ['$expiredDates', []] },
+              { $ifNull: ['$expirationDates', []] }
+            ]
+          }
+        }
+      },
+      {
+        $project: {
+          name: 1, price: 1,
+          inRange: {
+            $filter: {
+              input: '$allDates',
+              as: 'd',
+              cond: {
+                $and: [
                   { $gte: ['$$d', s] },
-                  { $lte: ['$$d', e] }
-                ] }
-              }
-            }
-          },
-          lastExpired: {
-            $max: {
-              $filter: {
-                input: { $ifNull: ['$expiredDates', []] },
-                as: 'd',
-                cond: { $and: [
-                  { $gte: ['$$d', s] },
-                  { $lte: ['$$d', e] }
-                ] }
+                  { $lte: ['$$d', e] },
+                  { $lte: ['$$d', now] }
+                ]
               }
             }
           }
-      }},
+        }
+      },
+      {
+        $project: {
+          productName: '$name',
+          price: 1,
+          expiredInRange: { $size: '$inRange' },
+          lastExpired: { $max: '$inRange' }
+        }
+      },
       { $match: { expiredInRange: { $gt: 0 } } },
       { $sort: { expiredInRange: -1 } },
       { $limit: 20 },
-      { $project: { _id:0, productName:'$name', expiredCount:'expiredInRange', lastExpired:1, price:1 } }
+      {
+        $project: {
+          _id: 0,
+          productName: 1,
+          price: 1,
+          expiredCount: '$expiredInRange',
+          lastExpired: 1
+        }
+      }
     ];
 
     const rows = await Inventory.aggregate(pipeline);
@@ -513,6 +566,7 @@ exports.getExpiredProducts = async (req, res) => {
     res.status(500).json({ items: [] });
   }
 };
+
 // GET /admin/report/top-profit-items?start=YYYY-MM-DD&end=YYYY-MM-DD&mode=products|services|both&category=&serviceCategory=&limit=
 exports.getTopProfitItems = async (req, res) => {
   try {
@@ -1730,5 +1784,258 @@ exports.exportExcel = async (req, res) => {
   } catch (err) {
     console.error('exportExcel error:', err);
     res.status(500).send('Failed to generate Excel.');
+  }
+};
+// controllers/salesReportController.js  (append below exportExcel)
+const { Types: { ObjectId } } = mongoose;
+
+function csvEscape(v) {
+  if (v === null || v === undefined) return '""';
+  const s = String(v).replace(/"/g, '""');
+  return `"${s}"`;
+}
+
+function num(n) {
+  const v = Number(n) || 0;
+  return v.toFixed(2); // 2-decimal for CSV friendliness
+}
+
+exports.downloadSalesCSV = async (req, res) => {
+  try {
+    const { s, e } = parseDates(req);
+    const modeRaw = (req.query.mode || 'both').toLowerCase();
+    const mode = ['products','services','both','all'].includes(modeRaw) ? (modeRaw === 'all' ? 'both' : modeRaw) : 'both';
+
+    // filters
+    const productCategory = (req.query.category || '').trim(); // Inventory.category (string)
+    const serviceCategoryId = (req.query.serviceCategory || req.query.svcCategory || '').trim(); // ObjectId (string)
+
+    const commonMatch = paymentDateMatch(s, e);
+
+    // ---------- PRODUCTS LINES ----------
+    let productLines = [];
+    if (mode === 'products' || mode === 'both') {
+      const pPipe = [
+        { $match: commonMatch },
+        { $unwind: '$products' },
+        { $lookup: {
+            from: 'inventories',
+            localField: 'products.name',
+            foreignField: 'name',
+            as: 'inv'
+        }},
+        { $unwind: { path: '$inv', preserveNullAndEmptyArrays: true } },
+        ...(productCategory ? [{ $match: { 'inv.category': productCategory } }] : []),
+        { $project: {
+            paymentId: '$_id',
+            paidAt: { $ifNull: ['$paidAt', '$createdAt'] },
+            createdAt: '$createdAt',
+            isRetail: '$isRetail',
+            reservationId: '$reservation',
+            customerId: '$customer',
+            customerName: '$customerName',
+            cashierId: '$by',
+
+            itemType: { $literal: 'Product' },
+            itemName: '$products.name',
+            category: { $ifNull: ['$inv.category', 'Uncategorized'] },
+
+            quantity: { $ifNull: ['$products.quantity', 0] },
+            unitPriceResolved: {
+              $ifNull: ['$products.unitPrice', { $ifNull: ['$inv.price', 0] }]
+            },
+            lineTotalResolved: {
+              $ifNull: [
+                '$products.lineTotal',
+                {
+                  $multiply: [
+                    { $ifNull: ['$products.quantity', 0] },
+                    { $ifNull: ['$products.unitPrice', { $ifNull: ['$inv.price', 0] }] }
+                  ]
+                }
+              ]
+            },
+
+            unitBaseCost: { $ifNull: ['$inv.basePrice', 0] },
+            unitMarkup: {
+              $ifNull: [
+                '$inv.markup',
+                { $subtract: [{ $ifNull: ['$inv.price', 0] }, { $ifNull: ['$inv.basePrice', 0] }] }
+              ]
+            }
+        }},
+        { $project: {
+            paymentId: 1, paidAt: 1, createdAt: 1, isRetail: 1,
+            reservationId: 1, customerId: 1, customerName: 1, cashierId: 1,
+
+            itemType: 1, itemName: 1, category: 1,
+            quantity: 1,
+            unitPrice: '$unitPriceResolved',
+            lineTotal: '$lineTotalResolved',
+
+            unitBaseCost: 1,
+            unitMarkup: 1,
+
+            revenue: '$lineTotalResolved',
+            baseCost: { $multiply: ['$quantity', '$unitBaseCost'] },
+            soldMarkup: { $multiply: ['$quantity', '$unitMarkup'] },
+            profit:    { $multiply: ['$quantity', '$unitMarkup'] } // profit = markup (products)
+        }},
+      ];
+      productLines = await Payment.aggregate(pPipe);
+    }
+
+    // ---------- SERVICES LINES ----------
+    let serviceLines = [];
+    if (mode === 'services' || mode === 'both') {
+      const sPipe = [
+        { $match: commonMatch },
+        { $unwind: '$services' },
+        { $lookup: {
+            from: 'services',
+            localField: 'services.name',
+            foreignField: 'serviceName',
+            as: 'svc'
+        }},
+        { $unwind: { path: '$svc', preserveNullAndEmptyArrays: true } },
+        // join servicecategories to get category name
+        { $lookup: {
+            from: 'servicecategories',
+            localField: 'svc.category',
+            foreignField: '_id',
+            as: 'sc'
+        }},
+        { $unwind: { path: '$sc', preserveNullAndEmptyArrays: true } },
+        ...(serviceCategoryId && ObjectId.isValid(serviceCategoryId)
+          ? [{ $match: { 'sc._id': new ObjectId(serviceCategoryId) } }]
+          : []),
+        { $project: {
+            paymentId: '$_id',
+            paidAt: { $ifNull: ['$paidAt', '$createdAt'] },
+            createdAt: '$createdAt',
+            isRetail: '$isRetail',
+            reservationId: '$reservation',
+            customerId: '$customer',
+            customerName: '$customerName',
+            cashierId: '$by',
+
+            itemType: { $literal: 'Service' },
+            itemName: '$services.name',
+            category: { $ifNull: ['$sc.name', 'Uncategorized'] },
+
+            quantity: {
+              $cond: [
+                { $ifNull: ['$services.quantity', false] },
+                '$services.quantity',
+                1
+              ]
+            },
+            unitPrice: { $ifNull: ['$services.unitPrice', 0] },
+            lineTotal: {
+              $ifNull: [
+                '$services.lineTotal',
+                { $multiply: [ { $ifNull: ['$services.quantity', 1] }, { $ifNull: ['$services.unitPrice', 0] } ] }
+              ]
+            },
+
+            unitBaseCost: { $literal: 0 }, // services have no COGS tracked
+            unitMarkup:   { $literal: 0 },
+
+            revenue: null, baseCost: null, soldMarkup: null, profit: null
+        }},
+        { $project: {
+            paymentId: 1, paidAt: 1, createdAt: 1, isRetail: 1,
+            reservationId: 1, customerId: 1, customerName: 1, cashierId: 1,
+
+            itemType: 1, itemName: 1, category: 1,
+            quantity: 1,
+            unitPrice: 1,
+            lineTotal: 1,
+
+            unitBaseCost: 1, unitMarkup: 1,
+
+            revenue: '$lineTotal',
+            baseCost: { $literal: 0 },
+            soldMarkup: { $literal: 0 },
+            profit:     '$lineTotal' // services: profit == revenue
+        }},
+      ];
+      serviceLines = await Payment.aggregate(sPipe);
+    }
+
+    // ---------- combine & sort ----------
+    const all = [...productLines, ...serviceLines].map(r => ({
+      ...r,
+      paidAt: r.paidAt ? new Date(r.paidAt) : null,
+      createdAt: r.createdAt ? new Date(r.createdAt) : null
+    })).sort((a,b) => (a.paidAt?.getTime()||0) - (b.paidAt?.getTime()||0));
+
+    // ---------- CSV header ----------
+    const header = [
+      'Payment ID',
+      'Paid At',
+      'Created At',
+      'Is Retail',
+      'Reservation ID',
+      'Customer ID',
+      'Customer Name',
+      'Cashier/User ID',
+      'Item Type',          // Product | Service
+      'Item Name',
+      'Category',
+      'Quantity',
+      'Unit Price',
+      'Line Total',
+      'Unit Base Cost',     // products only
+      'Unit Markup',        // products only
+      'Revenue',            // = Line Total
+      'Base Cost',          // qty * unitBaseCost
+      'Sold Markup',        // qty * unitMarkup
+      'Profit'              // products: markup; services: revenue
+    ];
+
+    // ---------- CSV rows ----------
+    const lines = all.map(r => ([
+      csvEscape(r.paymentId),
+      csvEscape(r.paidAt ? r.paidAt.toISOString() : ''),
+      csvEscape(r.createdAt ? r.createdAt.toISOString() : ''),
+      csvEscape(r.isRetail ? 'Yes' : 'No'),
+      csvEscape(r.reservationId || ''),
+      csvEscape(r.customerId || ''),
+      csvEscape(r.customerName || ''),
+      csvEscape(r.cashierId || ''),
+
+      csvEscape(r.itemType || ''),
+      csvEscape(r.itemName || ''),
+      csvEscape(r.category || ''),
+
+      num(r.quantity),
+      num(r.unitPrice),
+      num(r.lineTotal),
+      num(r.unitBaseCost),
+      num(r.unitMarkup),
+
+      num(r.revenue),
+      num(r.baseCost),
+      num(r.soldMarkup),
+      num(r.profit)
+    ].join(',')));
+
+    const csvBody = [header.map(csvEscape).join(','), ...lines].join('\n');
+
+    const startTag = req.query.start || s.toISOString().slice(0,10);
+    const endTag   = req.query.end   || e.toISOString().slice(0,10);
+    const modeTag  = mode;
+    const fileName = `Sales_Ledger_${modeTag}_${startTag}_to_${endTag}.csv`;
+
+    // BOM for Excel compatibility
+    const content = '\uFEFF' + csvBody;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    return res.status(200).send(content);
+  } catch (err) {
+    console.error('downloadSalesCSV error:', err);
+    return res.status(500).send('Failed to generate CSV.');
   }
 };
