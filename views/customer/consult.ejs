@@ -879,41 +879,36 @@
                   </div>
                 </div>`;
             }
-
-            if (pp.diagnosis) {
+            // Disease(s)
+            const diseaseList = Array.isArray(pp.diseases) ? pp.diseases.filter(Boolean)
+                              : (pp.disease ? [pp.disease] : []);
+            if (diseaseList.length) {
               html += `
                 <div style="margin-bottom:10px;">
-                  <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-dna"></i> Diagnosis</div>
-                  <div class="rv-note">${safe(pp.diagnosis)}</div>
+                  <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-virus"></i> Disease(s)</div>
+                  <div class="rv-note">${diseaseList.map(safe).join(', ')}</div>
                 </div>`;
             }
 
-            if (Array.isArray(pp.services) && pp.services.length) {
+                       if (Array.isArray(pp.services) && pp.services.length) {
               html += `
                 <div style="margin-bottom:10px;">
                   <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-briefcase-medical"></i> Services Rendered</div>
                   <div class="table-responsive">
                     <table class="rv-table">
-                      <thead><tr><th>Service</th><th>Details</th><th>File</th></tr></thead>
+                      <thead><tr><th>Service</th></tr></thead>
                       <tbody>`;
               pp.services.forEach(s => {
-                let fileUrl = s.file || '';
-                if (fileUrl) {
-                  fileUrl = fileUrl.replace(/^public/, '');
-                  if (!fileUrl.startsWith('/')) fileUrl = '/' + fileUrl;
-                  if (!/^https?:\/\//.test(fileUrl)) fileUrl = window.location.origin + fileUrl;
-                }
                 html += `
                   <tr>
-                    <td><span class="rv-chip">${safe(s.serviceName || '—')}</span></td>
-                    <td>${safe(s.details || '—')}</td>
-                    <td>${fileUrl ? `<a href="${fileUrl}" download>Download</a>` : '—'}</td>
+                    <td><span class="rv-chip">${safe(s.serviceName || s.name || '—')}</span></td>
                   </tr>`;
               });
               html += `</tbody></table></div></div>`;
             }
 
-            if (Array.isArray(pp.medications) && pp.medications.length) {
+
+                    if (Array.isArray(pp.medications) && pp.medications.length) {
               html += `
                 <div style="margin-bottom:10px;">
                   <div class="rv-header" style="margin-bottom:6px;">
@@ -921,27 +916,20 @@
                   </div>
                   <div class="table-responsive">
                     <table class="rv-table">
-                      <thead><tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr></thead>
+                      <thead><tr><th>Name</th><th>Qty</th></tr></thead>
                       <tbody>`;
               pp.medications.forEach(m => {
                 html += `
                   <tr>
                     <td>${safe(m.name || m.medicationName || '—')}</td>
                     <td>${safe(m.quantity ?? '—')}</td>
-                    <td>${safe(m.dosage || '—')}</td>
-                    <td>${safe(m.remarks || '—')}</td>
                   </tr>`;
               });
               html += `</tbody></table></div></div>`;
             }
 
-            if (Array.isArray(pp.confinementStatus) && pp.confinementStatus.length) {
-              html += `
-                <div style="margin-bottom:10px;">
-                  <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-hospital"></i> Confinement</div>
-                  <div class="rv-note">${safe(pp.confinementStatus.join(', '))}</div>
-                </div>`;
-            }
+
+          
             if (pp.notes) {
               html += `
                 <div>
@@ -977,38 +965,36 @@
                 </div>
               </div>`;
           }
-          if (r.diagnosis) {
+                  // Disease(s)
+          const rDiseaseList = Array.isArray(r.diseases) ? r.diseases.filter(Boolean)
+                             : (r.disease ? [r.disease] : []);
+          if (rDiseaseList.length) {
             html += `
               <div class="rv-section">
-                <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-dna"></i> Diagnosis</div>
-                <div class="rv-note">${safe(r.diagnosis)}</div>
+                <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-virus"></i> Disease(s)</div>
+                <div class="rv-note">${rDiseaseList.map(safe).join(', ')}</div>
               </div>`;
           }
-          if (Array.isArray(r.services) && r.services.length) {
+
+               if (Array.isArray(r.services) && r.services.length) {
             html += `
               <div class="rv-section">
                 <div class="rv-label" style="margin-bottom:6px;"><i class="fa-solid fa-stethoscope"></i> Services</div>
                 <div class="table-responsive">
                   <table class="rv-table">
-                    <thead><tr><th>Category</th><th>Service</th><th>Details</th><th>File</th></tr></thead>
+                    <thead><tr><th>Category</th><th>Service</th></tr></thead>
                     <tbody>`;
             r.services.forEach(s => {
-              let url = s.file || '';
-              if (url) {
-                url = String(url).replace(/^public/, '');
-                if (url && url[0] !== '/') url = '/' + url;
-              }
               html += `
                 <tr>
                   <td>${safe(s.category || '—')}</td>
-                  <td><span class="rv-chip">${safe(s.serviceName || '—')}</span></td>
-                  <td>${safe(s.details || '—')}</td>
-                  <td>${url ? (`<a href="${safe(url)}" download>Download</a>`) : '—'}</td>
+                  <td><span class="rv-chip">${safe(s.serviceName || s.name || '—')}</span></td>
                 </tr>`;
             });
             html += `</tbody></table></div></div>`;
           }
-          if (Array.isArray(r.medications) && r.medications.length) {
+
+             if (Array.isArray(r.medications) && r.medications.length) {
             html += `
               <div class="rv-section">
                 <div class="rv-header" style="margin-bottom:6px;">
@@ -1016,19 +1002,18 @@
                 </div>
                 <div class="table-responsive">
                   <table class="rv-table">
-                    <thead><tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Qty</th></tr></thead>
                     <tbody>`;
             r.medications.forEach(m => {
               html += `
                 <tr>
                   <td>${safe(m.name || m.medicationName || '—')}</td>
                   <td>${safe(m.quantity ?? '—')}</td>
-                  <td>${safe(m.dosage || '—')}</td>
-                  <td>${safe(m.remarks || '—')}</td>
                 </tr>`;
             });
             html += `</tbody></table></div></div>`;
           }
+
         }
 
         html += `</div>`; // end .rv-card
