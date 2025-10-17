@@ -1778,34 +1778,27 @@ const diseases = dzValues();
       <p><strong>Other Observations:</strong> ${examOthers || 'N/A'}</p>
       <hr><h6>Services</h6>`;
 
-    servicesOverview.forEach(function (b) {
-      html += `<p><strong>Category:</strong> ${b.category}</p>`;
-      if (b.selected.length) {
-        html += `<ul>`;
-        b.selected.forEach(function (s) {
-          html += `<li>${s.serviceName}${s.details ? ' - ' + s.details : ''}</li>`;
-        });
-        html += `</ul>`;
-      } else {
-        html += `<p>N/A</p>`;
-      }
-    });
+    // ✅ Keep ONE loop (sanitized)
+if (!servicesOverview.length) {
+  html += `<p>N/A</p>`;
+} else {
+  servicesOverview.forEach(function (b) {
+    const cat = escHTML(b.category || '—');
+    html += `<p><strong>Category:</strong> ${cat}</p>`;
+    if (Array.isArray(b.selected) && b.selected.length) {
+      html += `<ul>`;
+      b.selected.forEach(function (s) {
+        const name = escHTML(s.serviceName || '—');
+        const det  = s.details ? ' - ' + escHTML(s.details) : '';
+        html += `<li>${name}${det}</li>`;
+      });
+      html += `</ul>`;
+    } else {
+      html += `<p>N/A</p>`;
+    }
+  });
+}
 
-   servicesOverview.forEach(function (b) {
-  const cat = escHTML(b.category || '—');
-  html += `<p><strong>Category:</strong> ${cat}</p>`;
-  if (Array.isArray(b.selected) && b.selected.length) {
-    html += `<ul>`;
-    b.selected.forEach(function (s) {
-      const name = escHTML(s.serviceName || '—');
-      const det  = s.details ? ' - ' + escHTML(s.details) : '';
-      html += `<li>${name}${det}</li>`;
-    });
-    html += `</ul>`;
-  } else {
-    html += `<p>N/A</p>`;
-  }
-});
 
 html += `<hr><h6>Diagnosis</h6><p>${escHTML(diagnosis || 'N/A')}</p>`;
 if (diseases.length){
