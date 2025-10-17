@@ -20,6 +20,24 @@ const Message = require('../models/message');
 const { broadcast } = require('../utils/hrSse');
 const fs   = require('fs');
 const path = require('path');
+// === Mailer (singleton with short timeouts) ===
+const mailer = nodemailer.createTransport({
+  host: "smtp-relay.brevo.com",
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.SMTP_EMAIL,
+    pass: process.env.SMTP_PASS
+  },
+  connectionTimeout: 5000, // 5s connect cap
+  greetingTimeout: 5000,   // 5s greet cap
+  socketTimeout: 10000     // 10s overall socket cap
+});
+
+// small helper to run tasks in background without blocking the request
+const bg = (fn) => setImmediate(() => {
+  Promise.resolve().then(fn).catch(err => console.error('[bg-task]', err));
+});
 
 // --- helper: normalize to YYYY-MM-DD (local-safe fallback) ---
 // helper → normalize to YYYY-MM-DD
@@ -78,18 +96,8 @@ router.get('/messages/stream', authMiddleware, async (req, res) => {
 
 // Helper to send “almost there” warning
 async function sendWarningEmail(toEmail, cancelCount) {
-  const transporter = nodemailer.createTransport({
-    host: "smtp-relay.brevo.com",
-    port: 587,
-    secure: false,
-    auth: {
-      user: process.env.SMTP_EMAIL,
-      pass: process.env.SMTP_PASS
-    }
-  });
-  await transporter.sendMail({
+  await mailer.sendMail({
     from: `"SmartVet Support" <dehe.marquez.au@phinmaed.com>`,
-
     to: toEmail,
     subject: "Careful – One More Cancellation Will Suspend You",
     html: `
@@ -109,22 +117,13 @@ let emailUpdateOtpStore = {};
 // -------------------- Helper Functions --------------------
 // Helper to send suspension email
 async function sendSuspensionEmail(toEmail) {
-  const transporter = nodemailer.createTransport({
-    host: "smtp-relay.brevo.com",
-    port: 587,
-    secure: false,
-    auth: {
-      user: process.env.SMTP_EMAIL,
-      pass: process.env.SMTP_PASS
-    }
-  });
-  await transporter.sendMail({
-   from: `"SmartVet Support" <dehe.marquez.au@phinmaed.com>`,
+  await mailer.sendMail({
+    from: `"SmartVet Support" <dehe.marquez.au@phinmaed.com>`,
     to: toEmail,
     subject: "Consultation Submission Suspended",
     html: `
       <p>You have cancelled too many consultations.</p>
-      <p>Your account is suspended from submitting new consultations for ${SUSPEND_DAYS} days.</p>
+      <p>Your account is suspended from submitting new consultations for ${SUSPEND_DAYS} day(s).</p>
       <p>If you think this is an error, reply to this email.</p>
     `
   });
@@ -598,8 +597,9 @@ return res.json({ success: true, reservation: newReservation });
 // Cancel a reservation (increments cancelCount, may warn/suspend, pushes in-app messages)
 router.post('/cancel-reservation', authMiddleware, async (req, res) => {
   try {
-    // 1) Find reservation (must belong to the requesting user)
     const { reservationId } = req.body;
+
+    // 1) Find reservation (must belong to the requesting user)
     const reservation = await Reservation.findOne({
       _id: reservationId,
       owner: req.user.userId
@@ -608,78 +608,71 @@ router.post('/cancel-reservation', authMiddleware, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Reservation not found.' });
     }
 
-    // 2) Increment & check user suspension
+    // 2) Increment & check suspension
     const user = await User.findById(req.user.userId);
     const wasSuspended = !!user.isSuspended;
 
     user.cancelCount = (user.cancelCount || 0) + 1;
 
-    // (a) Warning stage: exactly threshold - 1
-    if (!wasSuspended && user.cancelCount === CANCEL_THRESHOLD - 1) {
-      // email
-      await sendWarningEmail(user.email, user.cancelCount);
-      // in-app message
-      await Message.create({
-        user: user._id,
-        type: 'warning',
-        title: 'Careful — one more cancellation will suspend you',
-        body: `You’ve cancelled ${user.cancelCount} out of ${CANCEL_THRESHOLD} allowed consultations. One more and your account will be suspended for ${SUSPEND_DAYS} day(s).`
-      });
-    }
+    const shouldWarn = !wasSuspended && user.cancelCount === (CANCEL_THRESHOLD - 1);
+    const shouldSuspend = !wasSuspended && user.cancelCount >= CANCEL_THRESHOLD;
 
-    // (b) Suspension stage: reached threshold this time
-    if (!wasSuspended && user.cancelCount >= CANCEL_THRESHOLD) {
+    if (shouldSuspend) {
       user.isSuspended = true;
       user.suspendedAt = new Date();
-
-      // email
-      await sendSuspensionEmail(user.email);
-      // in-app message
-      await Message.create({
-        user: user._id,
-        type: 'suspension',
-        title: 'You have been suspended from submitting consultations',
-        body: `Due to excessive cancellations, your account is suspended for ${SUSPEND_DAYS} day(s). You will regain access automatically afterwards. If you believe this is an error, please contact support.`
-      });
     }
-
     await user.save();
 
-    // 3) Update reservation status
+    // 3) Update reservation fast
     reservation.status = reservation.status === 'Pending'
       ? 'CanceledPending'
       : 'Canceled';
     reservation.canceledAt = new Date();
     reservation.doctor = undefined;
     await reservation.save();
-// After: await reservation.save();
 
-// compute the day this reservation was for
-const dateKey =
-  (reservation.date
-    ? toYMD(reservation.date)
-    : (reservation.schedule?.scheduleDate
-        ? toYMD(reservation.schedule.scheduleDate)
-        : toYMD(reservation.createdAt)));
+    // 4) Broadcast to HR screens
+    const dateKey =
+      (reservation.date
+        ? toYMD(reservation.date)
+        : (reservation.schedule?.scheduleDate
+            ? toYMD(reservation.schedule.scheduleDate)
+            : toYMD(reservation.createdAt)));
 
-// tell HR screens to remove it from Pending (and refresh calendar)
-broadcast({
-  type: 'reservation:canceled',
-  id: String(reservation._id),
-  reservation: {
-    _id: String(reservation._id),
-    dateKey
-  }
-});
+    broadcast({
+      type: 'reservation:canceled',
+      id: String(reservation._id),
+      reservation: { _id: String(reservation._id), dateKey }
+    });
 
-    // 4) Respond (use justSuspended to update UI)
-    const justSuspended = !wasSuspended && user.isSuspended && user.cancelCount >= CANCEL_THRESHOLD;
-    return res.json({
+    // 5) Respond to the client immediately
+    const justSuspended = shouldSuspend;
+    res.json({
       success: true,
       reservation,
       justSuspended,
       cancelCount: user.cancelCount
     });
+
+    // 6) Fire-and-forget side effects
+    if (shouldWarn) {
+      bg(() => sendWarningEmail(user.email, user.cancelCount));
+      bg(() => Message.create({
+        user: user._id,
+        type: 'warning',
+        title: 'Careful — one more cancellation will suspend you',
+        body: `You’ve cancelled ${user.cancelCount} out of ${CANCEL_THRESHOLD} allowed consultations. One more and your account will be suspended for ${SUSPEND_DAYS} day(s).`
+      }));
+    }
+    if (shouldSuspend) {
+      bg(() => sendSuspensionEmail(user.email));
+      bg(() => Message.create({
+        user: user._id,
+        type: 'suspension',
+        title: 'You have been suspended from submitting consultations',
+        body: `Due to excessive cancellations, your account is suspended for ${SUSPEND_DAYS} day(s). You will regain access automatically afterwards. If you believe this is an error, please contact support.`
+      }));
+    }
 
   } catch (error) {
     console.error("Error canceling reservation:", error);
