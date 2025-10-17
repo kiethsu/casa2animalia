@@ -440,11 +440,12 @@
       Cancel
     </button>
   <% } else { %>
-    <button
-      class="btn btn-danger btn-sm"
-      onclick="cancelReservation('<%= res._id %>')">
-      Cancel
-    </button>
+ <button
+  class="btn btn-danger btn-sm"
+  onclick="cancelReservation('<%= res._id %>', this)">
+  Cancel
+</button>
+
   <% } %>
 </td>
                             </tr>
@@ -1027,64 +1028,70 @@
     });
   };
 
-  // ---------- Cancel reservation (now updates UI + badge immediately) ----------
-  window.cancelReservation = function(reservationId) {
-    Swal.fire({
-      title: 'Cancel Reservation?',
-      text: 'Are you sure you want to cancel this reservation?',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Yes, cancel it',
-      cancelButtonText: 'No, keep it'
-    }).then(function(result) {
-      if (!result.isConfirmed) return;
+window.cancelReservation = function(reservationId, btnEl) {
+  Swal.fire({
+    title: 'Cancel Reservation?',
+    text: 'Are you sure you want to cancel this reservation?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, cancel it',
+    cancelButtonText: 'No, keep it'
+  }).then(function(result) {
+    if (!result.isConfirmed) return;
 
-      $.ajax({
-        url: '/customer/cancel-reservation',
-        method: 'POST',
-        data: { reservationId },
-        success: function(response) {
-          if (!response.success) {
-            Swal.fire('Error', response.message || 'Unable to cancel.', 'error');
-            return;
-          }
+    // lock the clicked button to prevent double submits
+    const $btn = btnEl ? $(btnEl) : null;
+    const origHtml = $btn ? $btn.html() : null;
+    if ($btn) { $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>'); }
 
-          // Move row from reservations to history
-          $(`#reservation-${reservationId}`).remove();
-          $('#historyTableBody').append(
-            `<tr id="history-${response.reservation._id}">
-              <td>${(response.reservation.pets || []).map(p => p.petName).join(', ')}</td>
-              <td>${
-                (response.reservation.doctor && response.reservation.doctor.username)
-                  ? response.reservation.doctor.username
-                  : 'Not Assigned'
-              }</td>
-              <td><span class="badge badge-secondary">Canceled</span></td>
-            </tr>`
-          );
-
-          // Live alerts + submit state
-          const threshold = getThreshold();
-          const cc = Number(response.cancelCount || 0);
-          const justSusp = !!response.justSuspended;
-          renderStatusAlerts({
-            suspended: justSusp || cc >= threshold,
-            cancelCount: cc,
-            threshold
-          });
-          toggleSubmitAvailability(justSusp || cc >= threshold);
-
-          // Unread badge may change (warning/suspension message pushed by server)
-          refreshBadgeNow();
-
-          Swal.fire('Canceled', 'Your reservation has been canceled.', 'success');
-        },
-        error: function() {
-          Swal.fire('Server Error','There was a problem cancelling the reservation.','error');
+    $.ajax({
+      url: '/customer/cancel-reservation',
+      method: 'POST',
+      data: { reservationId },
+      success: function(response) {
+        if ($btn) $btn.prop('disabled', false).html(origHtml);
+        if (!response.success) {
+          Swal.fire('Error', response.message || 'Unable to cancel.', 'error');
+          return;
         }
-      });
+
+        // Move row to history
+        $(`#reservation-${reservationId}`).remove();
+        $('#historyTableBody').append(
+          `<tr id="history-${response.reservation._id}">
+            <td>${(response.reservation.pets || []).map(p => p.petName).join(', ')}</td>
+            <td>${
+              (response.reservation.doctor && response.reservation.doctor.username)
+                ? response.reservation.doctor.username
+                : 'Not Assigned'
+            }</td>
+            <td><span class="badge badge-secondary">Canceled</span></td>
+          </tr>`
+        );
+
+        // Live alerts + submit state
+        const threshold = getThreshold();
+        const cc = Number(response.cancelCount || 0);
+        const justSusp = !!response.justSuspended;
+        renderStatusAlerts({
+          suspended: justSusp || cc >= threshold,
+          cancelCount: cc,
+          threshold
+        });
+        toggleSubmitAvailability(justSusp || cc >= threshold);
+
+        refreshBadgeNow();
+        Swal.fire('Canceled', 'Your reservation has been canceled.', 'success');
+      },
+      error: function(xhr) {
+        if ($btn) $btn.prop('disabled', false).html(origHtml);
+        const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'There was a problem cancelling the reservation.';
+        Swal.fire('Server Error', msg, 'error');
+      }
     });
-  };
+  });
+};
+
 
   // ---------- Page interactions ----------
   function initConsultInteractions() {
