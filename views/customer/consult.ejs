@@ -589,6 +589,17 @@
         .text('Submit');
     }
   }
+  async function pollSelfStatus() {
+    try {
+      const r = await $.getJSON('/customer/self-status');
+      if (!r || !r.success) return;
+      renderStatusAlerts({
+        suspended: r.isSuspended,
+        cancelCount: Number(r.cancelCount || 0)
+      });
+      toggleSubmitAvailability(r.isSuspended);
+    } catch (_) {}
+  }
 
   // Immediately refresh the unread badge (no page reload)
   async function refreshBadgeNow() {
@@ -1248,21 +1259,26 @@ window.cancelReservation = function(reservationId, btnEl) {
 
   // Initial load
   $(document).ready(function () {
-    const today = localToday();
-    $('#date').attr('min', today);
-    if (!$('#date').val() || $('#date').val() < today) {
-      $('#date').val(today);
-    }
-    bootConsultPage();
-  });
+  const today = localToday();
+  $('#date').attr('min', today);
+  if (!$('#date').val() || $('#date').val() < today) {
+    $('#date').val(today);
+  }
+  bootConsultPage();
+  pollSelfStatus();                 // immediate check (may auto-lift now)
+  window.__statusTimer && clearInterval(window.__statusTimer);
+  window.__statusTimer = setInterval(pollSelfStatus, 15000); // check every 15s
+});
 
-  // When returning via bfcache
-  window.addEventListener('pageshow', function () {
-    buildTimeOptionsIfMissing();
-    updateTimeDropdownForToday();
-    checkTimeSlots();
-    initConsultInteractions();
-  });
+
+window.addEventListener('pageshow', function () {
+  buildTimeOptionsIfMissing();
+  updateTimeDropdownForToday();
+  checkTimeSlots();
+  initConsultInteractions();
+  pollSelfStatus(); // ensure UI matches server when returning to page
+});
+
 </script>
 
 </body>
