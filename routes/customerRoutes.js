@@ -1,6 +1,44 @@
 // customerRoutes.js
 const CANCEL_THRESHOLD = 2;    // how many cancels before suspension
-const SUSPEND_DAYS     = 1;    // suspension length
+const SUSPEND_DAYS     = 1;    // default suspension length (production)
+
+// --- Timers & testing override ---
+const MINUTE_MS = 60 * 1000;
+const DAY_MS    = 24 * 60 * 60 * 1000;
+
+// Set SUSPEND_MINUTES=2 in your env to test a 2-minute suspension.
+// If SUSPEND_MINUTES is unset/0, we fall back to SUSPEND_DAYS.
+const SUSPEND_MINUTES = Number(process.env.SUSPEND_MINUTES || 0);
+function getSuspendMs() {
+  const mins = Number(process.env.SUSPEND_MINUTES || 0);
+  return mins > 0 ? mins * MINUTE_MS : SUSPEND_DAYS * DAY_MS;
+}
+
+// For emails/messages: show “2 minutes” while testing, “1 day” in prod.
+function suspensionDurationLabel() {
+  if (SUSPEND_MINUTES > 0) {
+    return `${SUSPEND_MINUTES} minute${SUSPEND_MINUTES === 1 ? '' : 's'}`;
+  }
+  return `${SUSPEND_DAYS} day${SUSPEND_DAYS === 1 ? '' : 's'}`;
+}
+
+// --- Auto-unsuspend helper ---
+async function autoUnsuspendIfElapsed(userDoc) {
+  if (!userDoc?.isSuspended) return false;
+  // If suspendedAt is missing (old records), treat as elapsed to avoid permanent lockouts
+  const sinceMs = userDoc.suspendedAt
+    ? (Date.now() - new Date(userDoc.suspendedAt).getTime())
+    : getSuspendMs();
+  if (sinceMs >= getSuspendMs()) {
+    userDoc.isSuspended = false;
+    userDoc.suspendedAt = null;
+    userDoc.cancelCount = 0; // (Keep or remove based on your policy)
+    await userDoc.save();
+    return true;
+  }
+  return false;
+}
+
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
@@ -77,13 +115,16 @@ router.get('/messages/stream', authMiddleware, async (req, res) => {
   // send initial snapshot
   try {
     const unread = await Message.countDocuments({ user: uid, isRead: false });
-    const me = await User.findById(uid, 'isSuspended cancelCount').lean();
-    res.write(`data: ${JSON.stringify({
-      topic: 'snapshot',
-      unread,
-      isSuspended: !!me?.isSuspended,
-      cancelCount: me?.cancelCount || 0
-    })}\n\n`);
+   const meDoc = await User.findById(uid);
+await autoUnsuspendIfElapsed(meDoc);
+const me = { isSuspended: meDoc.isSuspended, cancelCount: meDoc.cancelCount };
+res.write(`data: ${JSON.stringify({
+  topic: 'snapshot',
+  unread,
+  isSuspended: !!me.isSuspended,
+  cancelCount: me.cancelCount || 0
+})}\n\n`);
+
   } catch(e){}
 
   const keepAlive = setInterval(() => res.write(':ka\n\n'), 25000);
@@ -102,7 +143,7 @@ async function sendWarningEmail(toEmail, cancelCount) {
     subject: "Careful – One More Cancellation Will Suspend You",
     html: `
       <p>You’ve cancelled ${cancelCount} out of ${CANCEL_THRESHOLD} allowed consultations.</p>
-      <p>If you cancel one more, your account will be suspended from submitting new consultations for ${SUSPEND_DAYS} day(s).</p>
+      <p>If you cancel one more, your account will be suspended from submitting new consultations for ${suspensionDurationLabel()}.</p>
       <p>Please make sure you really want to cancel next time.</p>
     `
   });
@@ -123,25 +164,24 @@ async function sendSuspensionEmail(toEmail) {
     subject: "Consultation Submission Suspended",
     html: `
       <p>You have cancelled too many consultations.</p>
-      <p>Your account is suspended from submitting new consultations for ${SUSPEND_DAYS} day(s).</p>
+     <p>Your account is suspended from submitting new consultations for ${suspensionDurationLabel()}.</p>
       <p>If you think this is an error, reply to this email.</p>
     `
   });
 }
- // helper → always grab the up-to-date user record
 async function checkNotSuspended(req, res, next) {
   const freshUser = await User.findById(req.user.userId);
+  await autoUnsuspendIfElapsed(freshUser); // ← auto-lift if time served
   if (freshUser.isSuspended) {
-    return res
-      .status(403)
-      .json({
-        success: false,
-        suspended: true,
-        message: 'Your account is suspended from submitting consultations.'
-      });
+    return res.status(403).json({
+      success: false,
+      suspended: true,
+      message: 'Your account is suspended from submitting consultations.'
+    });
   }
   next();
 }
+
 
 
  
@@ -340,15 +380,18 @@ router.get('/mypet', authMiddleware, async (req, res) => {
 
 router.get('/consult', authMiddleware, async (req, res) => {
   try {
-const pets = await Pet.find({ owner: req.user.userId }).lean();    const reservations = await Reservation.find({ owner: req.user.userId })
-                                          .sort({ createdAt: -1 })
-                                          .populate('doctor', 'username')
-                                          .lean();
+    const pets = await Pet.find({ owner: req.user.userId }).lean();
+    const reservations = await Reservation.find({ owner: req.user.userId })
+      .sort({ createdAt: -1 })
+      .populate('doctor', 'username')
+      .lean();
     const petDetails = (await PetDetailsSetting.findOne().lean()) 
                          || { species: [], breeds: [], diseases: [], services: [] };
 
-    // pull the fresh user record
-    const freshUser = await User.findById(req.user.userId).lean();
+    // pull the fresh user record AS A DOC (not lean) so we can update it
+    const userDoc = await User.findById(req.user.userId);
+    await autoUnsuspendIfElapsed(userDoc); // ← auto-lift if time served
+    const freshUser = userDoc.toObject();  // pass plain object to EJS
 
     res.render('customer/consult', {
       pets,
@@ -356,8 +399,9 @@ const pets = await Pet.find({ owner: req.user.userId }).lean();    const reserva
       petDetails,
       user: freshUser,
       error: req.flash('error'),
-        threshold: CANCEL_THRESHOLD 
+      threshold: CANCEL_THRESHOLD
     });
+
   } catch (error) {
     console.error("Error fetching pets/reservations for consult:", error);
     res.status(500).send("Server error");
@@ -661,7 +705,7 @@ router.post('/cancel-reservation', authMiddleware, async (req, res) => {
         user: user._id,
         type: 'warning',
         title: 'Careful — one more cancellation will suspend you',
-        body: `You’ve cancelled ${user.cancelCount} out of ${CANCEL_THRESHOLD} allowed consultations. One more and your account will be suspended for ${SUSPEND_DAYS} day(s).`
+       body: `You’ve cancelled ${user.cancelCount} out of ${CANCEL_THRESHOLD} allowed consultations. One more and your account will be suspended for ${suspensionDurationLabel()}.`
       }));
     }
     if (shouldSuspend) {
@@ -670,7 +714,8 @@ router.post('/cancel-reservation', authMiddleware, async (req, res) => {
         user: user._id,
         type: 'suspension',
         title: 'You have been suspended from submitting consultations',
-        body: `Due to excessive cancellations, your account is suspended for ${SUSPEND_DAYS} day(s). You will regain access automatically afterwards. If you believe this is an error, please contact support.`
+       body: `Due to excessive cancellations, your account is suspended for ${suspensionDurationLabel()}. You will regain access automatically afterwards. If you believe this is an error, please contact support.`
+
       }));
     }
 
@@ -1331,5 +1376,21 @@ router.post('/hide-petlist', authMiddleware, async (req, res) => {
   }
 });
 
+// QUICK status probe: auto-lift if time served, then return flags
+router.get('/self-status', authMiddleware, async (req, res) => {
+  try {
+    const u = await User.findById(req.user.userId);
+    await autoUnsuspendIfElapsed(u); // <-- this lifts if expired
+    res.json({
+      success: true,
+      isSuspended: !!u.isSuspended,
+      cancelCount: u.cancelCount || 0,
+      suspendedAt: u.suspendedAt || null
+    });
+  } catch (e) {
+    console.error('self-status error:', e);
+    res.json({ success: false });
+  }
+});
 
 module.exports = router;
