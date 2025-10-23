@@ -21,6 +21,15 @@
   --text:#333;
   --bg-dark:#202737;
   --glass:rgba(255,255,255,.08);
+
+  /* NEW: fluid type & spacing */
+  --step--1: clamp(12px, 0.9vw, 14px);
+  --step-0 : clamp(14px, 1.1vw, 16px);
+  --step-1 : clamp(16px, 1.4vw, 18px);
+  --step-2 : clamp(18px, 2.0vw, 22px);
+  --step-3 : clamp(22px, 3.0vw, 32px);
+  --step-4 : clamp(28px, 4.2vw, 48px);
+  --pad-section: clamp(48px, 7vw, 80px);
 }
 
 html{scroll-behavior:smooth;}
@@ -30,8 +39,9 @@ body{
   background:var(--white);
   margin:0;
 }
-section{padding:80px 0;}
-.container{max-width:1200px;}
+/* UPDATED: fluid vertical rhythm */
+section{padding:var(--pad-section) 0;}
+/* REMOVED: .container max-width override so Bootstrap breakpoints work */
 
 /* ===== NAVBAR ===== */
 .navbar{
@@ -163,17 +173,18 @@ section{padding:80px 0;}
 }
 .hero-curve{
   position:absolute;
-  bottom:-20px;           /* push SVG down */
+  bottom:-20px;
   left:0;
   width:100%;
-  height:55vh;
+  /* UPDATED: fluid curve height */
+  height:clamp(28vh, 40vh, 55vh);
   z-index:1;
   display:block;
   line-height:0;
   pointer-events:none;
 }
 .hero-curve path{stroke:none;}
-#homeSection::after{      /* white overlay to cover any gap */
+#homeSection::after{
   content:"";
   position:absolute;
   left:0;
@@ -196,23 +207,26 @@ section{padding:80px 0;}
   align-items:center;
 }
 .hero-content h1{
-  font-size:3.8rem;
+  /* UPDATED: fluid heading */
+  font-size:var(--step-4);
   font-weight:700;
-  line-height:1.1;
-  margin-bottom:24px;
+  line-height:1.12;
+  margin-bottom:clamp(16px,2.2vw,24px);
 }
 .hero-content p{
-  font-size:1.1rem;
+  /* UPDATED: fluid body + readable line length */
+  font-size:var(--step-1);
   opacity:.9;
-  max-width:540px;
-  margin-bottom:32px;
+  max-width:min(56ch, 90%);
+  margin-bottom:clamp(18px,2.4vw,32px);
 }
 .btn-cta{
   background:#fff;
   color:var(--primary)!important;
   border:none;
-  padding:14px 36px;
-  font-size:1rem;
+  /* UPDATED: fluid paddings + font size */
+  padding:clamp(10px,1.4vw,14px) clamp(20px,2.4vw,36px);
+  font-size:var(--step-0);
   font-weight:600;
   border-radius:28px;
   box-shadow:0 8px 18px rgba(0,0,0,.18);
@@ -224,7 +238,8 @@ section{padding:80px 0;}
 .hero-photo-wrap{
   position:relative;
   width:100%;
-  max-width:460px;
+  /* UPDATED: fluid max width */
+  max-width:clamp(280px, 40vw, 460px);
   margin:0 auto;
 }
 .hero-photo-circle{
@@ -254,19 +269,19 @@ section{padding:80px 0;}
 
 @media(max-width:992px){
   .hero-grid{grid-template-columns:1fr;text-align:center;}
-  .hero-content h1{font-size:3rem;}
-  .hero-content p{margin:0 auto 28px;}
+  /* UPDATED: keep fluid scale while nudging smaller screens */
+  .hero-content h1{font-size:var(--step-3);}
+  .hero-content p{margin:0 auto clamp(16px,2.2vw,28px);}
   .hero-photo-wrap{margin-top:32px;}
   .hero-curve{height:38vh;}
 }
 @media(max-width:576px){
-  .hero-content h1{font-size:2.4rem;}
+  /* UPDATED: rely on fluid vars */
+  .hero-content h1{font-size:var(--step-2);}
 }
 
 /* ===== SERVICES ===== */
-#servicesSection{
-  margin-top:-2px; /* pull up to eliminate any gap */
-}
+#servicesSection{ margin-top:-2px; }
 #servicesSection h2{
   color:var(--primary-dark);
   font-weight:700;
@@ -296,7 +311,8 @@ section{padding:80px 0;}
 .services-scroller{-ms-overflow-style:none;scrollbar-width:none;}
 
 .service-card{
-  flex:0 0 270px;
+  /* UPDATED: fluid card width */
+  flex:0 0 clamp(220px, 24vw, 270px);
   scroll-snap-align:start;
   border:none;border-radius:16px;
   box-shadow:0 8px 20px rgba(0,0,0,.08);
@@ -322,10 +338,14 @@ section{padding:80px 0;}
   color:#fff !important;
 }
 .service-icon{
-  width:70px;height:70px;border-radius:50%;
+  /* UPDATED: fluid icon size */
+  width:clamp(56px,6.4vw,70px);
+  height:clamp(56px,6.4vw,70px);
+  border-radius:50%;
   background:var(--accent);color:var(--primary-dark);
   display:flex;align-items:center;justify-content:center;
-  font-size:2rem;margin:0 auto 18px auto;
+  font-size:clamp(1.5rem,2.2vw,2rem);
+  margin:0 auto 18px auto;
   transition:background .25s,color .25s;
 }
 .service-card .card-body h5{
@@ -363,7 +383,6 @@ section{padding:80px 0;}
   margin-bottom:40px;
   text-align:center;
 }
-/* Override for Location title */
 #locationSection h2{ color:#fff; }
 
 .stat{font-size:2rem;font-weight:700;color:var(--primary-dark);}
@@ -402,7 +421,8 @@ section{padding:80px 0;}
 }
 .map-embed{
   width:100%;
-  min-height:380px;
+  /* UPDATED: fluid map height */
+  min-height:clamp(280px, 42vh, 380px);
   border:0;
   display:block;
 }
@@ -460,16 +480,20 @@ section{padding:80px 0;}
   transition:transform .25s, box-shadow .25s;
 }
 .doctor-card:hover{transform:translateY(-4px);box-shadow:0 12px 24px rgba(0,0,0,.12);}
-.doctor-card img{width:100%;height:220px;object-fit:cover;}
+.doctor-card img{
+  width:100%;
+  /* UPDATED: fluid doctor image height */
+  height:clamp(180px, 24vw, 220px);
+  object-fit:cover;
+}
 .doctor-card h6{margin:14px 0 4px;font-weight:600;color:var(--primary-dark);}
 .doctor-card small{color:#777;display:block;margin-bottom:16px;}
-
 
 /* ===== Footer (compact) ===== */
 footer{
   background:#0f1726;
   color:#c9d0e1;
-  padding:10px 0;              /* reduced height */
+  padding:10px 0;
 }
 
 /* No headings/links in the minimal footer */
@@ -480,15 +504,16 @@ footer a:hover{
 }
 
 .footer-bottom{
-  border-top:0;                /* remove divider */
+  border-top:0;
   margin-top:0;
   padding-top:0;
   font-size:.85rem;
   text-align:center;
 }
 
-
 /* ===== Modal/Input shared ===== */
+#email-error, #password-error { display:block; min-height:1rem; }
+
 .input-size{height:40px;font-size:16px;}
 .btn.input-size{height:40px;line-height:40px;padding:0 20px;font-size:16px;}
 .input-group .btn,.input-group-text{
@@ -514,7 +539,14 @@ footer a:hover{
 #verifyAdminOTPBtn:hover{background-color:#003366;color:#fff;}
 .modal-dialog{max-width:400px;}
 @media(max-width:576px){.modal-dialog{margin:0 auto;width:95%;max-width:none;}}
+
+/* NEW: tighten spacing on common laptop widths */
+@media (min-width:1200px) and (max-width:1499.98px){
+  .hero-grid{ gap:28px; }
+  .services-scroller{ gap:18px; }
+}
 </style>
+
 
 
 </head>
@@ -635,7 +667,7 @@ footer a:hover{
           <h2>Short Story About Our Clinic</h2>
           <p style="color:#555;">We’re dedicated to compassionate veterinary care—from preventive wellness to advanced treatments. Our team blends expertise and heart to make every visit stress‑free for pets and owners.</p>
 
-    
+         
 
           <a href="#" class="btn btn-primary mt-4 px-4 py-2" data-bs-toggle="modal" data-bs-target="#loginModal">Learn More</a>
         </div>
@@ -791,7 +823,7 @@ footer a:hover{
               <small id="password-error" class="text-danger d-none"></small>
             </div>
             <div class="mb-3">
-              <div class="g-recaptcha" data-sitekey="6LeZM9wrAAAAAO41GkzFMNGXYePfix3T45qvFOD1"></div>
+              <div class="g-recaptcha" data-sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"></div>
             </div>
             <div class="mb-2">
               <a href="#" id="openForgotPasswordModal" class="text-primary small" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#forgotPasswordModal">Forgot Password?</a>
@@ -810,68 +842,71 @@ footer a:hover{
       </div>
     </div>
   </div>
+<!-- Register Modal (single-step) -->
+<div class="modal fade" id="registerModal" tabindex="-1" aria-labelledby="registerModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-dark" id="registerModalLabel">Register</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
 
-  <!-- Register Modal -->
-  <div class="modal fade" id="registerModal" tabindex="-1" aria-labelledby="registerModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title text-dark" id="registerModalLabel">Register</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      <div class="modal-body">
+        <div id="registerSuccess" class="alert alert-success d-none" role="alert">
+          Successfully registered!
         </div>
-        <div class="modal-body">
-          <div id="registerSuccess" class="alert alert-success d-none" role="alert">
-            Successfully registered!
+
+        <form id="registerForm">
+          <!-- Username -->
+          <div class="mb-2">
+            <label for="reg-username" class="form-label">Username</label>
+            <input type="text" class="form-control input-size" id="reg-username" placeholder="Enter username" />
+            <small id="username-feedback" class="text-danger"></small>
           </div>
-          <form id="registerForm">
-            <div id="reg-step1">
-              <div class="mb-2">
-                <label for="reg-username" class="form-label">Username</label>
-                <input type="text" class="form-control input-size" id="reg-username" placeholder="Enter username" />
-                <small id="username-feedback" class="text-danger"></small>
-              </div>
-              <div class="mb-2 position-relative">
-                <label for="reg-password" class="form-label">Password</label>
-                <div class="input-group">
-                  <input type="password" class="form-control input-size" id="reg-password" placeholder="Enter password" />
-                  <span class="input-group-text toggle-password"><i class="bi bi-eye-slash"></i></span>
-                </div>
-                <div id="password-checklist" class="mt-2">
-                  <small id="criteria-length" class="d-block text-danger">• 8+ characters</small>
-                  <small id="criteria-uppercase" class="d-block text-danger">• Uppercase letter</small>
-                  <small id="criteria-lowercase" class="d-block text-danger">• Lowercase letter</small>
-                  <small id="criteria-number" class="d-block text-danger">• Number</small>
-                  <small id="criteria-symbol" class="d-block text-danger">• Special character (!@#$%^&*)</small>
-                </div>
-              </div>
-              <div class="text-center">
-                <button type="button" class="btn btn-primary input-size w-100" id="nextBtn">Next</button>
-              </div>
+
+          <!-- Password + checklist -->
+          <div class="mb-2 position-relative">
+            <label for="reg-password" class="form-label">Password</label>
+            <div class="input-group">
+              <input type="password" class="form-control input-size" id="reg-password" placeholder="Enter password" />
+              <span class="input-group-text toggle-password"><i class="bi bi-eye-slash"></i></span>
             </div>
-            <div id="reg-step2" style="display:none;">
-              <div class="mb-2">
-                <label for="reg-email" class="form-label">Email</label>
-                <div class="d-flex">
-                  <input type="email" class="form-control input-size" id="reg-email" placeholder="Enter email" />
-                  <button type="button" class="btn btn-secondary ms-2 input-size" id="sendCodeBtn" disabled>Send</button>
-                </div>
-                <small id="email-feedback" class="text-danger"></small>
-              </div>
-              <div class="mb-2">
-                <label class="form-label">Verification Code</label>
-                <input type="text" class="form-control input-size" id="otp-code" placeholder="Enter OTP" />
-                <div class="invalid-feedback">Invalid OTP.</div>
-                <small id="otp-info" class="text-muted d-none">Check your email for OTP</small>
-              </div>
-              <div class="text-center">
-                <button type="button" class="btn btn-primary input-size w-100" id="registerBtn">Register</button>
-              </div>
+            <div id="password-checklist" class="mt-2">
+              <small id="criteria-length" class="d-block text-danger">• 8+ characters</small>
+              <small id="criteria-uppercase" class="d-block text-danger">• Uppercase letter</small>
+              <small id="criteria-lowercase" class="d-block text-danger">• Lowercase letter</small>
+              <small id="criteria-number" class="d-block text-danger">• Number</small>
+              <small id="criteria-symbol" class="d-block text-danger">• Special character (!@#$%^&*)</small>
             </div>
-          </form>
-        </div>
+          </div>
+
+          <!-- Email + Send OTP -->
+          <div class="mb-2">
+            <label for="reg-email" class="form-label">Email</label>
+            <div class="d-flex">
+              <input type="email" class="form-control input-size" id="reg-email" placeholder="Enter email" />
+              <button type="button" class="btn btn-secondary ms-2 input-size" id="sendCodeBtn" disabled>Send</button>
+            </div>
+            <small id="email-feedback" class="text-danger"></small>
+          </div>
+
+          <!-- Verification Code -->
+          <div class="mb-3">
+            <label class="form-label">Verification Code</label>
+            <input type="text" class="form-control input-size" id="otp-code" placeholder="Enter OTP" />
+            <div class="invalid-feedback">Invalid OTP.</div>
+            <small id="otp-info" class="text-muted d-none">Check your email for OTP</small>
+          </div>
+
+          <!-- Submit -->
+          <div class="text-center">
+            <button type="button" class="btn btn-primary input-size w-100" id="registerBtn">Register</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
+</div>
 
   <!-- Forgot Password Modal -->
   <div class="modal fade" id="forgotPasswordModal" tabindex="-1" aria-labelledby="forgotPasswordModalLabel" aria-hidden="true">
@@ -941,7 +976,8 @@ footer a:hover{
 
   <script>
   document.addEventListener('DOMContentLoaded', function(){
-function startDots(btn, baseText = "Loading") {
+      // --- small utility: animated ... on any button ---
+  function startDots(btn, baseText = "Loading") {
     if (!btn) return;
     // prevent duplicate timers
     if (btn.dataset.loading === "1") return;
@@ -970,6 +1006,68 @@ function startDots(btn, baseText = "Loading") {
     delete btn.dataset.originalText;
     delete btn.dataset.baseText;
   }
+    // --- field error helpers (put right under stopDots) ---
+    function showFieldError(inputEl, msgEl, msg) {
+      if (!inputEl || !msgEl) return;
+      inputEl.classList.add("is-invalid");
+      msgEl.textContent = msg || "Invalid input";
+      msgEl.classList.remove("d-none");
+    }
+    function clearFieldError(inputEl, msgEl) {
+      if (!inputEl || !msgEl) return;
+      inputEl.classList.remove("is-invalid");
+      msgEl.classList.add("d-none");
+      msgEl.textContent = "";
+    }
+    // ==== persistent login lockout helpers (after stopDots + field error helpers) ====
+    let loginLockInterval = null;
+
+    function getLoginLockoutUntil() {
+      const v = localStorage.getItem("loginLockoutUntil");
+      return v ? parseInt(v, 10) : 0;
+    }
+    function setLoginLockoutFor(seconds) {
+      const until = Date.now() + seconds * 1000;
+      localStorage.setItem("loginLockoutUntil", String(until));
+      return until;
+    }
+    function clearLoginLockKey() {
+      localStorage.removeItem("loginLockoutUntil");
+    }
+    function isLoginLocked() {
+      return Date.now() < getLoginLockoutUntil();
+    }
+    function clearLoginLockInterval() {
+      if (loginLockInterval) {
+        clearInterval(loginLockInterval);
+        loginLockInterval = null;
+      }
+    }
+    function applyLoginLockout(btn) {
+      if (!btn) return;
+      clearLoginLockInterval();
+
+      const until = getLoginLockoutUntil();
+      if (!until) return; // no lock
+
+      const tick = () => {
+        const ms = until - Date.now();
+        if (ms <= 0) {
+          clearLoginLockInterval();
+          clearLoginLockKey();
+          btn.textContent = btn.dataset.originalText || "Login";
+          btn.disabled = false;
+          return;
+        }
+        const s = Math.ceil(ms / 1000);
+        btn.disabled = true;
+        btn.textContent = `Wait ${s} seconds`;
+      };
+
+      tick();
+      loginLockInterval = setInterval(tick, 1000);
+    }
+
   let isSendingRegOtp = false;
   let regOtpCountdownTimer = null;
     // Forgot Password (reset) OTP guards
@@ -1055,6 +1153,12 @@ function startDots(btn, baseText = "Loading") {
     if(openRegisterModalBtn){
       openRegisterModalBtn.addEventListener("click", function (event) {
         event.preventDefault();
+                // if locked, just re-apply countdown & block
+        if (isLoginLocked()) {
+          applyLoginLockout(loginBtn);
+          return;
+        }
+
         var loginModalEl = $("#loginModal");
         var registerModalEl = $("#registerModal");
         var loginModal = bootstrap.Modal.getInstance(loginModalEl);
@@ -1290,6 +1394,18 @@ $("#criteria-symbol").classList.toggle("text-danger", !spe);
         modalInstance._config.keyboard = false;
       });
     });
+// Resume or clear lockout countdown with modal visibility
+const loginModalEl = document.getElementById("loginModal");
+if (loginModalEl) {
+  loginModalEl.addEventListener("show.bs.modal", () => {
+    const btn = document.getElementById("loginBtn");
+    if (isLoginLocked()) applyLoginLockout(btn);
+  });
+  loginModalEl.addEventListener("hidden.bs.modal", () => {
+    // stop updating text while hidden (timer persists in localStorage)
+    clearLoginLockInterval();
+  });
+}
 
     const forgotCloseBtn = $("#forgotCloseBtn");
     if(forgotCloseBtn){
@@ -1309,122 +1425,155 @@ $("#criteria-symbol").classList.toggle("text-danger", !spe);
         });
       }
     });
+        const loginBtn = $("#loginBtn");
+if (loginBtn) {
+  // If your routes are mounted under /auth, change this to "/auth/login"
+  const LOGIN_URL = "/login";
 
-     const loginBtn = $("#loginBtn");
-    if (loginBtn) {
-      loginBtn.addEventListener("click", async (event) => {
-        event.preventDefault();
+  loginBtn.addEventListener("click", async (event) => {
+    event.preventDefault();
 
-        // guard against double clicks
-        if (loginBtn.disabled || loginBtn.dataset.loading === "1") return;
+    if (loginBtn.disabled || loginBtn.dataset.loading === "1") return;
 
-        const emailInput = $("#login-identifier");
-        const passwordInput = $("#login-password");
-        const emailError = $("#email-error");
-        const passwordError = $("#password-error");
+    const emailInput = $("#login-identifier");
+    const passwordInput = $("#login-password");
+    const emailError = $("#email-error");
+    const passwordError = $("#password-error");
 
-        emailError.classList.add("d-none");
-        passwordError.classList.add("d-none");
+    // clear any previous errors
+    clearFieldError(emailInput, emailError);
+    clearFieldError(passwordInput, passwordError);
 
-        const email = emailInput.value.trim();
-        const password = passwordInput.value.trim();
+    const email = (emailInput.value || "").trim();
+    const password = (passwordInput.value || "").trim();
 
-        if (!email || !password) {
-          if (!email) {
-            emailError.textContent = "Please enter your Gmail.";
-            emailError.classList.remove("d-none");
-          }
-          if (!password) {
-            passwordError.textContent = "Please enter your password.";
-            passwordError.classList.remove("d-none");
-          }
-          return;
-        }
-
-        const captchaResponse = grecaptcha.getResponse();
-        if (!captchaResponse) { alert("Please complete the CAPTCHA."); return; }
-
-        // start animated dots on the Login button
-        loginBtn.disabled = true;
-        startDots(loginBtn, "Logging in");
-
-        try {
-          const response = await fetch("/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password, captchaResponse })
-          });
-
-          // rate-limited branch → stop dots and run countdown text
-          if (response.status === 429) {
-            stopDots(loginBtn);
-            const data = await response.json();
-            alert(data.message || "Too many failed attempts. Please try again in 5 minutes.");
-            let countdown = 300;
-            const originalText = loginBtn.textContent;
-            const intervalId = setInterval(() => {
-              loginBtn.textContent = `Wait ${countdown} seconds`;
-              countdown--;
-              if (countdown < 0) {
-                clearInterval(intervalId);
-                loginBtn.textContent = originalText;
-                loginBtn.disabled = false;
-              }
-            }, 1000);
-            return;
-          }
-
-          const data = await response.json();
-
-          if (data.passwordError) {
-            stopDots(loginBtn);
-            passwordError.textContent = data.passwordError;
-            passwordError.classList.remove("d-none");
-            loginBtn.disabled = false;
-            return;
-          }
-
-          if (data.emailError) {
-            stopDots(loginBtn);
-            emailError.textContent = data.emailError;
-            emailError.classList.remove("d-none");
-            loginBtn.disabled = false;
-            return;
-          }
-
-          if (data.requireOTP) {
-            // OTP step → stop dots and show the Admin OTP modal
-            stopDots(loginBtn);
-            loginBtn.disabled = false;
-
-            const loginModal = bootstrap.Modal.getInstance($("#loginModal"));
-            const adminOTPModal = new bootstrap.Modal($("#adminOTPModal"));
-            loginModal.hide();
-            document.body.classList.remove("modal-open");
-            document.querySelector(".modal-backdrop")?.remove();
-            $("#admin-email").value = email;
-            adminOTPModal.show();
-            return;
-          }
-
-          if (data.message && data.message.includes("successful")) {
-            // success: let redirect happen; dots will stop on navigation
-            window.location.href = data.redirect;
-          } else {
-            // unexpected response
-            stopDots(loginBtn);
-            alert(data.message || "Login failed.");
-            loginBtn.disabled = false;
-          }
-        } catch (err) {
-          console.error(err);
-          stopDots(loginBtn);
-          alert("Network error. Please try again.");
-          loginBtn.disabled = false;
-        }
-      });
+    // client-side validation
+    let invalid = false;
+    if (!email) {
+      showFieldError(emailInput, emailError, "Please enter your Gmail.");
+      invalid = true;
+    } else if (!/@gmail\.com$/i.test(email)) {
+      showFieldError(emailInput, emailError, "Email must be a @gmail.com address.");
+      invalid = true;
     }
+    if (!password) {
+      showFieldError(passwordInput, passwordError, "Please enter your password.");
+      invalid = true;
+    }
+    if (invalid) return;
 
+    const captchaResponse = grecaptcha.getResponse();
+    if (!captchaResponse) { alert("Please complete the CAPTCHA."); return; }
+
+    // dots while waiting
+    loginBtn.disabled = true;
+    startDots(loginBtn, "Logging in");
+
+    try {
+      const response = await fetch(LOGIN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, captchaResponse })
+      });
+
+      // lockout countdown (HTTP 429)
+      if (response.status === 429) {
+        stopDots(loginBtn);
+        const data = await response.json().catch(() => ({}));
+
+        // Try to read exact seconds from backend; fall back to parsing the message; else default to 300s
+        const wait =
+          typeof data.retryAfterSec === "number" ? data.retryAfterSec :
+          (/\b(\d+)\s*minute/i.test(data.message || "") ? 60 * parseInt(RegExp.$1, 10) :
+           /\b(\d+)\s*second/i.test(data.message || "") ? parseInt(RegExp.$1, 10) :
+           300);
+
+        // persist lockout and apply UI state (helpers from earlier)
+        setLoginLockoutFor(wait);
+        applyLoginLockout(loginBtn);
+
+        alert(data.message || "Too many failed attempts. Please try again later.");
+        return;
+      }
+
+      const data = await response.json().catch(() => ({}));
+
+      // Non-2xx: show message under the right field
+      if (!response.ok) {
+        if (data.emailError) {
+          showFieldError(emailInput, emailError, data.emailError);
+        } else if (data.passwordError) {
+          showFieldError(passwordInput, passwordError, data.passwordError);
+        } else if (data.message) {
+          if (/email|gmail/i.test(data.message)) {
+            showFieldError(emailInput, emailError, data.message);
+          } else if (/password/i.test(data.message)) {
+            showFieldError(passwordInput, passwordError, data.message);
+          } else {
+            alert(data.message);
+          }
+        } else {
+          alert("Login failed. Please try again.");
+        }
+        stopDots(loginBtn);
+        loginBtn.disabled = false;
+        return;
+      }
+
+      // 2xx: handle structured payload
+      if (data.passwordError) {
+        stopDots(loginBtn);
+        showFieldError(passwordInput, passwordError, data.passwordError);
+        loginBtn.disabled = false;
+        return;
+      }
+      if (data.emailError) {
+        stopDots(loginBtn);
+        showFieldError(emailInput, emailError, data.emailError);
+        loginBtn.disabled = false;
+        return;
+      }
+      if (data.requireOTP) {
+        stopDots(loginBtn);
+        loginBtn.disabled = false;
+
+        const loginModal = bootstrap.Modal.getInstance($("#loginModal"));
+        const adminOTPModal = new bootstrap.Modal($("#adminOTPModal"));
+        loginModal.hide();
+        document.body.classList.remove("modal-open");
+        document.querySelector(".modal-backdrop")?.remove();
+        $("#admin-email").value = email;
+        adminOTPModal.show();
+        return;
+      }
+      if (data.message && data.message.toLowerCase().includes("successful") && data.redirect) {
+        window.location.href = data.redirect; // navigation stops the dots naturally
+        return;
+      }
+
+      // unexpected success payload
+      stopDots(loginBtn);
+      alert(data.message || "Login completed.");
+      loginBtn.disabled = false;
+    } catch (err) {
+      console.error(err);
+      stopDots(loginBtn);
+      alert("Network error. Please try again.");
+      loginBtn.disabled = false;
+    }
+  });
+
+  // clear errors while typing
+  const emailInput = $("#login-identifier");
+  const passwordInput = $("#login-password");
+  const emailError = $("#email-error");
+  const passwordError = $("#password-error");
+  if (emailInput) emailInput.addEventListener("input", () => clearFieldError(emailInput, emailError));
+  if (passwordInput) passwordInput.addEventListener("input", () => clearFieldError(passwordInput, passwordError));
+
+  // If user refreshed while locked, resume countdown immediately
+  if (isLoginLocked()) applyLoginLockout(loginBtn);
+}
 
     const verifyAdminOTPBtn = $("#verifyAdminOTPBtn");
     if(verifyAdminOTPBtn){
@@ -1774,21 +1923,45 @@ if (resendOTPLink) {
       });
     }
 
-    const registerModalEl = $("#registerModal");
-    if(registerModalEl){
-      registerModalEl.addEventListener("hidden.bs.modal", function () {
-        $("#registerForm").reset();
-        document.querySelectorAll("#registerForm .is-invalid").forEach(function(el){el.classList.remove("is-invalid");});
-        $("#registerSuccess").classList.add("d-none");
-        ["criteria-length","criteria-uppercase","criteria-lowercase","criteria-number","criteria-symbol"].forEach(id=>{
-          const el=document.getElementById(id);
-          el.classList.remove("text-success");
-          el.classList.add("text-danger");
-        });
-        $("#reg-step1").style.display = "block";
-        $("#reg-step2").style.display = "none";
-      });
-    }
+  const registerModalEl = $("#registerModal");
+if (registerModalEl) {
+  registerModalEl.addEventListener("hidden.bs.modal", function () {
+    // Reset form fields
+    $("#registerForm")?.reset();
+
+    // Clear invalid states
+    ["reg-username","reg-password","reg-email","otp-code"].forEach(id=>{
+      const el = document.getElementById(id);
+      el && el.classList.remove("is-invalid");
+    });
+
+    // Reset success box
+    $("#registerSuccess")?.classList.add("d-none");
+
+    // Reset password checklist visuals
+    ["criteria-length","criteria-uppercase","criteria-lowercase","criteria-number","criteria-symbol"].forEach(id=>{
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.remove("text-success");
+        el.classList.add("text-danger");
+      }
+    });
+
+    // Clear helper texts
+    const ufb = document.getElementById("username-feedback");
+    if (ufb) ufb.textContent = "";
+
+    const efb = document.getElementById("email-feedback");
+    if (efb) { efb.textContent = ""; efb.classList.remove("text-success","text-danger"); }
+
+    // Reset OTP info + send button
+    const sendBtn = document.getElementById("sendCodeBtn");
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = "Send"; }
+    const otpInfo = document.getElementById("otp-info");
+    if (otpInfo) otpInfo.classList.add("d-none");
+  });
+}
+
 
   const newPasswordInput = $("#new-password");
 if (newPasswordInput) {
