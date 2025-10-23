@@ -121,7 +121,6 @@
     background:#f8fafc;
     border:1px solid rgba(13,71,161,.06);
   }
-  /* flush inner container so rows hit edges, and allow vertical layout */
   .swal2-popup.custom-msg-popup .swal2-html-container{
     padding:0 !important;
     margin:0 !important;
@@ -261,81 +260,35 @@
 
   /* ===== Mobile compact modal ===== */
   @media (max-width: 768px){
-    /* side gutters around popup */
     .swal2-container{ padding:16px !important; }
-
-    /* smaller, centered modal */
     .swal2-popup.custom-msg-popup{
       width:min(92vw, 520px) !important;
-      max-width:92vw;
-      height:auto;
-      max-height:58vh;            /* shorter overall */
-      border-radius:14px !important;
-      overflow:hidden;
+      max-width:92vw; height:auto; max-height:58vh;
+      border-radius:14px !important; overflow:hidden;
     }
-
     .swal2-popup.custom-msg-popup .swal2-html-container{
-      height:auto;
-      max-height:calc(58vh - 0px);
+      height:auto; max-height:calc(58vh - 0px);
     }
-
     .custom-msg-popup .msg-header{ padding:10px 12px; }
     .msg-header .title{ font-size:.98rem; }
     .msg-close{ width:32px; height:32px; border-radius:10px; }
-
-    .custom-msg-popup .msg-controls{
-      padding:8px 10px; gap:8px; flex-wrap:wrap;
-    }
-    .custom-msg-popup .msg-tabs .msg-tab{
-      padding:6px 10px; border-radius:10px; font-size:.8rem;
-    }
-    .custom-msg-popup .msg-unread-pill{
-      min-width:18px; height:18px; font-size:.7rem; padding:0 6px;
-    }
+    .custom-msg-popup .msg-controls{ padding:8px 10px; gap:8px; flex-wrap:wrap; }
+    .custom-msg-popup .msg-tabs .msg-tab{ padding:6px 10px; border-radius:10px; font-size:.8rem; }
+    .custom-msg-popup .msg-unread-pill{ min-width:18px; height:18px; font-size:.7rem; padding:0 6px; }
     .custom-msg-popup .msg-tools{ margin-left:auto; }
     .custom-msg-popup .msg-sort{ padding:5px 8px; min-width:120px; font-size:.85rem; }
-
-    /* tighter list slot so modal stays small */
-    .custom-msg-popup .msg-list{
-      flex:0 1 auto;
-      max-height:28vh;
-      overflow:auto;
-      padding:10px 10px 12px;
-    }
-
-    /* compact cards */
-    .custom-msg-popup .msg-item{
-      grid-template-columns:36px 1fr;
-      gap:10px;
-      padding:10px 12px;
-      border-radius:12px;
-      box-shadow:0 4px 12px rgba(17,40,90,.06);
-    }
+    .custom-msg-popup .msg-list{ flex:0 1 auto; max-height:28vh; overflow:auto; padding:10px 10px 12px; }
+    .custom-msg-popup .msg-item{ grid-template-columns:36px 1fr; gap:10px; padding:10px 12px; border-radius:12px; box-shadow:0 4px 12px rgba(17,40,90,.06); }
     .custom-msg-popup .msg-item + .msg-item{ margin-top:8px; }
     .custom-msg-popup .msg-avatar{ width:36px; height:36px; font-size:.85rem; }
-
-    .custom-msg-popup .msg-title-text{
-      font-size:.95rem; font-weight:800;
-      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
-    }
-    .custom-msg-popup .msg-badge{
-      padding:3px 8px; font-size:.7rem; border-radius:999px;
-    }
-    .custom-msg-popup .msg-body{
-      font-size:.9rem; line-height:1.25rem;
-      display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
-    }
+    .custom-msg-popup .msg-title-text{ font-size:.95rem; font-weight:800; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .custom-msg-popup .msg-badge{ padding:3px 8px; font-size:.7rem; border-radius:999px; }
+    .custom-msg-popup .msg-body{ font-size:.9rem; line-height:1.25rem; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
     .custom-msg-popup .msg-meta{ font-size:.76rem; margin-top:6px; }
-
     .custom-msg-popup .msg-actions{ grid-column:2; justify-content:flex-end; }
     .custom-msg-popup .msg-read-btn{ width:30px; height:30px; border-radius:8px; }
-
-    .custom-msg-popup .msg-footer{
-      padding:8px 10px;
-    }
-    .custom-msg-popup .msg-footer .chipbtn{
-      padding:6px 10px; font-size:.8rem; border-radius:10px;
-    }
+    .custom-msg-popup .msg-footer{ padding:8px 10px; }
+    .custom-msg-popup .msg-footer .chipbtn{ padding:6px 10px; font-size:.8rem; border-radius:10px; }
   }
 
   @media (max-width: 380px){
@@ -349,9 +302,43 @@
     .custom-msg-popup .msg-avatar{ display:none; }
     .custom-msg-popup .msg-actions{ grid-column:1; margin-top:6px; }
   }
+
+  /* ===== LAPTOP (≈1366×768) COMPACT OVERRIDES ===== */
+  @media (min-width:1200px) and (max-width:1400px){
+    /* tighten top chrome and side widths */
+    #topbar{ height:52px; padding:0 12px; }
+    .wrapper{ padding-top:calc(52px + 40px); }
+
+    #sidebar{ top:52px; width:230px; height:calc(100vh - 52px); }
+    #sub-nav{ left:230px; height:40px; padding:4px 12px; font-size:.88rem; }
+    #subnav-title{ font-size:.96rem; }
+
+    #content{ margin-left:230px; width:calc(100% - 230px); padding:12px; }
+
+    .sidebar-header{ padding:16px; }
+    .sidebar-logo{ font-size:1.5rem; }
+    .sidebar-title{ font-size:1.05rem; }
+    .sidebar-menu a{ padding:10px 16px; }
+    .sidebar-bottom-profile{ padding:12px; margin:12px; }
+    .sidebar-bottom-profile img{ width:36px; height:36px; }
+
+    /* modal + list not so tall */
+    .swal2-popup.custom-msg-popup{ width:820px !important; }
+    .msg-list{ max-height:460px; }
+    .msg-item{ padding:12px 14px; gap:12px; }
+    .msg-avatar{ width:44px; height:44px; }
+  }
+
+  /* Height-aware tightening (helps 768px-tall displays at any width) */
+  @media (max-height:820px){
+    #topbar{ height:50px; }
+    .wrapper{ padding-top:calc(50px + 38px); }
+    #sidebar{ top:50px; height:calc(100vh - 50px); }
+    #sub-nav{ height:38px; padding:4px 10px; }
+    #content{ padding:12px; }
+    .msg-list{ max-height:430px; }
+  }
 </style>
-
-
 </head>
 <body>
   <!-- fixed top bar -->
@@ -392,15 +379,15 @@
         <li><a href="#" class="menu-item" data-content="profileDetails"><i class="fas fa-user-cog"></i> Profile Setting</a></li>
         <li class="logout mt-3"><a href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
       </ul>
-<div class="sidebar-bottom-profile mt-auto">
-  <img id="sidebarProfilePic"
-       src="<%= profilePic ? profilePic : '/images/default_profile_icon.png' %>"
-       alt="Profile" />
-  <div class="info">
-    <div id="sidebarUserName" class="fw-bold text-truncate"><%= username %></div>
-  </div>
-</div>
 
+      <div class="sidebar-bottom-profile mt-auto">
+        <img id="sidebarProfilePic"
+             src="<%= profilePic ? profilePic : '/images/default_profile_icon.png' %>"
+             alt="Profile" />
+        <div class="info">
+          <div id="sidebarUserName" class="fw-bold text-truncate"><%= username %></div>
+        </div>
+      </div>
     </nav>
 
     <div id="content" class="container-fluid" role="main">
@@ -415,7 +402,6 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <script>
-    
     /* ===== Global AJAX ===== */
     $.ajaxSetup({ cache: false });
 
@@ -440,275 +426,250 @@
       $('.wrapper').css('padding-top', (topbarHeight + subnavHeight) + 'px');
     }
 
-   /* ===== Messages helpers ===== */
-function esc(s){
-  return String(s ?? '')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-    .replace(/'/g,'&#039;');
-}
-function initials(name){
-  const n = String(name || 'SV').trim();
-  const parts = n.split(/\s+/).slice(0,2);
-  return parts.map(p => (p[0] || '').toUpperCase()).join('') || 'SV';
-}
-function timeAgo(iso){
-  const d = new Date(iso), now = new Date();
-  const s = Math.max(1, Math.floor((now - d)/1000));
-  if (s < 60) return s + 's';
-  const m = Math.floor(s/60); if (m < 60) return m + 'm';
-  const h = Math.floor(m/60); if (h < 24) return h + 'h';
-  const days = Math.floor(h/24); if (days < 7) return days + 'd';
-  return d.toLocaleDateString();
-}
-/* Fetch list — hit the real endpoint, plus a root fallback */
-/* Mark read (single or all) — server expects { ids } or { all:true } */
-function markMessagesRead(ids, done){
-  if (ids && ids.length){
-    $.ajax({
-      url:'/customer/messages/mark-read',
-      method:'POST',
-      contentType:'application/json',
-      data: JSON.stringify({ ids })   // (was messageIds)
-    }).always(function(){ done && done(); });
-    return;
-  }
-  $.ajax({
-    url:'/customer/messages/mark-read',
-    method:'POST',
-    contentType:'application/json',
-    data: JSON.stringify({ all: true })
-  }).always(function(){ done && done(); });
-}
+    /* ===== Messages helpers ===== */
+    function esc(s){
+      return String(s ?? '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+        .replace(/'/g,'&#039;');
+    }
+    function initials(name){
+      const n = String(name || 'SV').trim();
+      const parts = n.split(/\s+/).slice(0,2);
+      return parts.map(p => (p[0] || '').toUpperCase()).join('') || 'SV';
+    }
+    function timeAgo(iso){
+      const d = new Date(iso), now = new Date();
+      const s = Math.max(1, Math.floor((now - d)/1000));
+      if (s < 60) return s + 's';
+      const m = Math.floor(s/60); if (m < 60) return m + 'm';
+      const h = Math.floor(m/60); if (h < 24) return h + 'h';
+      const days = Math.floor(h/24); if (days < 7) return days + 'd';
+      return d.toLocaleDateString();
+    }
+    function markMessagesRead(ids, done){
+      if (ids && ids.length){
+        $.ajax({
+          url:'/customer/messages/mark-read',
+          method:'POST',
+          contentType:'application/json',
+          data: JSON.stringify({ ids })
+        }).always(function(){ done && done(); });
+        return;
+      }
+      $.ajax({
+        url:'/customer/messages/mark-read',
+        method:'POST',
+        contentType:'application/json',
+        data: JSON.stringify({ all: true })
+      }).always(function(){ done && done(); });
+    }
+    function fetchMessagesList(cb){
+      $.getJSON('/customer/messages', function(r){
+        const arr = Array.isArray(r?.messages) ? r.messages : [];
+        cb(true, arr);
+      }).fail(function(){
+        $.getJSON('/messages', function(r){
+          const arr = Array.isArray(r?.messages) ? r.messages : [];
+          cb(true, arr);
+        }).fail(function(xhr){
+          console.error('messages fetch failed:', xhr?.status, xhr?.responseText);
+          cb(false, []);
+        });
+      });
+    }
+    function refreshMessageBadge(){
+      const $badge = $('#messageBadge');
+      const $icon  = $('.message-icon');
+      function applyCount(n){
+        n = Number(n || 0);
+        if (n > 0){ $badge.text(n > 99 ? '99+' : n).show(); $icon.addClass('has-unread'); }
+        else      { $badge.hide().text(''); $icon.removeClass('has-unread'); }
+      }
+      $.getJSON('/customer/messages/unread-count', function(r){
+        applyCount(r?.count ?? r?.unread ?? 0);
+      }).fail(function(xhr){
+        console.error('unread-count failed:', xhr?.status, xhr?.responseText);
+      });
+    }
+    window.refreshMessageBadge = refreshMessageBadge;
 
-function fetchMessagesList(cb){
-  $.getJSON('/customer/messages', function(r){
-    const arr = Array.isArray(r?.messages) ? r.messages : [];
-    cb(true, arr);
-  }).fail(function(){
-    // fallback if the router isn’t mounted at /customer
-    $.getJSON('/messages', function(r){
-      const arr = Array.isArray(r?.messages) ? r.messages : [];
-      cb(true, arr);
-    }).fail(function(xhr){
-      console.error('messages fetch failed:', xhr?.status, xhr?.responseText);
-      cb(false, []);
-    });
-  });
-}
+    function renderMessageItem(m){
+      const isRead = !!(m.read || m.isRead);
+      const typeLabel =
+        m.type === 'suspension' ? 'Suspension' :
+        m.type === 'warning'    ? 'Warning'    :
+        (m.type ? (String(m.type).charAt(0).toUpperCase()+String(m.type).slice(1)) : 'Info');
 
-/* Badge (counts) */
-/* Badge (counts) — call the real route directly */
-function refreshMessageBadge(){
-  const $badge = $('#messageBadge');
-  const $icon  = $('.message-icon');
-  function applyCount(n){
-    n = Number(n || 0);
-    if (n > 0){ $badge.text(n > 99 ? '99+' : n).show(); $icon.addClass('has-unread'); }
-    else      { $badge.hide().text(''); $icon.removeClass('has-unread'); }
-  }
-  $.getJSON('/customer/messages/unread-count', function(r){
-    applyCount(r?.count ?? r?.unread ?? 0);
-  }).fail(function(xhr){
-    console.error('unread-count failed:', xhr?.status, xhr?.responseText);
-  });
-}
+      const idSafe = esc(m._id || m.id || '');
 
-window.refreshMessageBadge = refreshMessageBadge;
-
-/* One message card (full-width, wraps) */
-/* Renders one message card with a quick "mark read" button */
-function renderMessageItem(m){
-  const isRead = !!(m.read || m.isRead);
-  const typeLabel =
-    m.type === 'suspension' ? 'Suspension' :
-    m.type === 'warning'    ? 'Warning'    :
-    (m.type ? (String(m.type).charAt(0).toUpperCase()+String(m.type).slice(1)) : 'Info');
-
-  const idSafe = esc(m._id || m.id || '');
-
-  return `
-    <div class="msg-item ${isRead ? 'read' : 'unread'}" data-id="${idSafe}">
-      <div class="msg-avatar">${esc(initials(m.fromName || 'SmartVet'))}</div>
-      <div class="msg-main">
-        <div class="msg-head">
-          <div class="msg-title-text">${esc(m.title || m.subject || 'Message')}</div>
-          <span class="msg-badge">${esc(typeLabel)}</span>
+      return `
+        <div class="msg-item ${isRead ? 'read' : 'unread'}" data-id="${idSafe}">
+          <div class="msg-avatar">${esc(initials(m.fromName || 'SmartVet'))}</div>
+          <div class="msg-main">
+            <div class="msg-head">
+              <div class="msg-title-text">${esc(m.title || m.subject || 'Message')}</div>
+              <span class="msg-badge">${esc(typeLabel)}</span>
+            </div>
+            <div class="msg-body">${esc(m.body || m.text || m.preview || '')}</div>
+            <div class="msg-meta"><i class="far fa-clock"></i> ${esc(timeAgo(m.createdAt || m.timestamp || Date.now()))}</div>
+          </div>
+          <div class="msg-actions">
+            ${isRead ? '' : `<button class="msg-read-btn" title="Mark as read" aria-label="Mark as read" data-id="${idSafe}">
+              <i class="fas fa-check"></i>
+            </button>`}
+          </div>
         </div>
-        <div class="msg-body">${esc(m.body || m.text || m.preview || '')}</div>
-        <div class="msg-meta"><i class="far fa-clock"></i> ${esc(timeAgo(m.createdAt || m.timestamp || Date.now()))}</div>
-      </div>
-      <div class="msg-actions">
-        ${isRead ? '' : `<button class="msg-read-btn" title="Mark as read" aria-label="Mark as read" data-id="${idSafe}">
-          <i class="fas fa-check"></i>
-        </button>`}
-      </div>
-    </div>
-  `;
-}
+      `;
+    }
 
-/* Fancy popup with tabs, search, sort, skeleton loader, sticky footer */
-function openMessagesPopup(){
-  Swal.fire({
-    title: '',
-    html: `
-      <div class="msg-header">
-        <div class="title"><i class="fas fa-inbox"></i><span>Messages</span></div>
-        <button class="msg-close" id="msgCloseBtn" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
-      </div>
+    function openMessagesPopup(){
+      Swal.fire({
+        title: '',
+        html: `
+          <div class="msg-header">
+            <div class="title"><i class="fas fa-inbox"></i><span>Messages</span></div>
+            <button class="msg-close" id="msgCloseBtn" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+          </div>
 
-      <div class="msg-controls">
-        <div class="msg-tabs" role="tablist" aria-label="Message filters">
-          <button class="msg-tab active" data-tab="all"    role="tab" aria-selected="true">All</button>
-          <button class="msg-tab"         data-tab="unread" role="tab" aria-selected="false">
-            Unread <span class="msg-unread-pill" id="msgUnreadPill">0</span>
-          </button>
-        </div>
-        <div class="msg-tools">
-          <select id="msgSort" class="msg-sort" aria-label="Sort">
-            <option value="newest" selected>Newest</option>
-            <option value="oldest">Oldest</option>
-          </select>
-        </div>
-      </div>
-
-      <div id="msgList" class="msg-list">
-        ${Array.from({length:4}).map(()=>`
-          <div class="msg-skel">
-            <div class="skel-av"></div>
-            <div>
-              <div class="skel-line skel-40" style="margin-bottom:10px;"></div>
-              <div class="skel-line skel-80" style="margin-bottom:6px;"></div>
-              <div class="skel-line skel-60"></div>
+          <div class="msg-controls">
+            <div class="msg-tabs" role="tablist" aria-label="Message filters">
+              <button class="msg-tab active" data-tab="all"    role="tab" aria-selected="true">All</button>
+              <button class="msg-tab"         data-tab="unread" role="tab" aria-selected="false">
+                Unread <span class="msg-unread-pill" id="msgUnreadPill">0</span>
+              </button>
+            </div>
+            <div class="msg-tools">
+              <select id="msgSort" class="msg-sort" aria-label="Sort">
+                <option value="newest" selected>Newest</option>
+                <option value="oldest">Oldest</option>
+              </select>
             </div>
           </div>
-        `).join('')}
-      </div>
 
-      <div class="msg-footer">
-        <button class="chipbtn" id="msgMarkAll"><i class="fas fa-check-double"></i> Mark all read</button>
-        <button class="msg-close" id="msgCloseBtnBottom" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-    `,
-    customClass: { popup: 'custom-msg-popup' },
-    showConfirmButton: false,
-    showCloseButton: false,
-      heightAuto: false,
-  scrollbarPadding: false,
-    willOpen: function(){
-      $(document).on('click', '#msgCloseBtn, #msgCloseBtnBottom', () => Swal.close());
-    },
-    didOpen: function(){
-      const $list = $('#msgList');
-      const $tabs = $('.msg-tab');
-      const $sort = $('#msgSort');
-      const $pill = $('#msgUnreadPill');
+          <div id="msgList" class="msg-list">
+            ${Array.from({length:4}).map(()=>`
+              <div class="msg-skel">
+                <div class="skel-av"></div>
+                <div>
+                  <div class="skel-line skel-40" style="margin-bottom:10px;"></div>
+                  <div class="skel-line skel-80" style="margin-bottom:6px;"></div>
+                  <div class="skel-line skel-60"></div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
 
-      // state
-      let ALL = [];
-      let TAB = 'all';
-      let SORT = 'newest';
+          <div class="msg-footer">
+            <button class="chipbtn" id="msgMarkAll"><i class="fas fa-check-double"></i> Mark all read</button>
+            <button class="msg-close" id="msgCloseBtnBottom" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        `,
+        customClass: { popup: 'custom-msg-popup' },
+        showConfirmButton: false,
+        showCloseButton: false,
+        heightAuto: false,
+        scrollbarPadding: false,
+        willOpen: function(){
+          $(document).on('click', '#msgCloseBtn, #msgCloseBtnBottom', () => Swal.close());
+        },
+        didOpen: function(){
+          const $list = $('#msgList');
+          const $tabs = $('.msg-tab');
+          const $sort = $('#msgSort');
+          const $pill = $('#msgUnreadPill');
 
-      function unreadCount(arr){
-        return arr.filter(m => !(m.read || m.isRead)).length;
-      }
+          let ALL = [];
+          let TAB = 'all';
+          let SORT = 'newest';
 
-      function htmlEmpty(icon='💬', text='No messages found'){
-        return `<div class="msg-empty"><span class="emoji">${icon}</span>${esc(text)}</div>`;
-      }
-
-      function render(){
-        const list = (TAB === 'unread') ? ALL.filter(m => !(m.read || m.isRead)) : ALL.slice();
-        list.sort((a,b)=>{
-          const ta = new Date(a.createdAt || a.timestamp || 0).getTime();
-          const tb = new Date(b.createdAt || b.timestamp || 0).getTime();
-          return SORT === 'newest' ? (tb - ta) : (ta - tb);
-        });
-
-        $pill.text(unreadCount(ALL));
-        if (!list.length){
-          $list.html(htmlEmpty(TAB==='unread' ? '🎉' : '💬', TAB==='unread' ? 'All caught up!' : 'No messages.'));
-          return;
-        }
-        $list.html(list.map(renderMessageItem).join(''));
-      }
-
-      function setTab(tab){
-        TAB = tab;
-        $tabs.removeClass('active').attr('aria-selected','false');
-        $tabs.filter(`[data-tab="${tab}"]`).addClass('active').attr('aria-selected','true');
-        render();
-      }
-
-      // fetch
-      fetchMessagesList(function(ok, messages){
-        if (!ok){
-          $list.html(htmlEmpty('⚠️','Couldn’t load messages.'));
-          return;
-        }
-        ALL = (messages || []).map(m => ({...m}));
-        render();
-
-        // card click → mark read
-        $list.off('click', '.msg-item').on('click', '.msg-item', function(e){
-          if ($(e.target).closest('.msg-read-btn').length) return;
-          const $row = $(this);
-          if ($row.hasClass('unread')){
-            const id = $row.data('id');
-            markMessagesRead([id], function(){
-              const idx = ALL.findIndex(x => (x._id||x.id) === id);
-              if (idx >= 0){ ALL[idx].read = true; ALL[idx].isRead = true; }
-              $row.removeClass('unread').addClass('read').find('.msg-dot').remove();
-              refreshMessageBadge();
-              render();
+          function unreadCount(arr){
+            return arr.filter(m => !(m.read || m.isRead)).length;
+          }
+          function htmlEmpty(icon='💬', text='No messages found'){
+            return `<div class="msg-empty"><span class="emoji">${icon}</span>${text}</div>`;
+          }
+          function render(){
+            const list = (TAB === 'unread') ? ALL.filter(m => !(m.read || m.isRead)) : ALL.slice();
+            list.sort((a,b)=>{
+              const ta = new Date(a.createdAt || a.timestamp || 0).getTime();
+              const tb = new Date(b.createdAt || b.timestamp || 0).getTime();
+              return SORT === 'newest' ? (tb - ta) : (ta - tb);
             });
+            $pill.text(unreadCount(ALL));
+            if (!list.length){
+              $list.html(htmlEmpty(TAB==='unread' ? '🎉' : '💬', TAB==='unread' ? 'All caught up!' : 'No messages.'));
+              return;
+            }
+            $list.html(list.map(renderMessageItem).join(''));
           }
-        });
-
-        // quick "mark read" button
-        $list.off('click', '.msg-read-btn').on('click', '.msg-read-btn', function(e){
-          e.stopPropagation();
-          const id = $(this).data('id');
-          markMessagesRead([id], function(){
-            const idx = ALL.findIndex(x => (x._id||x.id) === id);
-            if (idx >= 0){ ALL[idx].read = true; ALL[idx].isRead = true; }
-            refreshMessageBadge();
+          function setTab(tab){
+            TAB = tab;
+            $tabs.removeClass('active').attr('aria-selected','false');
+            $tabs.filter(`[data-tab="${tab}"]`).addClass('active').attr('aria-selected','true');
             render();
-          });
-        });
-
-        // mark all read
-        $(document).off('click', '#msgMarkAll').on('click', '#msgMarkAll', function(){
-          const ids = ALL.filter(m => !(m.read || m.isRead)).map(m => m._id || m.id).filter(Boolean);
-          if (!ids.length){
-            Swal.fire({ toast:true, icon:'success', title:'All messages are already read', position:'top-end', timer:1200, showConfirmButton:false });
-            return;
           }
-          markMessagesRead(ids, function(){
-            ALL = ALL.map(m => ({...m, read:true, isRead:true}));
-            refreshMessageBadge();
+          fetchMessagesList(function(ok, messages){
+            if (!ok){
+              $list.html(htmlEmpty('⚠️','Couldn’t load messages.'));
+              return;
+            }
+            ALL = (messages || []).map(m => ({...m}));
             render();
-            Swal.fire({ toast:true, icon:'success', title:'Marked all as read', position:'top-end', timer:1400, showConfirmButton:false });
-          });
-        });
 
-        // tabs / sort
-        $(document).off('click', '.msg-tab').on('click', '.msg-tab', function(){
-          setTab($(this).data('tab'));
-        });
-        $sort.on('change', function(){ SORT = this.value; render(); });
+            $list.off('click', '.msg-item').on('click', '.msg-item', function(e){
+              if ($(e.target).closest('.msg-read-btn').length) return;
+              const $row = $(this);
+              if ($row.hasClass('unread')){
+                const id = $row.data('id');
+                markMessagesRead([id], function(){
+                  const idx = ALL.findIndex(x => (x._id||x.id) === id);
+                  if (idx >= 0){ ALL[idx].read = true; ALL[idx].isRead = true; }
+                  $row.removeClass('unread').addClass('read').find('.msg-dot').remove();
+                  refreshMessageBadge();
+                  render();
+                });
+              }
+            });
+            $list.off('click', '.msg-read-btn').on('click', '.msg-read-btn', function(e){
+              e.stopPropagation();
+              const id = $(this).data('id');
+              markMessagesRead([id], function(){
+                const idx = ALL.findIndex(x => (x._id||x.id) === id);
+                if (idx >= 0){ ALL[idx].read = true; ALL[idx].isRead = true; }
+                refreshMessageBadge();
+                render();
+              });
+            });
+            $(document).off('click', '#msgMarkAll').on('click', '#msgMarkAll', function(){
+              const ids = ALL.filter(m => !(m.read || m.isRead)).map(m => m._id || m.id).filter(Boolean);
+              if (!ids.length){
+                Swal.fire({ toast:true, icon:'success', title:'All messages are already read', position:'top-end', timer:1200, showConfirmButton:false });
+                return;
+              }
+              markMessagesRead(ids, function(){
+                ALL = ALL.map(m => ({...m, read:true, isRead:true}));
+                refreshMessageBadge();
+                render();
+                Swal.fire({ toast:true, icon:'success', title:'Marked all as read', position:'top-end', timer:1400, showConfirmButton:false });
+              });
+            });
+            $(document).off('click', '.msg-tab').on('click', '.msg-tab', function(){
+              setTab($(this).data('tab'));
+            });
+            $sort.on('change', function(){ SORT = this.value; render(); });
+          });
+        },
+        willClose: function(){
+          $(document).off('click', '#msgMarkAll');
+          $(document).off('click', '#msgCloseBtn');
+          $(document).off('click', '#msgCloseBtnBottom');
+          $('#msgList').off('click', '.msg-item');
+          $('#msgList').off('click', '.msg-read-btn');
+          $(document).off('click', '.msg-tab');
+        }
       });
-    },
-    willClose: function(){
-      $(document).off('click', '#msgMarkAll');
-      $(document).off('click', '#msgCloseBtn');
-      $(document).off('click', '#msgCloseBtnBottom');
-      $('#msgList').off('click', '.msg-item');
-      $('#msgList').off('click', '.msg-read-btn');
-      $(document).off('click', '.msg-tab');
     }
-  });
-}
 
     /* ===== Page wiring ===== */
     $(document).ready(function(){
@@ -727,7 +688,6 @@ function openMessagesPopup(){
 
       $('#main-content').load('/customer/dashboard', () => setSubNavFor('dashboard'));
 
-      // Messages: initial + refresh + popup
       refreshMessageBadge();
       setInterval(refreshMessageBadge, 60000);
       $('#messageButton').off('click').on('click', openMessagesPopup);
@@ -737,36 +697,35 @@ function openMessagesPopup(){
         setSubNavFor($('.menu-item.active').data('content') || 'dashboard');
       });
     });
-    (function () {
-  async function ensureSession() {
-    try {
-      let r = await fetch('/customer/session', { credentials: 'include' });
-      if (r.status === 401) {
-        await fetch('/refresh-token', { method: 'POST', credentials: 'include' });
-        r = await fetch('/customer/session', { credentials: 'include' });
-      }
-      if (!r.ok) location.replace('/');
-    } catch (e) {
-      location.replace('/');
-    }
-  }
-  // When returning to this page via back/forward cache
-  window.addEventListener('pageshow', ensureSession);
-})();
-// Central place to update the sidebar when profile changes
-window.applyUserToShell = function (user = {}) {
-  if (user.username) {
-    $('#sidebarUserName').text(user.username);
-  }
-  if (user.profilePic) {
-    $('#sidebarProfilePic').attr('src', user.profilePic + '?v=' + Date.now());
-  }
-};
 
-// Listen for updates fired from inner pages (e.g., profiledetails.ejs)
-$(document).on('user:updated', function (_e, user) {
-  window.applyUserToShell(user || {});
-});
+    (function () {
+      async function ensureSession() {
+        try {
+          let r = await fetch('/customer/session', { credentials: 'include' });
+          if (r.status === 401) {
+            await fetch('/refresh-token', { method: 'POST', credentials: 'include' });
+            r = await fetch('/customer/session', { credentials: 'include' });
+          }
+          if (!r.ok) location.replace('/');
+        } catch (e) {
+          location.replace('/');
+        }
+      }
+      window.addEventListener('pageshow', ensureSession);
+    })();
+
+    window.applyUserToShell = function (user = {}) {
+      if (user.username) {
+        $('#sidebarUserName').text(user.username);
+      }
+      if (user.profilePic) {
+        $('#sidebarProfilePic').attr('src', user.profilePic + '?v=' + Date.now());
+      }
+    };
+
+    $(document).on('user:updated', function (_e, user) {
+      window.applyUserToShell(user || {});
+    });
   </script>
 </body>
 </html>
