@@ -433,14 +433,16 @@ body.modal-open #sidebarOverlay {
         <table class="table table-inventory table-hover mb-0">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Category</th>
-              <th>Price</th>
-              <th>Markup</th> 
-              <th>Quantity</th>
-              <th>Status</th>
-              <th>Expiration</th>
-              <th>Actions</th>
+     <th>Name</th>
+<th>Category</th>
+<th>Purchased</th> <!-- NEW -->
+<th>Price</th>
+<th>Markup</th> 
+<th>Quantity</th>
+<th>Status</th>
+<th>Expiration</th>
+<th>Actions</th>
+
             </tr>
           </thead>
           <tbody id="inventoryTableBody"></tbody>
@@ -481,6 +483,12 @@ body.modal-open #sidebarOverlay {
             </select>
           </div>
         </div>
+<div class="form-row">
+  <div class="form-group col-md-6">
+    <label for="purchaseDate">Purchase Date</label>
+    <input type="date" class="form-control" id="purchaseDate" name="purchaseDate">
+  </div>
+</div>
 
         <div class="section-title">Inventory & Expiration</div>
         <div class="form-row">
@@ -557,6 +565,12 @@ body.modal-open #sidebarOverlay {
             </select>
           </div>
         </div>
+<div class="form-row">
+  <div class="form-group col-md-6">
+    <label for="editPurchaseDate">Purchase Date</label>
+    <input type="date" class="form-control" id="editPurchaseDate" name="purchaseDate">
+  </div>
+</div>
 
         <div class="section-title">Inventory & Expiration</div>
         <div class="form-row">
@@ -647,6 +661,13 @@ body.modal-open #sidebarOverlay {
 (function(){
   let currentPage = 1, itemsPerPage = 10, allInventory = [];
   const LOW_STOCK = 10;
+function todayLocal(){
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
 
   // ---------- Categories ----------
   function loadCategories() {
@@ -813,6 +834,12 @@ const isNearView    = (statusFilter === "nearexpiry");
 
     let tbody = '';
     paginated.forEach(item=>{
+        const purchasedRaw = item.purchaseDate || item.createdAt;
+  const purchasedCell = purchasedRaw
+    ? new Date(purchasedRaw).toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' })
+    : '—';
+
+      
 let status = '';
 if (isExpiredView) {
   status = `<span class="badge badge-danger">Expired</span>`;
@@ -856,11 +883,13 @@ if (isExpiredView) {
 }
 
 
-      tbody += `
+     tbody += `
       <tr>
         <td>${item.name}</td>
         <td>${item.category}</td>
+        <td>${purchasedCell}</td>   <!-- NEW -->
         <td>₱${parseFloat(item.price).toFixed(2)}</td>
+
         <td>₱${parseFloat(item.markup ?? 0).toFixed(2)}</td>  <!-- NEW -->
     <td>${
   isExpiredView ? expiredQtyOf(item) :
@@ -1020,13 +1049,15 @@ $('#inventoryForm').off('submit').on('submit', function(e){
       });
 
       // Keep some fields sticky for faster multi-entry
-      const keep = {
-        category: $('#itemCategorySelect').val(),
-        basePrice: $('#itemBasePrice').val(),
-        markup: $('#itemMarkup').val(),
-        useOne: $('#useOneDate').is(':checked'),
-        oneDate: $('#oneExpirationDate').val()
-      };
+  const keep = {
+  category: $('#itemCategorySelect').val(),
+  basePrice: $('#itemBasePrice').val(),
+  markup: $('#itemMarkup').val(),
+  useOne: $('#useOneDate').is(':checked'),
+  oneDate: $('#oneExpirationDate').val(),
+  purchaseDate: $('#purchaseDate').val() // NEW
+};
+
 
       // Soft reset: clear name/qty/dates, keep pricing/category
       form.reset();
@@ -1038,6 +1069,8 @@ $('#inventoryForm').off('submit').on('submit', function(e){
       $('#itemMarkup').val(keep.markup || '');
       $('#useOneDate').prop('checked', !!keep.useOne);
       $('#oneExpirationDate').val(keep.oneDate || '');
+      $('#purchaseDate').val(keep.purchaseDate || todayLocal()); // NEW
+
 
       // Controls will re-enable once quantity is set again
       toggleOneDateControls(false);
@@ -1085,6 +1118,8 @@ $('#inventoryTableBody').off('click', '.edit-btn').on('click', '.edit-btn', func
       $('#editBasePrice').val(item.basePrice);
       $('#editMarkup').val(item.markup);
       $('#editQuantity').val(item.quantity);
+const pd = item.purchaseDate || item.createdAt;
+$('#editPurchaseDate').val(pd ? String(pd).split('T')[0] : '');
 
       const c = $('#editExpirationDatesContainer'); c.empty();
       const qty = item.quantity || 0;
@@ -1290,6 +1325,10 @@ $('#manageCategoriesModal').on('show.bs.modal', function(){
 $('#addModal').on('show.bs.modal', function(){
   const p = loadCategories();                         // ensure category list is fresh
   withDelayedSpinner($('#btnOpenAddModal'), p, 600);  // delayed spinner on button
+
+  // Default purchase date to today if blank
+  const $pd = $('#purchaseDate');
+  if (!$pd.val()) $pd.val(todayLocal());
 });
 
   // Add category
