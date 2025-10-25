@@ -1,0 +1,598 @@
+<%
+// Admin wrapper that reuses the exact doctor/d-patient view so design/behavior stay identical.
+%>
+
+<% if (typeof isAdminView !== 'undefined' && isAdminView) { %>
+  <!-- Load SweetAlert2 BEFORE the doctor partial so Swal exists for its handlers -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+
+  <script>
+    // Hard fallback shim if CDN fails.
+    (function(){
+      if (window.Swal) return;
+      window.Swal = {
+        fire: function(a, b, c){
+          var o = (typeof a === 'object') ? a : { title: a, text: b, icon: c };
+          var msg = (o.title ? o.title+'\n' : '') + (o.text || '');
+          if (o.showCancelButton) {
+            var ok = window.confirm(msg || 'Are you sure?');
+            return Promise.resolve({ isConfirmed: ok, isDenied: false, isDismissed: !ok });
+          } else {
+            window.alert(msg || 'Notice');
+            return Promise.resolve({ isConfirmed: true, isDenied: false, isDismissed: false });
+          }
+        }
+      };
+    })();
+  </script>
+
+  <!-- Make sure shared code knows we're in Admin BEFORE including the doctor view -->
+  <script>
+    window.IS_ADMIN_VIEW = true;
+
+    // Idempotent SSE stub
+    (function () {
+      if (window.__ADMIN_SSE_PATCHED) return; window.__ADMIN_SSE_PATCHED = true;
+      var NativeES = window.EventSource;
+      if (!NativeES) return;
+      window.EventSource = function (url, cfg) {
+        if (String(url || '').indexOf('/doctor/stream') === 0) {
+          return { readyState: 2, close: function(){}, onopen: null, onerror: null, onmessage: null };
+        }
+        return new NativeES(url, cfg);
+      };
+    })();
+
+    // Idempotent fetch rewrite
+    (function () {
+      if (window.__ADMIN_FETCH_PATCHED) return; window.__ADMIN_FETCH_PATCHED = true;
+      var _fetch = window.fetch;
+      if (!_fetch) return;
+      window.fetch = function (input, init) {
+        if (typeof input === 'string' && input.indexOf('/doctor/') === 0) {
+          input = input.replace(/^\/doctor\//, '/admin/');
+        }
+        return _fetch.call(this, input, init);
+      };
+    })();
+  </script>
+
+  <!-- Keep SweetAlert2 above Bootstrap modals/backdrops; datepicker above modal content -->
+  <style>
+    .swal2-container { z-index: 300000 !important; }
+    .ui-datepicker   { z-index: 1200 !important; }
+    .fixed-width     { min-width: 88px; }
+
+    /* ==== Admin doctor picker styling ==== */
+    #adminDoctorPickerWrap{
+      margin-left:auto;
+      display:flex; align-items:center; gap:10px;
+    }
+    #adminDoctorPicker{
+      background:#fff;
+      border:1px solid var(--border-color, rgba(0,0,0,.08));
+      border-radius:12px;
+      padding:6px;
+      box-shadow:0 2px 6px rgba(0,0,0,.06);
+      display:flex; align-items:center; gap:6px;
+    }
+    #adminDoctorPicker .input-group-text{
+      background:transparent; border:0; font-weight:600; color:#344767; padding-left:8px;
+      display:flex; align-items:center; gap:6px;
+    }
+    #adminDoctorId{ min-width:240px; }
+    #adminDoctorLoad i{ margin-right:6px; }
+    /* Ensure container row can host controls on the right */
+    .tools-bar{ display:flex; align-items:center; gap:8px; }
+  </style>
+<% } %>
+
+<%- include('../doctor/d-patient') %>
+
+<% if (typeof isAdminView !== 'undefined' && isAdminView) { %>
+  <!-- jQuery UI (needed for "Schedule Follow-up" datepicker) -->
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
+  <script>
+    // Rewrite any jQuery AJAX calls that start with /doctor/ → /admin/
+    if (window.jQuery) {
+      $.ajaxPrefilter(function (options) {
+        if (typeof options.url === 'string' && options.url.indexOf('/doctor/') === 0) {
+          options.url = options.url.replace(/^\/doctor\//, '/admin/');
+        }
+      });
+      // Prevent “infinite” spinners on truly stalled requests
+      $.ajaxSetup({ timeout: 20000 });
+    }
+  </script>
+
+  <script>
+  (function () {
+    // NOTE: no early global guard — we re-init idempotently on every Patient page load.
+
+    const CTX = {
+      activeDoctorId : <%- JSON.stringify(activeDoctorId || '') %>,
+      doctors        : <%- JSON.stringify(doctors || []) %>
+    };
+    const STORAGE_KEY = 'smartvet.admin.activeDoctorId';
+
+    const escHTML = window.escHTML || (s => String(s ?? '')
+        .replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])));
+    const escAttr = window.escAttr || (s => String(s ?? '').replace(/"/g,'&quot;'));
+    const escJS   = window.escJS   || (s => String(s ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
+
+    function rowToHtml(r){
+      const rid   = String(r.reservationId || '');
+      const pid   = r.petId ? String(r.petId) : '';
+      const pname = r.petName || '';
+      const hasId = !!pid;
+      const consultBtn = r.hasConsultation ? 'Edit Consultation' : 'Add Consultation';
+      const hasSched   = r.petSchedule && r.petSchedule.scheduleDate;
+
+      const slug = (pid || (pname ? pname.toLowerCase().replace(/\s+/g,'-') : 'pet'));
+      const doneHtml = (r.petDone || r.resStatus === 'Done')
+        ? `<span class="badge badge-done">Done</span>`
+        : `<button class="btn btn-secondary btn-sm"
+                    onclick="markAsDone('${escJS(rid)}','${hasId?escJS(pid):''}','${!hasId?escJS(pname):''}')">
+             Mark as Done
+           </button>`;
+
+      return `
+        <tr id="row-${escAttr(rid)}-${escAttr(slug)}"
+            data-reservation="${escAttr(rid)}"
+            data-pet-id="${escAttr(pid)}"
+            data-pet-name="${escAttr(pname)}">
+          <td class="ownerName">${escHTML(r.ownerName || 'Unknown Owner')}</td>
+          <td>${escHTML(pname || 'Unknown Pet')}</td>
+          <td>${escHTML(r.service || '—')}</td>
+
+          <td>
+            <button class="btn btn-info btn-sm"
+                    onclick="viewConsultation(this,'${escJS(rid)}','${hasId?escJS(pid):''}','${!hasId?escJS(pname):''}')">
+              History
+            </button>
+          </td>
+
+          <td>
+            <button class="btn btn-primary btn-sm fixed-width btn-consult"
+                    data-res-id="${escAttr(rid)}"
+                    data-pet-id="${hasId?escAttr(pid):''}"
+                    data-pet-name="${!hasId?escAttr(pname):''}"
+                    onclick="addConsultation('${escJS(rid)}','${hasId?escJS(pid):''}','${!hasId?escJS(pname):''}', this)">
+              ${consultBtn}
+            </button>
+          </td>
+
+          <td class="scheduleCell">
+            ${hasSched
+              ? `<button class="btn btn-success btn-sm fixed-width"
+                         onclick="openScheduleModal(this,'${escJS(rid)}','${hasId?escJS(pid):''}','${!hasId?escJS(pname):''}')">
+                   <i class="fas fa-edit"></i> Edit
+                 </button>`
+              : `<button class="btn btn-secondary btn-sm fixed-width"
+                         onclick="openScheduleModal(this,'${escJS(rid)}','${hasId?escJS(pid):''}','${!hasId?escJS(pname):''}')">
+                   Add
+                 </button>`}
+          </td>
+
+          <td class="doneCell">${doneHtml}</td>
+        </tr>`;
+    }
+
+    function rebuildPagination(){
+      const wrap = document.getElementById('patientsPagination');
+      const tbody = document.querySelector('#patientsTable tbody');
+      if (!wrap || !tbody) return;
+
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      const per  = 10;
+
+      if (rows.length <= per) {
+        wrap.innerHTML = '';
+        rows.forEach(tr => tr.style.display = '');
+        return;
+      }
+
+      const pages = Math.ceil(rows.length / per);
+      let html = '<nav aria-label="Page navigation"><ul class="pagination justify-content-center">';
+      for (let i = 0; i < pages; i++) html += `<li class="page-item"><a class="page-link" href="#" data-p="${i}">${i+1}</a></li>`;
+      html += '</ul></nav>';
+      wrap.innerHTML = html;
+
+      function show(p){
+        rows.forEach((tr, idx) => tr.style.display = (idx >= p*per && idx < (p+1)*per) ? '' : 'none');
+        wrap.querySelectorAll('.page-item').forEach((li, idx) => li.classList.toggle('active', idx === p));
+      }
+
+      wrap.querySelectorAll('.page-link').forEach(a => {
+        a.addEventListener('click', e => {
+          e.preventDefault();
+          const p = parseInt(a.dataset.p, 10) || 0;
+          show(p);
+        });
+      });
+
+      show(0);
+    }
+
+    function reapplySearch(){
+      const input = document.getElementById('searchInput');
+      if (input) input.dispatchEvent(new Event('keyup'));
+    }
+
+    function updateGlobalsAndDates(rows, doctorUserId){
+      window.DOCTOR_ID = doctorUserId || window.DOCTOR_ID;
+      window.rowsData  = Array.isArray(rows) ? rows : [];
+      window.scheduledDates = [];
+      (window.rowsData || []).forEach(r=>{
+        if (r.petSchedule && r.petSchedule.scheduleDate){
+          const d = new Date(r.petSchedule.scheduleDate).toISOString().slice(0,10);
+          if (!window.scheduledDates.includes(d)) window.scheduledDates.push(d);
+        }
+      });
+    }
+
+    async function loadDoctorInPlace(doctorId){
+      const btn = document.getElementById('adminDoctorLoad');
+      const orig = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Loading'; }
+
+      try{
+        const res  = await fetch(`/admin/patient-data?doctorId=${encodeURIComponent(doctorId)}`, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          credentials: 'same-origin'
+        });
+        const data = await res.json();
+        if (!data || data.success === false) throw new Error(data?.message || 'Failed to load');
+
+        updateGlobalsAndDates(data.rows, data?.doctor?.userId);
+
+        const tbody = document.querySelector('#patientsTable tbody');
+        if (!tbody) return;
+
+        tbody.innerHTML = (!window.rowsData.length)
+          ? `<tr><td colspan="7" class="text-center">You don't have consultation today</td></tr>`
+          : window.rowsData.map(rowToHtml).join('');
+
+        rebuildPagination();
+        reapplySearch();
+      } catch (e){
+        console.error(e);
+        alert('Failed to load doctor list.');
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+      }
+    }
+
+    function buildPickerHtml(selectedId){
+      const options = (Array.isArray(CTX.doctors) ? CTX.doctors : [])
+        .map(d => `<option value="${d._id}" ${String(selectedId)===String(d._id)?'selected':''}>${(d.username || 'Doctor')}</option>`)
+        .join('');
+      return `
+        <div id="adminDoctorPicker" class="input-group input-group-sm">
+          <div class="input-group-prepend">
+            <span class="input-group-text"><i class="fas fa-user-md"></i> <span style="margin-left:6px;">Viewing doctor</span></span>
+          </div>
+          <select id="adminDoctorId" class="custom-select">${options}</select>
+          <div class="input-group-append">
+            <button id="adminDoctorLoad" type="button" class="btn btn-primary">
+              <i class="fas fa-sync-alt"></i> Load
+            </button>
+          </div>
+        </div>`;
+    }
+
+    function injectPicker(){
+      // Where to attach: prefer .tools-bar inside the patient view. If missing, create one at top.
+      let bar = document.querySelector('.tools-bar');
+      if (!bar) {
+        const host = document.querySelector('#main-content') || document.body;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'tools-bar';
+        host.insertAdjacentElement('afterbegin', wrapper);
+        bar = wrapper;
+      }
+      if (document.getElementById('adminDoctorPicker')) return;
+
+      const savedId = sessionStorage.getItem(STORAGE_KEY);
+      const selectedId = savedId || (CTX.activeDoctorId || '');
+
+      const wrapHtml = `
+        <div id="adminDoctorPickerWrap">
+          ${buildPickerHtml(selectedId)}
+        </div>`;
+      bar.insertAdjacentHTML('beforeend', wrapHtml);
+
+      const sel = document.getElementById('adminDoctorId');
+      const btn = document.getElementById('adminDoctorLoad');
+
+      sel.addEventListener('change', () => {
+        sessionStorage.setItem(STORAGE_KEY, sel.value || '');
+      });
+      btn.addEventListener('click', () => {
+        const id = sel.value || '';
+        sessionStorage.setItem(STORAGE_KEY, id);
+        loadDoctorInPlace(id);
+      });
+
+      // Optional: auto-load once if we have a saved doctor and no rows yet
+      if (selectedId && !document.querySelector('#patientsTable tbody tr')) {
+        loadDoctorInPlace(selectedId);
+      }
+
+      // If the header area gets re-rendered by the shared view, re-inject the picker
+      const observer = new MutationObserver(() => {
+        if (!document.getElementById('adminDoctorPicker')) {
+          injectPicker();
+        }
+      });
+      observer.observe(bar, { childList: true });
+    }
+
+    // ===== Critical: idempotent spinner helpers =====
+    window.lockBtn = window.lockBtn || function($btn, label){
+      if(!$btn || !$btn.length) return;
+      if ($btn.data('busy')) return;
+      var w = $btn.outerWidth();
+      $btn.data('busy', true);
+      if (!$btn.data('orig-html')) $btn.data('orig-html', $btn.html());
+      $btn.css('width', w).prop('disabled', true)
+          .html('<i class="fas fa-circle-notch fa-spin" style="margin-right:6px;"></i>'+(label||'Loading'));
+    };
+    window.unlockBtn = window.unlockBtn || function($btn){
+      if(!$btn || !$btn.length) return;
+      const html = $btn.data('orig-html');
+      $btn.prop('disabled', false).css('width','');
+      if (html) $btn.html(html);
+      $btn.removeData('busy');
+    };
+
+    // Remove doctor handlers to avoid double-submit
+    function unbindDoctorFormHandlers(){
+      try { $(document).off('submit', '#scheduleForm'); } catch(_){}
+      try { $(document).off('submit', '#consultationForm'); } catch(_){}
+      try { $('#scheduleForm').off('submit'); } catch(_){}
+      try { $('#consultationForm').off('submit'); } catch(_){}
+    }
+
+    // Clean admin handlers (single-flight, idempotent)
+    function bindAdminHandlers(){
+      // Remove any previous .admin handlers so we can safely rebind on return to the page
+      $(document).off('.admin');
+
+      $.ajaxSetup({ dataType: 'json', timeout: 20000 });
+
+      $('#scheduleModal').on('hidden.bs.modal', function(){
+        const $btn = $('#scheduleForm .modal-footer .btn.btn-primary').first();
+        if ($btn.length) unlockBtn($btn);
+        $('#scheduleForm').removeData('working');
+      });
+      $('#consultationModal').on('hidden.bs.modal', function(){
+        const $btn = $('#consultationForm .modal-footer .btn.btn-primary').first();
+        if ($btn.length) unlockBtn($btn);
+        $('#consultationForm').removeData('working');
+      });
+
+      // Save Schedule (admin)
+      $(document).on('submit.admin', '#scheduleForm', function(e){
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const $form = $(this);
+        if ($form.data('working')) return;
+        $form.data('working', true);
+
+        $('#scheduleTime').val($('#fuTime').val() || $('#scheduleTime').val() || '');
+
+        const $saveBtn = $('#scheduleForm .modal-footer .btn.btn-primary').first();
+        lockBtn($saveBtn, 'Saving');
+
+        const dateVal = $('#scheduleDate').val().trim();
+        const svcVal  = $('#scheduleServiceName').val().trim();
+
+        if (!dateVal) { unlockBtn($saveBtn); $form.removeData('working'); return Swal.fire('Missing date', 'Please pick a follow-up date.', 'warning'); }
+        if (!svcVal)  { unlockBtn($saveBtn); $form.removeData('working'); return Swal.fire('Missing service', 'Please select a follow-up service.', 'warning'); }
+
+        const $selTime = $('#fuTime');
+        const $optSel  = $selTime.find('option:selected');
+        if (!$optSel.length || !$selTime.val()) {
+          unlockBtn($saveBtn); $form.removeData('working');
+          $('#fuTimeError').text('Please choose a time.');
+          return;
+        }
+        if ($optSel.is(':disabled')) {
+          unlockBtn($saveBtn); $form.removeData('working');
+          $('#fuTimeError').text('Selected time is not available. Please pick another slot.');
+          return;
+        }
+        $('#fuTimeError').text('');
+        $('#scheduleTime').val($('#fuTime').val() || '');
+
+        $.ajax({
+          url: '/doctor/add-schedule', // → /admin/add-schedule (prefilter)
+          method: 'POST',
+          data: $form.serialize(),
+          dataType: 'json'
+        })
+        .done(function(resp){
+          if (!resp || resp.success !== true) {
+            return Swal.fire('Error', (resp && resp.message) || 'Error saving schedule.', 'error');
+          }
+
+          const resId   = $('#scheduleReservationId').val();
+          const petId   = $('#schedulePetId').val();
+          const petName = $('#schedulePetName').val();
+          const rowId   = (typeof buildRowId === 'function')
+            ? buildRowId(resId, petId, petName)
+            : `row-${resId}-${petId || (petName||'pet').toLowerCase().replace(/\s+/g,'-')}`;
+
+          $('#' + rowId).find('.scheduleCell').html(
+            `<button class="btn btn-success btn-sm fixed-width"
+                     onclick="openScheduleModal(this,'${resId}','${petId}','${petName}')">
+               <i class="fas fa-edit"></i> Edit
+             </button>`
+          );
+
+          if (typeof setRowSchedule === 'function') setRowSchedule(resId, petId, petName, resp.saved);
+
+          Swal.fire({ icon:'success', title:'Saved', text:'Schedule saved successfully.' })
+            .then(()=> $('#scheduleModal').modal('hide'));
+        })
+        .fail(function(xhr){
+          const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Server error while saving schedule.';
+          Swal.fire('Error', msg, 'error');
+        })
+        .always(function(){
+          unlockBtn($saveBtn);
+          $form.removeData('working');
+        });
+
+        return false;
+      });
+
+      // Save Consultation (admin)
+      $(document).on('submit.admin', '#consultationForm', function(e){
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const $form = $(this);
+        if ($form.data('working')) return;
+        $form.data('working', true);
+
+        const $saveBtn = $('#consultationForm .modal-footer .btn.btn-primary').first();
+        lockBtn($saveBtn, 'Saving');
+
+        const fd = new FormData(this);
+
+        const meds = [];
+        $('#medicationTable tbody tr').each(function(){
+          const medName  = $(this).find('.medication-name').val();
+          const dosage   = $(this).find("input[name='medications[][dosage]']").val();
+          const remarks  = $(this).find("input[name='medications[][remarks]']").val();
+          const quantity = $(this).find("input[name='medications[][quantity]']").val();
+          if (medName || dosage || remarks || quantity) meds.push({ name: medName, dosage, remarks, quantity });
+        });
+        fd.append('medicationsData', JSON.stringify(meds));
+
+        const services = [];
+        $('#serviceCategoriesContainer .service-category-block').each(function(){
+          const category = $(this).find('select.service-category-select option:selected').text();
+          $(this).find('.service-item').each(function(){
+            if ($(this).find('input[type="checkbox"]').is(':checked')) {
+              const serviceId   = $(this).find('label').data('service-id');
+              const serviceName = $(this).find('label').text();
+              const details     = $(this).find('input[type="text"]').val();
+              services.push({ serviceId, serviceName, details, category });
+            }
+          });
+        });
+        fd.append('servicesData', JSON.stringify(services));
+
+        const dzVals = (typeof dzValues === 'function') ? dzValues() : [];
+        fd.append('diseasesData', JSON.stringify(dzVals));
+        fd.append('disease', dzVals[0] || ''); // back-compat
+
+        $.ajax({
+          url: '/doctor/add-consultation', // → /admin/add-consultation (prefilter)
+          method: 'POST',
+          data: fd,
+          processData: false,
+          contentType: false,
+          dataType: 'json'
+        })
+        .done(function(resp){
+          if (resp && resp.success) {
+            const reservationId = $('#reservationId').val();
+            const petId   = $('#targetPetId').val();
+            const petName = $('#targetPetName').val();
+
+            $.post('/doctor/save-consult-flag', { reservationId, petId, petName })
+              .always(function(){
+                if (typeof flipConsultButton === 'function') flipConsultButton(reservationId, petId, petName);
+                Swal.fire({ icon:'success', title:'Saved', text:'Consultation details saved.' })
+                  .then(function(){
+                    $('#consultationModal').modal('hide');
+                    $('#consultationForm')[0].reset();
+                    $('#medicationTable tbody').empty();
+                    $('#serviceCategoriesContainer').empty();
+                    $('#overviewContent').empty();
+                  });
+              });
+          } else {
+            Swal.fire('Error', (resp && resp.message) || 'Error saving consultation details.', 'error');
+          }
+        })
+        .fail(function(xhr){
+          const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Server error while saving consultation details.';
+          Swal.fire('Error', msg, 'error');
+        })
+        .always(function(){
+          unlockBtn($saveBtn);
+          $form.removeData('working');
+        });
+
+        return false;
+      });
+
+      // Mark as Done (admin, single-flight)
+      window.__DONE_INFLIGHT = window.__DONE_INFLIGHT || {};
+      window.markAsDone = function(reservationId, petId, petName){
+        const key = `${reservationId}::${petId||''}::${petName||''}`;
+        if (window.__DONE_INFLIGHT[key]) return;
+
+        Swal.fire({ title:'Mark as Done?', text:'Mark this pet as done?', icon:'warning', showCancelButton:true, confirmButtonText:'Yes, done' })
+          .then((res)=>{
+            if(!res.isConfirmed) return;
+            window.__DONE_INFLIGHT[key] = true;
+
+            const rowId = (typeof buildRowId === 'function') ? buildRowId(reservationId, petId, petName)
+              : `row-${reservationId}-${petId || (petName||'pet').toLowerCase().replace(/\s+/g,'-')}`;
+            const $rowBtn = $('#'+rowId).find('.doneCell button');
+            if ($rowBtn.length) lockBtn($rowBtn, 'Saving');
+
+            $.ajax({
+              url: '/doctor/mark-done', // → /admin/mark-done (prefilter)
+              method: 'POST',
+              dataType: 'json',
+              data: { reservationId, petId, petName }
+            })
+            .done(function(resp){
+              if(resp && resp.success){
+                const $row = $('#'+rowId);
+                $row.find('.doneCell').html('<span class="badge badge-done">Done</span>');
+                $row.fadeOut(200, function(){ $(this).remove(); });
+                if (Array.isArray(window.rowsData)) {
+                  window.rowsData = window.rowsData.filter(function(r){
+                    const pid = r.petId ? String(r.petId) : '';
+                    const pname = r.petName || '';
+                    return !(String(r.reservationId)===String(reservationId) && pid===String(petId||'') && pname===String(petName||''));
+                  });
+                }
+                Swal.fire({ icon:'success', title:'Done',
+                  text: resp.allDone ? 'All pets done. Reservation completed.' : 'Pet marked as done.' });
+              } else {
+                Swal.fire('Error', (resp && resp.message) || 'Error marking as done.', 'error');
+              }
+            })
+            .fail(function(){
+              Swal.fire('Error', 'Server error while marking as done.', 'error');
+            })
+            .always(function(){
+              if ($rowBtn && $rowBtn.length) unlockBtn($rowBtn);
+              delete window.__DONE_INFLIGHT[key];
+            });
+          });
+      };
+    }
+
+    // Boot for each Patient page mount:
+    (function bootPatient(){
+      unbindDoctorFormHandlers();
+      bindAdminHandlers();
+      injectPicker();
+    })();
+  })();
+  </script>
+<% } %>
