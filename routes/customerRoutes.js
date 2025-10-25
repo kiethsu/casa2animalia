@@ -21,6 +21,19 @@ function suspensionDurationLabel() {
   }
   return `${SUSPEND_DAYS} day${SUSPEND_DAYS === 1 ? '' : 's'}`;
 }
+// "8:00 AM" -> minutes from midnight
+function parseTimeLabelToMinutes(label) {
+  const m = String(label || '').trim().match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i);
+  if (!m) return null;
+  let hr = parseInt(m[1], 10) % 12;
+  const min = parseInt(m[2], 10);
+  const ampm = m[3].toUpperCase();
+  if (ampm === 'PM') hr += 12;
+  return (hr * 60) + min;
+}
+
+// 0..6 (Sun..Sat) -> ISO weekday 1..7 (Mon..Sun)
+function jsDayToIso(d) { return d === 0 ? 7 : d; }
 
 // --- Auto-unsuspend helper ---
 async function autoUnsuspendIfElapsed(userDoc) {
@@ -58,6 +71,9 @@ const Message = require('../models/message');
 const { broadcast } = require('../utils/hrSse');
 const fs   = require('fs');
 const path = require('path');
+const StaffWeeklyShift = require('../models/staffWeeklyShift');
+const customerSse = require('../utils/customerSse');
+const ReservationMessage = require('../models/ReservationMessage');
 // === Mailer (singleton with short timeouts) ===
 const mailer = nodemailer.createTransport({
   host: "smtp-relay.brevo.com",
@@ -230,32 +246,57 @@ const updateProfileSchema = Joi.object({
   cellphone: Joi.string().max(30).optional().allow("")
 });
 
-// Schema for adding a pet (unchanged)
+// Schema for adding a pet (accepts single or multiple diseases)
 const addPetSchema = Joi.object({
   petName: Joi.string().required(),
   species: Joi.string().required(),
   breed: Joi.string().optional().allow(""),
   birthday: Joi.date().optional().allow(null),
+
+  // Accept either an array of strings or a single string (legacy)
+  existingDiseases: Joi.alternatives().try(
+    Joi.array().items(Joi.string().trim()).max(20),
+    Joi.string().allow("")
+  ).optional(),
   existingDisease: Joi.string().optional().allow(""),
+
   sex: Joi.string().optional().allow(""),
   petPic: Joi.string().optional().allow("")
 });
 
+
 // Per-pet request (service/concerns per selected pet)
 const perPetRequestSchema = Joi.object({
-  petId: Joi.string().required(),
-  petName: Joi.string().required(),
-  service: Joi.string().required(),
-  concerns: Joi.string().optional().allow("")
+  petId:    Joi.string().required(),
+  petName:  Joi.string().required(),
+
+  // legacy single service (optional now)
+  service:  Joi.string().allow('').optional(),
+
+  // ✅ new multi-service array
+  services: Joi.array().items(Joi.string().trim()).min(1).optional(),
+
+  concerns: Joi.string().allow('').optional()
+}).custom((value, helpers) => {
+  // Must have either service (string) or services (array)
+  const hasSingle = typeof value.service === 'string' && value.service.trim() !== '';
+  const hasMulti  = Array.isArray(value.services) && value.services.length > 0;
+  if (!hasSingle && !hasMulti) {
+    return helpers.error('any.invalid', 'Provide at least one service.');
+  }
+  return value;
 });
+
 
 // Schema for submitting a reservation (NEW: multi-pet, shared date/time)
 // Schema for submitting a reservation (NEW: multi-pet, shared date/time)
+const objectIdRe = /^[a-fA-F0-9]{24}$/;
 const submitReservationSchema = Joi.object({
   date: Joi.date().required(),
   time: Joi.string().required(),
-  idemKey: Joi.string().trim().max(256).required(),   // ← add this
-  petRequests: Joi.array().items(perPetRequestSchema).min(1).required()
+  idemKey: Joi.string().trim().max(256).required(),
+  petRequests: Joi.array().items(perPetRequestSchema).min(1).required(),
+  preferredDoctorId: Joi.string().pattern(objectIdRe).optional().allow('')
 });
 
 // Schema for reservation ID validation (for query parameters)
@@ -490,7 +531,21 @@ router.post('/update-profile-image', authMiddleware, upload.single('profilePic')
 // Schema for adding a pet
 router.post('/add-pet', authMiddleware, validateRequest(addPetSchema), async (req, res) => {
   try {
-    const { petName, species, breed, birthday, existingDisease, sex, petPic } = req.body;
+    const { petName, species, breed, birthday, sex, petPic } = req.body;
+
+    // 🔽 Normalize diseases to an array
+    let diseases = [];
+    if (Array.isArray(req.body.existingDiseases)) {
+      diseases = req.body.existingDiseases.filter(Boolean);
+    } else if (typeof req.body.existingDiseases === 'string' && req.body.existingDiseases.trim()) {
+      diseases = [req.body.existingDiseases.trim()];
+    } else if (typeof req.body.existingDisease === 'string' && req.body.existingDisease.trim()) {
+      diseases = [req.body.existingDisease.trim()];
+    }
+
+    // If “None” chosen, treat as no diseases
+    if (diseases.includes('None')) diseases = [];
+
     const owner = req.user.userId;
     const newPet = new Pet({
       owner,
@@ -498,10 +553,14 @@ router.post('/add-pet', authMiddleware, validateRequest(addPetSchema), async (re
       species,
       breed,
       birthday: birthday ? new Date(birthday) : null,
-      existingDisease,
       sex,
-      petPic
+      petPic,
+
+      // ✅ Store both fields for back-compat with any old UI
+      existingDiseases: diseases,
+      existingDisease: diseases.length ? diseases.join(', ') : ''
     });
+
     await newPet.save();
     return res.json({ success: true, pet: newPet });
   } catch (error) {
@@ -510,10 +569,8 @@ router.post('/add-pet', authMiddleware, validateRequest(addPetSchema), async (re
   }
 });
 
-
 // Schema for submitting a reservation
 // customerRoutes.js
-
 router.post(
   '/submit-reservation',
   authMiddleware,
@@ -524,8 +581,8 @@ router.post(
       const ownerId   = req.user.userId;
       const ownerName = req.user.username || req.user.email;
 
-      // ---- normalize payload (same as your code) ----
-      let { petRequests, selectedPets, service, concerns, date, time, idemKey } = req.body;
+      // ---- normalize payload (same as before, plus preferredDoctorId) ----
+      let { petRequests, selectedPets, service, concerns, date, time, idemKey, preferredDoctorId } = req.body;
       if (!petRequests && selectedPets && service) {
         petRequests = selectedPets.map(p => ({
           petId: p.petId, petName: p.petName, service, concerns: concerns || ''
@@ -535,24 +592,20 @@ router.post(
         return res.status(400).json({ success: false, message: "No pet requests provided." });
       }
 
-      // ==== IDEMPOTENCY: place RIGHT HERE ====
+      // ==== IDEMPOTENCY ====
       const idemKeyFromClient = String(idemKey || '').trim();
       if (!idemKeyFromClient) {
         return res.status(400).json({ success: false, message: 'Missing idempotency key.' });
       }
-
-      // If the same submission already exists, return it as success
       const existingByKey = await Reservation.findOne({ idemKey: idemKeyFromClient }).lean();
       if (existingByKey) {
         return res.json({ success: true, duplicate: true, reservation: existingByKey });
       }
-      // =======================================
 
       // ---- capacity check (unchanged) ----
       const setting = await AppointmentSetting.findOne();
       const limit   = setting ? setting.limitPerHour : 5;
 
-      // how many PETS already booked for this slot?
       const bookedPets    = await countPetsBookedForSlot(date, time);
       const requestedPets = petRequests.length;
       const remaining     = Math.max(0, limit - bookedPets);
@@ -564,77 +617,131 @@ router.post(
         return res.status(400).json({ success: false, message: msg });
       }
 
-      // ---- build reservation (unchanged apart from idemKey) ----
+      // ---- optional preferred doctor validation ----
       const isValidObjectId = (s) => /^[a-fA-F0-9]{24}$/.test(String(s));
+      let preferredDoctor = null;
+
+      if (preferredDoctorId && isValidObjectId(preferredDoctorId)) {
+        // parse "H:MM AM/PM" -> minutes-from-midnight
+        const parseTimeLabelToMinutes = (label) => {
+          const m = String(label || '').trim().match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i);
+          if (!m) return null;
+          let hr = parseInt(m[1], 10) % 12;
+          const min = parseInt(m[2], 10);
+          const ampm = m[3].toUpperCase();
+          if (ampm === 'PM') hr += 12;
+          return (hr * 60) + min;
+        };
+        const jsDayToIso = (d) => (d === 0 ? 7 : d); // Sun(0) -> 7
+
+        const dt = new Date(date);
+        if (isNaN(dt)) {
+          return res.status(400).json({ success: false, message: 'Invalid date.' });
+        }
+        const tMin = parseTimeLabelToMinutes(time);
+        if (tMin == null) {
+          return res.status(400).json({ success: false, message: 'Invalid time.' });
+        }
+        const year = dt.getFullYear();
+        const month = String(dt.getMonth() + 1).padStart(2, '0');
+        const yearMonth = `${year}-${month}`;
+        const weekdayIso = jsDayToIso(dt.getDay());
+
+        // Ensure the chosen doctor has a shift covering this minute
+        const onShift = await StaffWeeklyShift.exists({
+          staff: preferredDoctorId,
+          yearMonth,
+          weekday: weekdayIso,
+          active: true,
+          startMinutes: { $lte: tMin },
+          endMinutes:   { $gt: tMin }
+        });
+
+        if (!onShift) {
+          return res.status(400).json({
+            success: false,
+            message: 'Selected doctor is not available at that date/time. Please choose Anyone or another doctor.'
+          });
+        }
+
+        preferredDoctor = preferredDoctorId; // store preference (not assignment)
+      }
+
+      // ---- build reservation (now includes preferredDoctor when provided) ----
       const pets = petRequests.map(pr => ({
         petId: isValidObjectId(pr.petId) ? pr.petId : undefined,
         petName: pr.petName
       }));
 
       const userProfile = await User.findById(ownerId);
+// If it's a 1-pet request, surface a readable service label on the legacy top-level fields
+const singlePR = (Array.isArray(petRequests) && petRequests.length === 1) ? petRequests[0] : null;
+const singleServiceLabel = singlePR
+  ? (Array.isArray(singlePR.services) && singlePR.services.length
+      ? singlePR.services.join(', ')
+      : (singlePR.service || ''))
+  : '';
 
       const newReservation = new Reservation({
         owner: ownerId,
         ownerName,
         pets,
-        service:  petRequests.length === 1 ? petRequests[0].service : 'Multiple',
-        concerns: petRequests.length === 1 ? (petRequests[0].concerns || '') : '',
+ service:  singlePR ? (singleServiceLabel || '—') : 'Multiple',
+concerns: singlePR ? (singlePR.concerns || '') : '',
         petRequests,
         date: date ? new Date(date) : null,
         time,
         status: 'Pending',
         address: userProfile?.address || "",
         phone:   userProfile?.cellphone || "",
-        idemKey: idemKeyFromClient              // <-- NEW (important)
+        idemKey: idemKeyFromClient,
+        ...(preferredDoctor ? { preferredDoctor } : {}) // <— persist preference
       });
 
-   // Save with duplicate-key protection (race-safe)
-try {
-  await newReservation.save();
-} catch (e) {
-  if (e && e.code === 11000) {
-    const r = await Reservation.findOne({ idemKey: idemKeyFromClient }).lean();
-    return res.json({ success: true, duplicate: true, reservation: r });
-  }
-  throw e;
-}
+      // Save with duplicate-key protection (race-safe)
+      try {
+        await newReservation.save();
+      } catch (e) {
+        if (e && e.code === 11000) {
+          const r = await Reservation.findOne({ idemKey: idemKeyFromClient }).lean();
+          return res.json({ success: true, duplicate: true, reservation: r });
+        }
+        throw e;
+      }
 
-// compute the exact day the customer picked (prefer raw body if it's already YYYY-MM-DD)
-// compute the exact day the customer picked (prefer raw body if already YYYY-MM-DD)
-const dateKey =
-  (typeof req.body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.body.date))
-    ? req.body.date
-    : toYMD(newReservation.date || newReservation.createdAt);
+      // compute the exact day the customer picked (prefer raw body if already YYYY-MM-DD)
+      const dateKey =
+        (typeof req.body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.body.date))
+          ? req.body.date
+          : toYMD(newReservation.date || newReservation.createdAt);
 
-// notify HR screens (Pending table + calendar day highlight)
-broadcast({
-  type: 'reservation:pending',
-  reservation: {
-    _id: String(newReservation._id),
-    ownerName: newReservation.ownerName,
-    service: newReservation.service,
-    time: newReservation.time,
-    status: newReservation.status,
-    date: newReservation.date || newReservation.createdAt, // legacy
-    dateKey,                                               // <- used by calendar
-    petCount:
-      (Array.isArray(newReservation.petRequests) && newReservation.petRequests.length)
-        ? newReservation.petRequests.length
-        : ((Array.isArray(newReservation.pets) && newReservation.pets.length)
-            ? newReservation.pets.length
-            : 1)
-  }
-});
+      // notify HR screens (Pending table + calendar day highlight)
+      broadcast({
+        type: 'reservation:pending',
+        reservation: {
+          _id: String(newReservation._id),
+          ownerName: newReservation.ownerName,
+          service: newReservation.service,
+          time: newReservation.time,
+          status: newReservation.status,
+          date: newReservation.date || newReservation.createdAt, // legacy
+          dateKey,                                               // <- used by calendar
+          petCount:
+            (Array.isArray(newReservation.petRequests) && newReservation.petRequests.length)
+              ? newReservation.petRequests.length
+              : ((Array.isArray(newReservation.pets) && newReservation.pets.length)
+                  ? newReservation.pets.length
+                  : 1)
+        }
+      });
 
-
-return res.json({ success: true, reservation: newReservation });
+      return res.json({ success: true, reservation: newReservation });
     } catch (error) {
       console.error("Error submitting reservation:", error);
       return res.status(500).json({ success: false, message: "Server error" });
     }
   }
 );
-
 
 
 // Endpoint to get appointment count for a given time and date
@@ -728,11 +835,22 @@ router.post('/cancel-reservation', authMiddleware, async (req, res) => {
 
 
 
-// Update pet details endpoint
 router.put('/update-pet/:id', authMiddleware, async (req, res) => {
   try {
     const petId = req.params.id;
-    const { petName, species, breed, birthday, existingDisease, sex } = req.body;
+    const { petName, species, breed, birthday, sex } = req.body;
+
+    // Normalize diseases from either field
+    let diseases = [];
+    if (Array.isArray(req.body.existingDiseases)) {
+      diseases = req.body.existingDiseases.filter(Boolean);
+    } else if (typeof req.body.existingDiseases === 'string' && req.body.existingDiseases.trim()) {
+      diseases = [req.body.existingDiseases.trim()];
+    } else if (typeof req.body.existingDisease === 'string' && req.body.existingDisease.trim()) {
+      diseases = [req.body.existingDisease.trim()];
+    }
+    if (diseases.includes('None')) diseases = [];
+
     const updatedPet = await Pet.findOneAndUpdate(
       { _id: petId, owner: req.user.userId },
       {
@@ -740,11 +858,13 @@ router.put('/update-pet/:id', authMiddleware, async (req, res) => {
         species,
         breed,
         birthday: birthday ? new Date(birthday) : null,
-        existingDisease,
-        sex
+        sex,
+        existingDiseases: diseases,
+        existingDisease: diseases.length ? diseases.join(', ') : ''
       },
       { new: true }
     );
+
     if (!updatedPet) {
       return res.status(404).json({ success: false, message: "Pet not found" });
     }
@@ -754,6 +874,7 @@ router.put('/update-pet/:id', authMiddleware, async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 });
+
 
 // Delete pet endpoint
 router.post('/delete-pet', authMiddleware, async (req, res) => {
@@ -836,9 +957,10 @@ router.get(
       const { reservationId } = req.query;
 
       // 1) reservation
-      const reservation = await Reservation.findById(reservationId)
-        .populate('doctor', 'username')
-        .lean();
+     const reservation = await Reservation.findById(reservationId)
+   .populate('doctor', 'username')
+   .populate('preferredDoctor', 'username')   // ✅ add this
+   .lean();
       if (!reservation) {
         return res.status(404).json({ success: false, message: 'Reservation not found.' });
       }
@@ -892,6 +1014,8 @@ router.get(
   petId: p.petId || null,
   petName: p.petName || (c && c.targetPetName) || 'Unknown',
   service: pr?.service || '',
+   requestedServices: Array.isArray(pr?.services) ? pr.services : (pr?.service ? [pr.service] : []), // ✅ add this
+   concerns: pr?.concerns || '',
   concerns: pr?.concerns || '',
   physicalExam: c?.physicalExam || null,
   overview: c?.overview || null,
@@ -924,6 +1048,7 @@ router.get(
   petId: c.targetPetId || null,
   petName: c.targetPetName || 'Unknown',
   service: pr?.service || '',
+  requestedServices: Array.isArray(pr?.services) ? pr.services : (pr?.service ? [pr.service] : []), // ✅ add this
   concerns: pr?.concerns || '',
   physicalExam: c.physicalExam || null,
   overview: c.overview || null,
@@ -1390,6 +1515,114 @@ router.get('/self-status', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error('self-status error:', e);
     res.json({ success: false });
+  }
+});
+// GET /customer/available-doctors?date=YYYY-MM-DD&time=8:00%20AM
+router.get('/available-doctors', authMiddleware, async (req, res) => {
+  try {
+    const { date, time } = req.query;
+    if (!date || !time) return res.json({ success: true, doctors: [] });
+
+    const dt = new Date(date);
+    if (isNaN(dt)) return res.json({ success: true, doctors: [] });
+
+    const yearMonth = toYMD(dt).slice(0, 7); // YYYY-MM
+    const weekdayIso = jsDayToIso(dt.getDay());
+    const tMin = parseTimeLabelToMinutes(time);
+    if (tMin == null) return res.json({ success: true, doctors: [] });
+
+    // Match active shifts that cover that minute
+    const shifts = await StaffWeeklyShift.find({
+      yearMonth,
+      weekday: weekdayIso,
+      active: true,
+      startMinutes: { $lte: tMin },
+      endMinutes: { $gt: tMin }
+    })
+    .populate('staff', 'username role active');
+
+    // Keep Doctors only, and de-dupe by _id
+    const seen = new Map();
+    for (const s of shifts) {
+      const u = s.staff;
+      if (!u || u.role !== 'Doctor') continue;
+      seen.set(String(u._id), { _id: u._id, username: u.username });
+    }
+
+    res.json({ success: true, doctors: Array.from(seen.values()) });
+  } catch (e) {
+    console.error('available-doctors error:', e);
+    res.status(500).json({ success: false, doctors: [] });
+  }
+});
+// Customer replies to HR notify
+router.post('/notify-response', authMiddleware, async (req, res) => {
+  try {
+    const { reservationId, action, messageId } = req.body || {};
+    const act = String(action || '').toLowerCase();
+    if (!['confirm', 'resched'].includes(act)) {
+      return res.status(400).json({ success:false, message:'Invalid action.' });
+    }
+
+    // Must belong to this user
+    const r = await Reservation.findOne({ _id: reservationId, owner: req.user.userId });
+    if (!r) return res.status(404).json({ success:false, message:'Reservation not found.' });
+
+    // Keep a small “notifyResponse” trail on the reservation (does not alter main status)
+    r.notifyResponse = {
+      action: act,
+      respondedAt: new Date(),
+      respondedBy: req.user.userId
+    };
+    await r.save();
+
+    // Close/annotate the in-app message if provided
+    if (messageId) {
+      await Message.updateOne(
+        { _id: messageId, user: req.user.userId },
+        { $set: { isRead: true, readAt: new Date(), actionTaken: act, respondedAt: new Date() } }
+      );
+    }
+
+    // Tell HR screens (same broadcast util you already use)
+    broadcast({
+      type: 'reservation:notify-response',
+      id: String(r._id),
+      action: act
+    });
+
+    res.json({ success:true });
+  } catch (e) {
+    console.error('notify-response error:', e);
+    res.status(500).json({ success:false, message:'Server error.' });
+  }
+});
+// GET /customer/reservation-message-state?reservationId=<id>
+// GET /customer/reservation-message-state?reservationId=<id>
+router.get('/reservation-message-state', async (req, res) => {
+  try {
+    const { reservationId } = req.query;
+    if (!reservationId) return res.json({ success: false, message: 'Missing reservationId' });
+
+    const last = await ReservationMessage
+      .findOne({ reservation: reservationId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!last) return res.json({ success: true, last: null });
+
+    res.json({
+      success: true,
+      last: {
+        id: String(last._id),
+        status: last.status || 'sent',
+        response: last.response || null,
+        body: last.body || null,           // <<<< include the actual message text
+        createdAt: last.createdAt
+      }
+    });
+  } catch (e) {
+    res.json({ success: false, message: e.message || 'Failed to fetch message state' });
   }
 });
 
