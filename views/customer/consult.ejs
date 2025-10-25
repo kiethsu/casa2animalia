@@ -288,6 +288,27 @@
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+.pet-services { min-height: 96px; }
+/* === Services multi-select (.svc-*) === */
+.svc-dropdown .dropdown-menu{ display:none; }
+.svc-dropdown .dropdown-menu.show{ display:block; }
+.svc-btn{ cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+.svc-chips{ display:flex; flex-wrap:wrap; gap:.4rem; align-items:flex-start; min-height: 34px; }
+
+.svc-chip{
+  display:inline-flex; align-items:center; gap:.45rem;
+  padding:.38rem .7rem; border-radius:999px;
+  border:1px solid #cfe2ff; background:linear-gradient(180deg,#eef6ff,#f8fbff);
+  color:#0D47A1; font-weight:600; font-size:.85rem;
+  box-shadow:0 2px 8px rgba(13,71,161,.08);
+  transition:transform .12s ease, box-shadow .12s ease, background .2s ease, border-color .2s ease;
+}
+.svc-chip:hover{ transform:translateY(-1px); box-shadow:0 8px 18px rgba(30,136,229,.18); }
+.svc-chip button{
+  width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:50%; border:1px solid #cfe2ff; background:#ffffff; color:#0D47A1; cursor:pointer; line-height:1; padding:0;
+}
+.svc-chip .fa-stethoscope{ font-size:.9rem; opacity:.85; }
 
 </style>
 
@@ -364,6 +385,14 @@
                     <select class="form-control" id="timeSelect"></select>
                     <div id="timeError" style="color:#dc3545; margin-top:5px;"></div>
                   </div>
+<!-- Doctor (optional) -->
+<div class="form-group">
+  <label for="doctorSelect">Doctor (optional)</label>
+  <select class="form-control" id="doctorSelect" disabled>
+    <option value="">Anyone (no preference)</option>
+  </select>
+  <small class="form-text text-muted">Filtered by the selected date & time.</small>
+</div>
 
                   <!-- Per-pet mini forms -->
                   <div class="mt-3">
@@ -469,29 +498,52 @@
                         <th>Details</th>
                       </tr>
                     </thead>
-                    <tbody id="historyTableBody">
-                      <% if (reservations && reservations.length) { %>
-                        <% reservations.forEach(function(r) { %>
-                          <% if (['Done','Canceled','CanceledPending','Not Attended'].includes(r.status)) { %>
-                            <tr id="history-<%= r._id %>">
-                              <td><%= r.pets.map(p=>p.petName).join(', ') %></td>
-                              <td><%= r.doctor ? (typeof r.doctor==='object' ? r.doctor.username : r.doctor) : 'Not Assigned' %></td>
-                              <td>
-                                <% if (['Canceled','CanceledPending','Not Attended'].includes(r.status)) { %>
-                                  <span class="badge badge-<%= r.status==='Not Attended'?'danger':'secondary' %>">
-                                    <%= r.status==='Not Attended' ? 'Not Attended' : 'Canceled' %>
-                                  </span>
-                                <% } else { %>
-                                  <button class="btn btn-primary btn-sm" onclick="viewReservation('<%= r._id %>')">View Details</button>
-                                <% } %>
-                              </td>
-                            </tr>
-                          <% } %>
-                        <% }); %>
-                      <% } else { %>
-                        <tr><td colspan="3" class="text-center">No history found.</td></tr>
-                      <% } %>
-                    </tbody>
+           <tbody id="historyTableBody">
+  <% if (reservations && reservations.length) { %>
+    <% reservations.forEach(function(r) { 
+         const statusRaw = (r.status || '').toString().trim();
+         const sr = statusRaw.toLowerCase();
+
+         // Which statuses belong in History
+         const IN_HISTORY = [
+           'done',
+           'canceled','cancelled','canceledpending','cancelledpending',
+           'not attended','not_attended','no show','no_show','no-show',
+           'declined','declinedpending','rejected','disapproved'
+         ];
+
+         if (IN_HISTORY.includes(sr)) {
+           // Decide whether to show a badge or the "View Details" button
+           let showBadge = true;
+           let badgeLabel = 'Canceled';
+           let badgeClass = 'secondary';
+
+           if (sr === 'done') {
+             showBadge = false; // show "View Details" for completed visits
+           } else if (['declined','declinedpending','rejected','disapproved'].includes(sr)) {
+             badgeLabel = 'Declined'; badgeClass = 'danger';
+           } else if (['not attended','not_attended','no show','no_show','no-show'].includes(sr)) {
+             badgeLabel = 'Not Attended'; badgeClass = 'danger';
+           }
+    %>
+      <tr id="history-<%= r._id %>">
+        <td><%= r.pets.map(p=>p.petName).join(', ') %></td>
+        <td><%= r.doctor ? (typeof r.doctor==='object' ? r.doctor.username : r.doctor) : 'Not Assigned' %></td>
+        <td>
+          <% if (showBadge) { %>
+            <span class="badge badge-<%= badgeClass %>"><%= badgeLabel %></span>
+          <% } else { %>
+            <button class="btn btn-primary btn-sm" onclick="viewReservation('<%= r._id %>')">View Details</button>
+          <% } %>
+        </td>
+      </tr>
+    <% } }); %>
+  <% } else { %>
+    <tr><td colspan="3" class="text-center">No history found.</td></tr>
+  <% } %>
+</tbody>
+
+
                   </table>
                 </div>
               </div>
@@ -524,13 +576,23 @@
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
 
   <script>
+    
   /* =========================
      Consult page — UPDATED JS
      ========================= */
 
   // ---------- Global state ----------
+
+// Rooms to join: include ALL rendered reservations (no status filter)
+window.reservationIds = <%- JSON.stringify(
+  (reservations || []).map(r => String(r._id))
+) %>;
+
+
+
   window.selectedPets       = window.selectedPets || {}; // { [petId]: { name, pic } }
   window.appointmentLimit   = window.appointmentLimit || 1;
   let isSubmittingReservation = false;
@@ -570,7 +632,83 @@
     }
     $box.html(html);
   }
+  // --- helper to HTML-escape names in option labels
+  function escapeHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+      .replace(/'/g,'&#039;');
+  }
 
+  // Call this whenever date or time changes
+  async function fetchAvailableDoctors() {
+    const date = $('#date').val();
+    const time = $('#timeSelect').val();
+    const $sel = $('#doctorSelect');
+
+    // default/reset state
+    if (!date || !time) {
+      $sel.prop('disabled', false).html('<option value="">Anyone (no preference)</option>');
+      return;
+    }
+
+    $sel.prop('disabled', true).html('<option value="">Loading…</option>');
+
+    $.ajax({
+      url: '/customer/available-doctors',
+      method: 'GET',
+      data: { date, time },
+      success: function(resp){
+        const opts = ['<option value="">Anyone (no preference)</option>'];
+        if (resp && resp.success && Array.isArray(resp.doctors)) {
+          resp.doctors.forEach(d => {
+            opts.push(`<option value="${d._id}">${escapeHtml(d.username)}</option>`);
+          });
+        }
+        $sel.html(opts.join('')).prop('disabled', false);
+      },
+      error: function(){
+        $sel.html('<option value="">Anyone (no preference)</option>').prop('disabled', false);
+      }
+    });
+  }
+
+  // hook into your existing interactions:
+  // (a) when date changes you already do checks; just append this call
+  $(document).on('change.consult', '#date', function(){
+    updateTimeDropdownForToday();
+    checkTimeSlots();
+    fetchAvailableDoctors(); // <-- add this
+  });
+
+  // (b) also react when time changes
+  $(document).on('change.consult', '#timeSelect', function(){
+    fetchAvailableDoctors();
+  });
+
+  // (c) on first boot (after time options are built)
+  function bootConsultPage() {
+    buildTimeOptionsIfMissing();
+    $.ajax({
+      url: '/customer/settings/appointmentLimit',
+      method: 'GET',
+      success: function (response) {
+        window.appointmentLimit = response.limit;
+        updateTimeDropdownForToday();
+        checkTimeSlots();
+        initConsultInteractions();
+        fetchAvailableDoctors(); // <-- initial fill
+      },
+      error: function () {
+        updateTimeDropdownForToday();
+        checkTimeSlots();
+        initConsultInteractions();
+        fetchAvailableDoctors(); // <-- initial fill
+      }
+    });
+  }
+
+  
   function toggleSubmitAvailability(suspended) {
     const $formBtn = $('#consultForm button[type=submit]');
     if (!$formBtn.length) return;
@@ -729,20 +867,141 @@
       '</div>'
     ].join('');
   }
+// === Services (checkbox + chips) helpers ===
+function hueFromString(str){ let h=0; for(let i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))%360; return h; }
+function applySvcChipTheme($chip, label){
+  const h = hueFromString(label || 'x');
+  $chip.css({
+    background: `linear-gradient(180deg, hsl(${h} 100% 97%), #ffffff)`,
+    borderColor: `hsl(${h} 80% 85%)`,
+    color: `hsl(${h} 60% 28%)`
+  });
+  $chip.find('button').css({ borderColor: `hsl(${h} 80% 85%)`, color: `hsl(${h} 60% 28%)` });
+}
+
+// Initialize one service multi-select within a given pet form root (jQuery element)
+function initServiceMultiFor($root){
+  const pid = String($root.data('formid') || '');
+  const $select = $root.find('#svcSelect_' + pid);
+  const $menu   = $root.find('#svcMenu_' + pid);
+  const $btn    = $root.find('.svc-btn');
+  const $opts   = $root.find('.svc-options');
+  const $chips  = $root.find('.svc-chips');
+  const $label  = $root.find('.svc-label');
+
+  function esc(s){ return $('<div/>').text(String(s ?? '')).html(); }
+
+  function renderOptions(){
+    $opts.empty();
+    $select.find('option').each(function(){
+      const val = $(this).val();
+      const label = $(this).text();
+      const id = 'svc_' + Math.random().toString(36).slice(2);
+      const checked = ($select.val() || []).includes(val) ? 'checked' : '';
+      $opts.append(`
+        <div class="form-check">
+          <input class="form-check-input svc-opt" type="checkbox" id="${id}" value="${esc(val)}" ${checked}>
+          <label class="form-check-label" for="${id}">${esc(label)}</label>
+        </div>
+      `);
+    });
+  }
+
+  function renderChips(){
+    const values = $select.val() || [];
+    $chips.empty();
+    if (!values.length){
+      $label.text($label.data('empty') || 'Select service(s)');
+      return;
+    }
+    values.forEach(v=>{
+      const safe = esc(v);
+      const $chip = $(`
+        <span class="svc-chip" data-val="${safe}">
+          <i class="fa-solid fa-stethoscope"></i> ${safe}
+          <button type="button" class="remove-chip" aria-label="Remove">×</button>
+        </span>
+      `);
+      applySvcChipTheme($chip, v);
+      $chips.append($chip);
+    });
+    $label.text(values.length === 1 ? values[0] : `${values.length} selected`);
+  }
+
+  function syncFromChecks(){
+    const vals = $root.find('.svc-opt:checked').map(function(){ return $(this).val(); }).get();
+    $select.val(vals);
+    renderChips();
+  }
+
+  // open/close
+  $btn.off('click.svc').on('click.svc', function(e){ e.stopPropagation(); $menu.toggleClass('show'); });
+
+  // one-time global closer
+  if (!window.__svcCloserBound){
+    $(document).on('click.svcGlobal', function(e){
+      if (!$(e.target).closest('.svc-dropdown').length){
+        $('.svc-dropdown .dropdown-menu').removeClass('show');
+      }
+    });
+    window.__svcCloserBound = true;
+  }
+
+  // changes + actions
+  $root.off('change.svc', '.svc-opt').on('change.svc', '.svc-opt', syncFromChecks);
+  $root.find('.svc-clear').off('click.svc').on('click.svc', function(){ $root.find('.svc-opt').prop('checked', false); syncFromChecks(); });
+  $root.find('.svc-done').off('click.svc').on('click.svc', function(){ $menu.removeClass('show'); });
+
+  // chip remove
+  $root.off('click.svc', '.remove-chip').on('click.svc', '.remove-chip', function(){
+    const val = $(this).closest('.svc-chip').data('val');
+    $root.find(`.svc-opt[value="${CSS.escape(val)}"]`).prop('checked', false);
+    syncFromChecks();
+  });
+
+  // initial paint
+  renderOptions();
+  renderChips();
+}
 
   function renderPetForm(petId) {
     const data = window.selectedPets[petId];
     const services = <%- JSON.stringify((petDetails.services || []).map(String)) %>;
-    const opts = ['<option value="">Select a service</option>'];
-    services.forEach(s => opts.push(`<option value="${s}">${s}</option>`));
+    const opts = services.map(s => `<option value="${s}">${s}</option>`).join('');
 
     return [
       `<div class="pet-form" data-formid="${petId}">`,
         `<h6><i class="fa-solid fa-paw"></i> ${data.name}</h6>`,
-        '<div class="form-group">',
-          `<label>Service for ${data.name}</label>`,
-          `<select class="form-control pet-service">${opts.join('')}</select>`,
-        '</div>',
+
+        // ✅ MULTI-SELECT (hold Ctrl/Cmd on desktop; tap to select on mobile)
+    // ✅ NEW: checkbox dropdown + chips (no search)
+'<div class="form-group mb-2">',
+  `<label>Service(s) for ${data.name}</label>`,
+
+  // hidden select we keep in sync (this is what we'll read at submit)
+  `<select class="form-control d-none svc-select" id="svcSelect_${petId}" multiple>${opts}</select>`,
+
+  // dropdown (no search)
+  `<div class="dropdown svc-dropdown" id="svcDropdown_${petId}">`,
+    `<button type="button" class="form-control text-left svc-btn">`,
+      `<span class="svc-label" data-empty="Select service(s)">Select service(s)</span>`,
+      `<i class="fa fa-chevron-down"></i>`,
+    `</button>`,
+    `<div class="dropdown-menu w-100 p-2" id="svcMenu_${petId}">`,
+      `<div class="svc-options" style="max-height:220px; overflow:auto;"></div>`,
+      `<div class="d-flex justify-content-between mt-2">`,
+        `<button type="button" class="btn btn-sm btn-light svc-clear">Clear</button>`,
+        `<button type="button" class="btn btn-sm btn-primary svc-done">Done</button>`,
+      `</div>`,
+    `</div>`,
+  `</div>`,
+
+  // chips live here
+  `<div class="svc-chips mt-2"></div>`,
+  `<small class="form-text text-muted">Select one or more services.</small>`,
+'</div>',
+
+
         '<div class="form-group">',
           `<label>Concerns for ${data.name}</label>`,
           `<textarea class="form-control pet-concerns" rows="2" placeholder="Describe ${data.name}'s concern"></textarea>`,
@@ -764,6 +1023,9 @@
     window.selectedPets[petId] = { name, pic: pic || '' };
     $('#selectedPetsChips').append(renderChip(petId));
     $('#perPetForms').append(renderPetForm(petId));
+    const $justAdded = $(`#perPetForms .pet-form[data-formid="${petId}"]`);
+initServiceMultiFor($justAdded);
+
     $(`.horizontal-scroll .vetcard[data-petid="${petId}"]`).addClass('selected');
     activatePet(petId);
   }
@@ -777,21 +1039,34 @@
     if (first) activatePet(first);
   }
 
-  function collectPayload() {
-    const date = $('#date').val();
-    const time = $('#timeSelect').val();
-    const petRequests = [];
+function collectPayload() {
+  const date = $('#date').val();
+  const time = $('#timeSelect').val();
+  const preferredDoctorId = $('#doctorSelect').val() || '';
 
-    $('#perPetForms .pet-form').each(function() {
-      const petId = $(this).data('formid');
-      const name  = window.selectedPets[petId] ? window.selectedPets[petId].name : '';
-      const service  = $(this).find('.pet-service').val();
-      const concerns = $(this).find('.pet-concerns').val() || '';
-      petRequests.push({ petId: String(petId), petName: name, service, concerns });
+  const petRequests = [];
+  $('#perPetForms .pet-form').each(function() {
+    const $form = $(this);
+    const petId = $form.data('formid');
+    const name  = window.selectedPets[petId] ? window.selectedPets[petId].name : '';
+const services = ($form.find('.svc-select').val() || []).filter(Boolean);
+const primary  = services[0] || '';
+                           // ✅ first for legacy
+    const concerns = ($form.find('.pet-concerns').val() || '').trim();
+
+    petRequests.push({
+      petId: String(petId),
+      petName: name,
+      service: primary,      // keep old field so nothing else breaks
+      services,              // ✅ new array
+      concerns
     });
+  });
 
-    return { date, time, petRequests };
-  }
+  const payload = { date, time, petRequests };
+  if (preferredDoctorId) payload.preferredDoctorId = preferredDoctorId;
+  return payload;
+}
 
   // ---------- HTML escaping for details modal ----------
   function escapeHtml(str) {
@@ -819,12 +1094,21 @@
         if (!resp.success) {
           return Swal.fire({ icon:'error', title:'Error', text: resp.message || 'Error fetching details.' });
         }
-        const r = resp.reservation || {};
-        const perPets  = Array.isArray(resp.perPets) ? resp.perPets : [];
-        const visitDate = r.schedule?.scheduleDate || r.createdAt;
-        const time = r.time || '';
-        const doctor = (r.doctor && r.doctor.username) ? r.doctor.username : 'Not Assigned';
-        const petCount = perPets.length || (Array.isArray(r.pets) ? r.pets.length : 1);
+const r = resp.reservation || {};
+const perPets  = Array.isArray(resp.perPets) ? resp.perPets : [];
+const visitDate  = r.schedule?.scheduleDate || r.date || r.createdAt;
+const timeLabel  = r.schedule?.time || r.time || '';
+
+const doctorLabel = (r.doctor && r.doctor.username)
+  ? `Dr. ${r.doctor.username}`
+  : 'Not Assigned';
+
+const preferredLabel = (r.preferredDoctor && r.preferredDoctor.username)
+  ? `Dr. ${r.preferredDoctor.username}`
+  : 'Anyone';
+
+const petCount = perPets.length || (Array.isArray(r.pets) ? r.pets.length : 1);
+
 
         let html = `
           <div class="rv-card">
@@ -832,10 +1116,12 @@
               <div class="rv-header">
                 <div class="rv-date">
                   <i class="fa-solid fa-calendar-check"></i>
-                  ${safe(formatVisitDateJS(visitDate))}${time ? ` · ${safe(time)}` : ''}
+                 ${safe(formatVisitDateJS(visitDate))}${timeLabel ? ` · ${safe(timeLabel)}` : ''}
                 </div>
                 <div class="rv-meta">
-                  <span class="rv-badge">Dr. ${safe(doctor)}</span>
+                 <span class="rv-badge">${safe(doctorLabel)}</span>
+<span class="rv-badge">Preferred: ${safe(preferredLabel)}</span>   <!-- ✅ new -->
+
                   <span class="rv-badge" title="Pet Count">${petCount} pet${petCount > 1 ? 's' : ''}</span>
                   <span class="rv-badge" title="Reservation ID">${safe(String(r._id || '').slice(-6) || '—')}</span>
                 </div>
@@ -846,7 +1132,18 @@
         if (perPets.length) {
           perPets.forEach((pp, idx) => {
             const petLabel = safe(pp.petName || `Pet ${idx+1}`);
-            const svc = safe(pp.service || '—');
+           // Build requested services list (supports strings or {serviceName/name/...})
+// Requested services come from the reservation payload as `requestedServices`
+const reqRaw = Array.isArray(pp.requestedServices) && pp.requestedServices.length
+  ? pp.requestedServices
+  : (pp.service ? [pp.service] : []);  // legacy single service
+
+// Normalize to labels (in case anything isn't a plain string)
+const reqServices = reqRaw.map(s =>
+  (typeof s === 'string') ? s : (s.serviceName || s.name || s.category || String(s))
+);
+
+
             const cn  = safe(pp.concerns || '—');
 
             html += `
@@ -859,8 +1156,16 @@
 
                 <div class="rv-grid" style="margin-bottom:8px;">
                   <div class="rv-kv">
-                    <div class="rv-label"><i class="fa-solid fa-stethoscope"></i> Requested Service</div>
-                    <div class="rv-value"><span class="rv-chip">${svc}</span></div>
+<div class="rv-label"><i class="fa-solid fa-stethoscope"></i> Requested Service(s)</div>
+<div class="rv-value" style="white-space:normal;">
+  ${
+   reqServices.length
+  ? reqServices.map(s => `<span class="rv-chip">${safe(s)}</span>`).join(' ')
+  : '—'
+
+  }
+</div>
+
                   </div>
                   <div class="rv-kv" style="grid-column: 1 / -1;">
                     <div class="rv-label"><i class="fa-solid fa-notes-medical"></i> Concern</div>
@@ -910,12 +1215,14 @@
                     <table class="rv-table">
                       <thead><tr><th>Service</th></tr></thead>
                       <tbody>`;
-              pp.services.forEach(s => {
-                html += `
-                  <tr>
-                    <td><span class="rv-chip">${safe(s.serviceName || s.name || '—')}</span></td>
-                  </tr>`;
-              });
+          pp.services.forEach(s => {
+  const label = (typeof s === 'string') ? s : (s.serviceName || s.name || s.category || '—');
+  html += `
+    <tr>
+      <td><span class="rv-chip">${safe(label)}</span></td>
+    </tr>`;
+});
+
               html += `</tbody></table></div></div>`;
             }
 
@@ -996,13 +1303,17 @@
                   <table class="rv-table">
                     <thead><tr><th>Category</th><th>Service</th></tr></thead>
                     <tbody>`;
-            r.services.forEach(s => {
-              html += `
-                <tr>
-                  <td>${safe(s.category || '—')}</td>
-                  <td><span class="rv-chip">${safe(s.serviceName || s.name || '—')}</span></td>
-                </tr>`;
-            });
+        r.services.forEach(s => {
+  const isStr = (typeof s === 'string');
+  const category = isStr ? '—' : (s.category || '—');
+  const label = isStr ? s : (s.serviceName || s.name || '—');
+  html += `
+    <tr>
+      <td>${safe(category)}</td>
+      <td><span class="rv-chip">${safe(label)}</span></td>
+    </tr>`;
+});
+
             html += `</tbody></table></div></div>`;
           }
 
@@ -1066,19 +1377,31 @@ window.cancelReservation = function(reservationId, btnEl) {
           return;
         }
 
-        // Move row to history
-        $(`#reservation-${reservationId}`).remove();
-        $('#historyTableBody').append(
-          `<tr id="history-${response.reservation._id}">
-            <td>${(response.reservation.pets || []).map(p => p.petName).join(', ')}</td>
-            <td>${
-              (response.reservation.doctor && response.reservation.doctor.username)
-                ? response.reservation.doctor.username
-                : 'Not Assigned'
-            }</td>
-            <td><span class="badge badge-secondary">Canceled</span></td>
-          </tr>`
-        );
+   // Move row to history
+$(`#reservation-${reservationId}`).remove();
+
+const raw = (response.reservation.status || '').toString().trim().toLowerCase();
+let label = 'Canceled';
+let klass = 'secondary';
+
+if (['declined','declinedpending','rejected','disapproved'].includes(raw)) {
+  label = 'Declined'; klass = 'danger';
+} else if (['not attended','not_attended','no show','no_show','no-show'].includes(raw)) {
+  label = 'Not Attended'; klass = 'danger';
+} // else keep Canceled/secondary
+
+$('#historyTableBody').append(
+  `<tr id="history-${response.reservation._id}">
+    <td>${(response.reservation.pets || []).map(p => p.petName).join(', ')}</td>
+    <td>${
+      (response.reservation.doctor && response.reservation.doctor.username)
+        ? response.reservation.doctor.username
+        : 'Not Assigned'
+    }</td>
+    <td><span class="badge badge-${klass}">${label}</span></td>
+  </tr>`
+);
+
 
         // Live alerts + submit state
         const threshold = getThreshold();
@@ -1146,6 +1469,7 @@ window.cancelReservation = function(reservationId, btnEl) {
     $(document).on('change.consult', '#date', function(){
       updateTimeDropdownForToday();
       checkTimeSlots();
+       fetchAvailableDoctors();  
     });
 
     // Submit (delegated)
@@ -1167,12 +1491,18 @@ window.cancelReservation = function(reservationId, btnEl) {
         return;
       }
       if (!payload.time) { Swal.fire({ icon:'error', title:'Error', text:'Please choose a time.' }); return; }
-      for (let i = 0; i < payload.petRequests.length; i++) {
-        if (!payload.petRequests[i].service) {
-          Swal.fire({ icon:'error', title:'Missing service', text:'Select a service for ' + payload.petRequests[i].petName + '.' });
-          return;
-        }
-      }
+    for (let i = 0; i < payload.petRequests.length; i++) {
+  const pr = payload.petRequests[i];
+  const count = Array.isArray(pr.services) ? pr.services.length : (pr.service ? 1 : 0);
+  if (count === 0) {
+    Swal.fire({
+      icon:'error',
+      title:'Missing service',
+      text:'Select at least one service for ' + pr.petName + '.'
+    });
+    return;
+  }
+}
 
       const $btn = $('#consultForm button[type=submit]');
       const origBtnHtml = $btn.html();
@@ -1237,25 +1567,26 @@ window.cancelReservation = function(reservationId, btnEl) {
     });
   }
 
-  // ---------- Boot ----------
-  function bootConsultPage() {
-    buildTimeOptionsIfMissing();
-    $.ajax({
-      url: '/customer/settings/appointmentLimit',
-      method: 'GET',
-      success: function (response) {
-        window.appointmentLimit = response.limit;
-        updateTimeDropdownForToday();
-        checkTimeSlots();
-        initConsultInteractions();
-      },
-      error: function () {
-        updateTimeDropdownForToday();
-        checkTimeSlots();
-        initConsultInteractions();
-      }
-    });
-  }
+function bootConsultPage() {
+  buildTimeOptionsIfMissing();
+  $.ajax({
+    url: '/customer/settings/appointmentLimit',
+    method: 'GET',
+    success: function (response) {
+      window.appointmentLimit = response.limit;
+      updateTimeDropdownForToday();
+      checkTimeSlots();
+      initConsultInteractions();
+      fetchAvailableDoctors();          // ✅ initial load
+    },
+    error: function () {
+      updateTimeDropdownForToday();
+      checkTimeSlots();
+      initConsultInteractions();
+      fetchAvailableDoctors();          // ✅ even on error
+    }
+  });
+}
 
   // Initial load
   $(document).ready(function () {
@@ -1279,6 +1610,160 @@ window.addEventListener('pageshow', function () {
   pollSelfStatus(); // ensure UI matches server when returning to page
 });
 
+
+// Build the list of reservation IDs (use server-provided if present; else derive from DOM)
+const reservationIds = (Array.isArray(window.reservationIds) && window.reservationIds.length)
+  ? window.reservationIds.map(String)
+  : Array.from(document.querySelectorAll('#reservationDetailsTableBody tr[id^="reservation-"]'))
+      .map(tr => tr.id.replace('reservation-', ''));
+
+// Reuse one socket instance for this page
+const socket = window.__CONSULT_SOCKET || io({ transports: ['websocket','polling'] });
+window.__CONSULT_SOCKET = socket;
+
+// Join rooms on connect (so HR can push messages here)
+socket.on('connect', () => {
+  reservationIds.forEach(id => socket.emit('join', { reservationId: String(id) }));
+});
+
+// Re-join rooms after reconnects
+socket.io.on('reconnect', () => {
+  reservationIds.forEach(id => socket.emit('join', { reservationId: String(id) }));
+});
+
+// Leave rooms when navigating away
+window.addEventListener('beforeunload', () => {
+  reservationIds.forEach(id => socket.emit('leave', { reservationId: String(id) }));
+});
+
+// ---------- helpers ----------
+function escapeHtml(s){
+  return String(s || '').replace(/[&<>"']/g, m => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[m]));
+}
+
+function showNotifyPopup(reservationId, messageText){
+  window.__currentNotifyRid = reservationId;   // track who this popup is for
+  Swal.fire({
+    title: 'Clinic Message',
+    html: `<div style="white-space:pre-wrap;text-align:left">${escapeHtml(messageText || '')}</div>`,
+    showCancelButton: true,
+    confirmButtonText: 'Confirm',
+    cancelButtonText: 'Resched',
+    reverseButtons: true,
+    allowOutsideClick: false,
+    allowEscapeKey: false
+  }).then(({ isConfirmed, isDismissed }) => {
+    // clear tracking no matter what
+    window.__currentNotifyRid = null;
+
+    let action = null;
+    if (isConfirmed) action = 'confirm';
+    else if (isDismissed) action = 'resched';
+    if (!action) return;
+
+    // Socket reply (server expects { id: <reservationId>, action })
+    socket.emit('reservation:respond', { id: reservationId, action });
+
+      // Persist reply on the server (matches /customer/notify-reply route you added)
+    fetch('/customer/notify-reply', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+     body: JSON.stringify({ reservationId, response: action }) // <-- use 'response'
+   }).catch(()=>{});
+    // Optional toast
+    Swal.fire({
+      icon: 'success',
+      title: action === 'confirm' ? 'Appointment confirmed!' : 'Reschedule requested!',
+      timer: 1200,
+      showConfirmButton: false
+    });
+
+    if (typeof window.refreshBadgeNow === 'function') window.refreshBadgeNow();
+  });
+}
+
+// De-dupe so the same message doesn’t show twice
+window.__notifyShown = window.__notifyShown || new Set();
+function dedupeKey(id, stamp){ return `${id}:${stamp || ''}`; }
+// Track the currently-open notify popup’s reservation (so we only close the right one)
+window.__currentNotifyRid = null;
+
+// Suppression: once HR approves, don’t show notify popups for that reservation
+window.__notifySuppressed = window.__notifySuppressed || new Set();
+
+// ---------- A) LIVE PUSH from HR ----------
+socket.off('reservation:notify'); // avoid double-binding if script is re-run
+socket.on('reservation:notify', (payload) => {
+  if (!payload) return;
+  const rid = String(payload.reservationId || '');
+  if (reservationIds.length && !reservationIds.includes(rid)) return;
+
+  // ⬇️ NEW: skip if this reservation has been suppressed (approved)
+  if (window.__notifySuppressed.has(rid)) return;
+
+  const msg = (payload.text || payload.body || 'New message from the clinic');
+  const key = dedupeKey(rid, payload.sentAt || payload.id);
+  if (window.__notifyShown.has(key)) return;
+  window.__notifyShown.add(key);
+
+  showNotifyPopup(rid, msg);
+});
+
+// Dismiss notify popup when HR approves from reservation.ejs
+socket.off('reservation:dismiss-notify');  // avoid double-binding
+socket.on('reservation:dismiss-notify', (payload) => {
+  const rid = String(payload && payload.reservationId || '');
+  if (!rid) return;
+
+  // Mark as suppressed so preload/live won't show it again
+  window.__notifySuppressed.add(rid);
+
+  // Only close if the currently open popup is for this reservation
+  if (window.__currentNotifyRid === rid && Swal.isVisible()) {
+    Swal.close();
+    window.__currentNotifyRid = null;
+  }
+});
+
+// ---------- B) PRELOAD last message on page load ----------
+(async () => {
+  // If you prefer only /hr, change to: const paths = ['/hr/reservation-message-state'];
+  const paths = ['/customer/reservation-message-state', '/hr/reservation-message-state'];
+
+  async function fetchState(id) {
+    for (const base of paths) {
+      try {
+        const r = await fetch(`${base}?reservationId=${encodeURIComponent(id)}`, { credentials: 'include' });
+        if (!r.ok) continue;
+        const data = await r.json();
+        if (data && data.success) return data;
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  for (const id of reservationIds) {
+    const res = await fetchState(id);
+    if (!res || !res.last) continue;
+
+    const last = res.last; // { id, status, response, body, createdAt }
+    const shouldShow = (last.status === 'sent' || !last.status) && !last.response;
+    if (!shouldShow) continue;
+
+const key = dedupeKey(id, last.createdAt || last.id);
+if (window.__notifyShown.has(key)) continue;
+window.__notifyShown.add(key);
+
+// ⬇️ NEW: skip if HR already approved (suppressed)
+if (window.__notifySuppressed.has(id)) continue;
+
+const msg = last.body || 'New message from the clinic';
+showNotifyPopup(id, msg);
+
+  }
+})();
 </script>
 
 </body>
