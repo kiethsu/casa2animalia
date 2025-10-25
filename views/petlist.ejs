@@ -213,12 +213,13 @@ const list = Array.isArray(entries) ? entries : [];
           <td class="text-center">
             <button
               class="btn btn-info btn-sm equal-btn"
-              onclick='viewPetDetails(
-                <%- JSON.stringify(e._id) %>,
-                <%- JSON.stringify(e.petName || "") %>,
-                <%= ownerIdStr ? `"${ownerIdStr}"` : "null" %>,
-                <%- JSON.stringify(ownerName) %>
-              )'>View History</button>
+             onclick='viewPetDetails(
+   null,                                              
+   <%- JSON.stringify(e.petName || "") %>,
+   <%= ownerIdStr ? `"${ownerIdStr}"` : "null" %>,
+   <%- JSON.stringify(ownerName) %>,
+   <%- JSON.stringify(e.species || "") %>
+ )'>View History</button>
 
             <% if (!hasOwner) { %>
               <button class="btn btn-secondary btn-sm equal-btn btn-edit-contact"
@@ -424,7 +425,8 @@ function viewPetDetails(petId, petName, ownerId, ownerName, species){
   if (ownerId) params.ownerId = ownerId;
   if (!ownerId && ownerName) params.ownerName = ownerName;
 
-  $.get('/admin/get-pet-history', params)
+$.get('/admin/get-pet-history', params)
+
   .done(({ success, pet, history, message }) => {
     // Update header right away (server species first, fallback to param)
     const inlineHeader = [petName, (pet && pet.species) || species || '']
