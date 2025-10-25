@@ -9,6 +9,9 @@ const InventorySchema = new Schema(
     // Category is free-form so you can add new ones from the UI
     category: { type: String, required: true, trim: true },
 
+    // Date when this item/batch was purchased/added
+    purchaseDate: { type: Date, default: Date.now }, // <-- NEW
+
     // Base cost of the item (₱)
     basePrice: { type: Number, required: true, min: 0 },
 
