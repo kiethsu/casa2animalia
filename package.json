@@ -1,11 +1,12 @@
 {
   "name": "capstone-vetclinic",
   "version": "1.0.0",
+  "description": "",
   "private": true,
   "type": "commonjs",
   "main": "server.js",
   "engines": {
-    "node": "20.x"
+    "node": ">=18.18"
   },
   "scripts": {
     "start": "node server.js",
