@@ -23,10 +23,43 @@ const Reservation = require('../models/reservation');
 const { addClient, removeClient } = require('../utils/hrSse'); // reuse your SSE hub
 const PetDetailsSettings = require('../models/petDetailsSettings');
 const Consultation = require('../models/consultation');
-
-
+const StaffWeeklyShift = require('../models/staffWeeklyShift');
+const MessageTemplate = require('../models/messageTemplate');
+const User               = require('../models/user'); // for doctor picker
 // ⬇️ add this (use the same path/name you use elsewhere)
 const authMiddleware = require('../middleware/authMiddleware');
+const { getPetHistory } = require('../controllers/petHistory');
+const AppointmentSetting = require('../models/appointmentSetting');
+// ⬇️ add under: const authMiddleware = require('../middleware/authMiddleware');
+const roleOf = req => String(req?.user?.role || '').toLowerCase();
+const allow = (...roles) => (req, res, next) => {
+  if (!req.user) return res.status(401).send('Login required');
+  const ok = roles.map(r => String(r).toLowerCase()).includes(roleOf(req));
+  if (!ok) return res.status(403).send('Forbidden');
+  next();
+};
+
+// If a doctor opens /admin/patient, send them to their page instead of 403
+const adminOrRedirectDoctor = (req, res, next) => {
+  const role = roleOf(req);
+  if (role === 'doctor') return res.redirect('/doctor/d-patient');
+  if (role !== 'admin')  return res.status(403).send('Forbidden');
+  next();
+};
+// ADD after your profile image multer config (or near top, once `multer` is available)
+
+// Consultation files go to /public/consultation
+const consultStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'public/consultation/');
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname);
+    cb(null, file.fieldname + '-' + Date.now() + ext);
+  }
+});
+const consultUpload = multer({ storage: consultStorage });
+
 // ---- Inventory expiry helpers ----
 function splitByToday(dates) {
   const arr = Array.isArray(dates) ? dates.map(d => new Date(d)) : [];
@@ -35,6 +68,19 @@ function splitByToday(dates) {
   for (const d of arr) (d <= today ? newlyExpired : stillGood).push(d);
   return { stillGood, newlyExpired };
 }
+const notifTemplateSchema = Joi.object({
+  type: Joi.string().valid('notif', 'notify', 'declined').required(),
+  title: Joi.string().trim().min(2).required(),
+  body: Joi.string().trim().min(2).required(),
+  isDefault: Joi.boolean().optional()
+});
+
+const notifTemplateUpdateSchema = Joi.object({
+  type: Joi.string().valid('notif', 'notify', 'declined').optional(),
+  title: Joi.string().trim().min(2).optional(),
+  body: Joi.string().trim().min(2).optional(),
+  isDefault: Joi.boolean().optional()
+});
 
 // Moves expired per-unit dates into expiredDates[], bumps expiredCount,
 // and DECREASES quantity by newlyExpired.length (never below 0).
@@ -286,103 +332,185 @@ router.get("/petlist", async (req, res) => {
   }
 });
 
-router.get('/get-pet-history', async (req, res) => {
-  const { petId, petName, ownerId } = req.query;
-  if (!petId && !petName) {
-    return res.json({ success: false, message: 'petId or petName is required' });
-  }
+// REPLACE: /admin/get-pet-history with doctor-compatible version
+// /admin/get-pet-history
+router.get('/get-pet-history', authMiddleware, allow('admin','doctor','hr'), async (req, res) => {
   try {
-    const entry = await PetList.findOne(
-      petId
-        ? { _id: petId }
-        : { owner: ownerId, petName }
-    )
-    .populate({
-      path: 'consultationHistory.consultation',
-      populate: {
-        path: 'reservation',
-        // include disease + species for fallbacks
-        select: 'date schedule doctor disease species',
-        populate: { path: 'doctor', select: 'username' }
-      }
-    })
-    .lean();
+    const { petId, petName, ownerName, ownerId, reservationId } = req.query;
 
-    if (!entry) {
-      return res.json({ success: false, message: 'PetList entry not found.' });
+    if (!petId && !petName) {
+      return res.status(400).json({ success: false, message: 'petId or petName required' });
     }
 
-    // Build history with normalized diseases[]
-    const history = (entry.consultationHistory || [])
-      .map(ch => {
-        const c    = ch.consultation || {};
-        const resv = c.reservation   || {};
+    const isOid = s => mongoose.Types.ObjectId.isValid(String(s));
+    const asOid = s => new mongoose.Types.ObjectId(String(s));
+    const esc   = s => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const nameRx = petName ? new RegExp('^' + esc(petName) + '$', 'i') : null;
 
-        // Normalize diseases (accept several legacy shapes)
-        const diseaseRaw =
-              Array.isArray(c.diseases)         ? c.diseases
-            : c.disease                         ? [c.disease]
-            : Array.isArray(c.existingDiseases) ? c.existingDiseases
-            : c.existingDisease                 ? [c.existingDisease]
-            : resv.disease                      ? [resv.disease]
-            : [];
+    // ---- helper to pick concerns from the reservation/petRequests ----
+    function pickConcerns(resv, consultDoc){
+      try{
+        if (Array.isArray(resv?.petRequests) && resv.petRequests.length){
+          const pid   = consultDoc?.targetPetId || consultDoc?.petId;
+          const pname = String(consultDoc?.targetPetName || consultDoc?.petName || '')
+                          .trim().toLowerCase();
+          let pr = null;
+          if (pid)   pr = resv.petRequests.find(x => String(x.petId) === String(pid));
+          if (!pr && pname) pr = resv.petRequests.find(
+            x => String(x.petName || '').trim().toLowerCase() === pname
+          );
+          return pr?.concerns || '';
+        }
+        return resv?.concerns || '';
+      }catch(_){ return resv?.concerns || ''; }
+    }
 
-        const diseases = diseaseRaw
-          .map(x => String(x || '').trim())
-          .filter(Boolean)
-          .filter((v, i, a) => a.findIndex(z => z.toLowerCase() === v.toLowerCase()) === i) // de-dupe ci
-          .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    // ---- Owner filter for reservations ----
+    const ownerQ = {};
+    if (ownerId && isOid(ownerId)) {
+      ownerQ.$or = [
+        { owner: asOid(ownerId) },
+        { user:  asOid(ownerId) }
+      ];
+      if (ownerName) ownerQ.$or.push({ ownerName: new RegExp('^' + esc(ownerName) + '$', 'i') });
+    } else if (ownerName) {
+      ownerQ.ownerName = new RegExp('^' + esc(ownerName) + '$', 'i');
+    }
 
-        return {
-          id:         c._id,
-          date:       c.createdAt || ch.addedAt,
-          doctor:     resv.doctor || null,
-          notes:      c.notes || c.consultationNotes || '',
-          physical:   c.physicalExam || {},
-          diagnosis:  c.diagnosis || '',
-          diseases, // <<<<<<<<<<<<<< NEW
-          services:   c.services || [],
-          medications:c.medications || [],
-          confinement:c.confinementStatus || [],
-          nextSchedule: resv.schedule
-            ? {
-                date:    resv.schedule.scheduleDate,
-                details: resv.schedule.scheduleDetails
-              }
-            : null
-        };
-      })
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
+    // ---- Fast path: explicit petId (a real Pet _id) ----
+    let consults = [];
+    if (petId && isOid(petId)) {
+      consults = await Consultation.find({
+        $or: [{ targetPetId: asOid(petId) }, { petId: asOid(petId) }]
+      }).sort({ updatedAt: -1, _id: -1 }).lean();
+    } else {
+      // ---- Name-based search (robust) ----
 
-    // Resolve species for header
-    let pet = null;
-    try {
-      // Prefer real Pet doc for account owners
-      if (entry.owner) {
-        const pdoc = await Pet.findOne(
-          { owner: entry.owner, petName: entry.petName },
-          'petName species breed sex'
-        ).lean();
-        if (pdoc) {
-          pet = { petName: pdoc.petName, species: pdoc.species || '', breed: pdoc.breed || '', sex: pdoc.sex || '' };
+      // A) Reservations of this owner (don’t filter by petName here)
+      const resvsOfOwner = Object.keys(ownerQ).length
+        ? await Reservation.find(ownerQ).select('_id').lean()
+        : [];
+      const resvIds = resvsOfOwner.map(r => r._id);
+
+      // B) Pet ids matching this name (optionally scoped to owner)
+      const petFilter = nameRx ? { petName: nameRx } : {};
+      if (ownerId && isOid(ownerId)) petFilter.owner = asOid(ownerId);
+      const pets = await Pet.find(petFilter).select('_id').lean();
+      const matchingPetIds = pets.map(p => p._id);
+
+      // C) Build consult query
+      const orParts = [];
+      if (nameRx) {
+        orParts.push({ targetPetName: nameRx }, { petName: nameRx });
+      }
+      if (matchingPetIds.length) {
+        orParts.push({ targetPetId: { $in: matchingPetIds } });
+        orParts.push({ petId:      { $in: matchingPetIds } });
+      }
+
+      const q = { $or: orParts };
+      if (resvIds.length) q.reservation = { $in: resvIds }; // restrict to this owner's consults if we can
+
+      consults = await Consultation.find(q).sort({ updatedAt: -1, _id: -1 }).lean();
+    }
+
+    // ---- Load reservations (to show doctor + nextSchedule + concerns) ----
+    const resCache = new Map();
+    async function loadReservation(id) {
+      const k = String(id);
+      if (resCache.has(k)) return resCache.get(k);
+      const r = await Reservation.findById(id).populate('doctor','username').lean();
+      resCache.set(k, r);
+      return r;
+    }
+
+    // (optional) small pet payload for header species
+    let petDoc = null;
+    if (petId && isOid(petId)) {
+      petDoc = await Pet.findById(petId).select('petName species').lean();
+    }
+
+    const history = [];
+    for (const c of consults) {
+      const r = await loadReservation(c.reservation);
+
+      // ⬇️ Normalize diagnosis from several possible fields
+      const diagnosis = (() => {
+        const v = c.diagnosis;
+        if (typeof v === 'string' && v.trim()) return v.trim();
+        if (Array.isArray(v) && v.length) return v.filter(Boolean).join(', ');
+        if (typeof c.provisionalDiagnosis === 'string' && c.provisionalDiagnosis.trim()) return c.provisionalDiagnosis.trim();
+        if (typeof c.assessment === 'string' && c.assessment.trim()) return c.assessment.trim();
+        if (typeof c.impression === 'string' && c.impression.trim()) return c.impression.trim();
+        if (typeof c.dx === 'string' && c.dx.trim()) return c.dx.trim();
+        return '';
+      })();
+
+      const record = {
+        date: c.updatedAt || c.createdAt,
+        doctor: r?.doctor || null,
+        notes: c.notes || c.consultationNotes || '',
+        physical: {
+          weight:       c.physicalExam?.weight || '',
+          temperature:  c.physicalExam?.temperature || '',
+          observations: c.physicalExam?.observations || ''
+        },
+        diagnosis, // ⬅️ now included
+        diseases: (
+          Array.isArray(c.diseases) ? c.diseases
+          : (c.disease ? [c.disease] : [])
+        ).map(s => String(s || '').trim()).filter(Boolean),
+        services: (Array.isArray(c.services) ? c.services : []).map(s => ({
+          category:    s.category || 'Uncategorized',
+          serviceName: s.serviceName || '',
+          details:     s.details || '',
+          file:        s.file || null
+        })),
+        medications: (Array.isArray(c.medications) ? c.medications : []).map(m => ({
+          name:     m.name || m.medicationName || '',
+          quantity: typeof m.quantity === 'undefined' ? '' : m.quantity,
+          dosage:   m.dosage || '',
+          remarks:  m.remarks || ''
+        })),
+        confinement: Array.isArray(c.confinementStatus) ? c.confinementStatus : [],
+        nextSchedule: null,
+        reservationId: r?._id || null,
+        concerns: pickConcerns(r, c)
+      };
+
+      // next follow-up from that reservation's matching pet (by id or name)
+      if (r && Array.isArray(r.pets)) {
+        const match = r.pets.find(p =>
+          (c.targetPetId && String(p.petId) === String(c.targetPetId)) ||
+          (!c.targetPetId && (
+            (c.targetPetName && (p.petName || p.petId?.petName || '').toLowerCase() === String(c.targetPetName).toLowerCase()) ||
+            (nameRx && nameRx.test(p.petId?.petName || p.petName || ''))
+          ))
+        );
+        if (match?.schedule) {
+          record.nextSchedule = {
+            date:    match.schedule.scheduleDate,
+            details: (match.schedule.service && match.schedule.service.name) ||
+                     match.schedule.scheduleDetails || ''
+          };
         }
       }
-      // Fallback: latest reservation in history that has species
-      if (!pet) {
-        const latestWithSpecies = (entry.consultationHistory || [])
-          .map(ch => ch?.consultation?.reservation)
-          .filter(Boolean)
-          .sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt))
-          .find(r => r && r.species);
-        if (latestWithSpecies) {
-          pet = { petName: entry.petName, species: latestWithSpecies.species || '' };
-        }
-      }
-    } catch (_) { /* no-op */ }
 
-    return res.json({ success: true, pet, history });
+      history.push(record);
+    }
+
+    history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // Optional: header concerns from a specific reservation
+    let headerConcerns = '';
+    if (reservationId) {
+      const h = history.find(h => String(h.reservationId) === String(reservationId));
+      if (h?.concerns) headerConcerns = h.concerns;
+    }
+
+    return res.json({ success: true, pet: petDoc, history, headerConcerns });
   } catch (err) {
-    console.error('Error fetching pet history for admin:', err);
+    console.error('admin /get-pet-history error:', err);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -427,7 +555,8 @@ router.get("/inventory/list", async (req, res) => {
 // ─── Add a New Inventory Item ───────────────────────────────────────
 router.post("/inventory/add", async (req, res) => {
   try {
-    const { name, category, basePrice, markup, quantity } = req.body;
+    const { name, category, basePrice, markup, quantity, purchaseDate } = req.body;
+
 
     const bPrice = parseFloat(basePrice) || 0;
     const mAmt   = parseFloat(markup)    || 0;   // pesos (not percent)
@@ -463,17 +592,19 @@ router.post("/inventory/add", async (req, res) => {
       ? validDates.length
       : Math.max(0, qty - alreadyExpired.length); // usually same as qty if no dates
 
-    const newItem = new Inventory({
-      name,
-      category,
-      basePrice:  bPrice,
-      markup:     mAmt,          // pesos stored
-      price:      finalPrice,    // base + markup
-      quantity:   nonExpiredCount,   // <-- SELLABLE ONLY
-      expirationDates: validDates,   // keep only future-dated here
-      expiredDates:    alreadyExpired,
-      expiredCount:    alreadyExpired.length
-    });
+const newItem = new Inventory({
+  name,
+  category,
+  basePrice:  bPrice,
+  markup:     mAmt,
+  price:      finalPrice,
+  quantity:   nonExpiredCount,
+  expirationDates: validDates,
+  expiredDates:    alreadyExpired,
+  expiredCount:    alreadyExpired.length,
+  purchaseDate: purchaseDate ? new Date(purchaseDate) : undefined  // NEW
+});
+
 
     await newItem.save();
     res.json({ message: "Inventory item added successfully" });
@@ -496,7 +627,8 @@ router.get("/inventory/item/:id", async (req, res) => {
 // ─── Edit an Inventory Item ─────────────────────────────────────────
 router.post("/inventory/edit", async (req, res) => {
   try {
-    const { id, name, category, basePrice, markup, quantity } = req.body;
+    const { id, name, category, basePrice, markup, quantity, purchaseDate } = req.body;
+
 
     const bPrice = parseFloat(basePrice) || 0;
     const mAmt   = parseFloat(markup)    || 0; // pesos
@@ -528,18 +660,19 @@ router.post("/inventory/edit", async (req, res) => {
       ...alreadyExpired
     ];
     const newExpiredCount = combinedExpiredDates.length;
+await Inventory.findByIdAndUpdate(id, {
+  name,
+  category,
+  basePrice:       bPrice,
+  markup:          mAmt,
+  price:           finalPrice,
+  quantity:        qty,
+  expirationDates: validDates,
+  expiredDates:    combinedExpiredDates,
+  expiredCount:    newExpiredCount,
+  ...(purchaseDate ? { purchaseDate: new Date(purchaseDate) } : {})  // NEW
+});
 
-    await Inventory.findByIdAndUpdate(id, {
-      name,
-      category,
-      basePrice:       bPrice,
-      markup:          mAmt,        // pesos stored
-      price:           finalPrice,  // base + markup
-      quantity:        qty,
-      expirationDates: validDates,
-      expiredDates:    combinedExpiredDates,
-      expiredCount:    newExpiredCount
-    });
 
     res.json({ message: "Inventory item updated successfully" });
   } catch (error) {
@@ -660,14 +793,30 @@ router.get("/services/list", async (req, res) => {
 });
 router.post("/services/add", async (req, res) => {
   try {
-    const { category, serviceName, weight, dosage, price } = req.body;
-    const newService = new Service({ category, serviceName, weight, dosage, price });
+    const { category, serviceName, weight, dosage, basePrice, markup } = req.body;
+
+    const b = Number(basePrice || 0);
+    const m = Number(markup || 0);
+    const finalPrice = Math.round((b + m) * 100) / 100;
+
+    const newService = new Service({
+      category,
+      serviceName,
+      weight,
+      dosage,
+      basePrice: b,
+      markup: m,
+      price: finalPrice
+    });
+
     await newService.save();
     res.json({ message: "Service added successfully" });
   } catch (error) {
+    console.error("Error adding service:", error);
     res.status(500).json({ message: "Error adding service" });
   }
 });
+
 router.get("/services/item/:id", async (req, res) => {
   try {
     const service = await Service.findById(req.params.id).lean();
@@ -678,13 +827,29 @@ router.get("/services/item/:id", async (req, res) => {
 });
 router.post("/services/edit", async (req, res) => {
   try {
-    const { id, category, serviceName, weight, dosage, price } = req.body;
-    await Service.findByIdAndUpdate(id, { category, serviceName, weight, dosage, price });
+    const { id, category, serviceName, weight, dosage, basePrice, markup } = req.body;
+
+    const b = Number(basePrice || 0);
+    const m = Number(markup || 0);
+    const finalPrice = Math.round((b + m) * 100) / 100;
+
+    await Service.findByIdAndUpdate(id, {
+      category,
+      serviceName,
+      weight,
+      dosage,
+      basePrice: b,
+      markup: m,
+      price: finalPrice
+    });
+
     res.json({ message: "Service updated successfully" });
   } catch (error) {
+    console.error("Error updating service:", error);
     res.status(500).json({ message: "Error updating service" });
   }
 });
+
 router.post("/services/delete", async (req, res) => {
   try {
     await Service.findByIdAndDelete(req.body.id);
@@ -992,6 +1157,833 @@ router.post('/settings/update-breeds', async (req, res) => {
   }
 });
 // ===== END: Species / Breeds routes =====
+// Staff Schedule page (renders views/staff-schedule.ejs)
+// Staff Schedule page (renders views/staff-schedule.ejs)
+router.get("/staff-schedule", (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  // req.baseUrl is the mount, e.g. '/admin' or '/adm'
+  res.render("staff-schedule", { adminBase: req.baseUrl || '/admin' });
+});
 
+// List staff (Doctors + HR) for Staff Schedule dropdowns
+router.get('/staff/list', async (req, res) => {
+  try {
+    const roles = (req.query.roles || 'Doctor,HR')
+      .split(',')
+      .map(r => r.trim())
+      .filter(Boolean);
+
+    const User = require('../models/user');
+    const staff = await User.find({ role: { $in: roles } })
+      .select('_id username email role profilePic')
+      .sort({ role: 1, username: 1 })
+      .lean();
+
+    res.set('Cache-Control', 'no-store');
+    return res.json({ success: true, staff });
+  } catch (e) {
+    console.error('GET /admin/staff/list error:', e);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET weekly grid for a given month (and optional staff filter)
+// GET weekly grid for a given month (and optional staff filter)
+router.get('/staff-schedule/week', async (req, res) => {
+  try {
+    const { yearMonth, staffId } = req.query || {};
+    if (!yearMonth || !/^\d{4}-(0[1-9]|1[0-2])$/.test(yearMonth)) {
+      return res.status(400).json({ success:false, message:'yearMonth (YYYY-MM) is required.' });
+    }
+
+    const filter = { active: true, yearMonth };
+    if (staffId && mongoose.Types.ObjectId.isValid(staffId)) filter.staff = staffId;
+
+    const shifts = await StaffWeeklyShift.find(filter)
+      .populate('staff', 'username role')
+      .lean();
+
+    const byStaff = new Map();
+    const mm = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+
+    for (const s of shifts) {
+      if (!s.staff) continue;
+      const key = String(s.staff._id);
+      if (!byStaff.has(key)) {
+        byStaff.set(key, {
+          staff: { _id: s.staff._id, username: s.staff.username, role: s.staff.role },
+          days: {1:new Map(),2:new Map(),3:new Map(),4:new Map(),5:new Map(),6:new Map(),7:new Map()}
+        });
+      }
+      const row = byStaff.get(key);
+      const label = `${mm(s.startMinutes)}–${mm(s.endMinutes)}`;
+      row.days[s.weekday].set(`${s.startMinutes}-${s.endMinutes}`, label); // unique key
+    }
+
+    const rows = Array.from(byStaff.values()).map(r => {
+      const daysOut = {};
+      for (let d=1; d<=7; d++) {
+        daysOut[d] = Array.from(r.days[d].entries())
+          .map(([k,label]) => ({ sort: parseInt(k.split('-')[0],10), label }))
+          .sort((a,b)=>a.sort-b.sort)
+          .map(x=>x.label);
+      }
+      return { staff: r.staff, days: daysOut };
+    });
+
+    rows.sort((a,b) => (a.staff.role||'').localeCompare(b.staff.role||'') ||
+                       (a.staff.username||'').localeCompare(b.staff.username||''));
+
+    res.json({ success:true, rows });
+  } catch (e) {
+    console.error('GET /admin/staff-schedule/week error:', e);
+    res.status(500).json({ success:false, message:'Server error' });
+  }
+});
+
+// CREATE weekly shifts (used by /js/staff-schedule.js)
+router.post('/staff-schedule/create', async (req, res) => {
+  try {
+    let { staffId, yearMonth, weekdays, startMinutes, endMinutes, note } = req.body || {};
+
+    // --- validate inputs
+    if (!staffId || !mongoose.Types.ObjectId.isValid(staffId)) {
+      return res.status(400).json({ success: false, message: 'Valid staffId required' });
+    }
+    if (!yearMonth || !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(yearMonth))) {
+      return res.status(400).json({ success: false, message: 'yearMonth must be YYYY-MM' });
+    }
+
+    // weekdays may arrive as ["1","2"] or "1,2" or [1,2]
+    if (typeof weekdays === 'string') {
+      weekdays = weekdays.split(',').map(x => parseInt(x, 10)).filter(n => Number.isInteger(n));
+    }
+    if (!Array.isArray(weekdays) || weekdays.length === 0) {
+      return res.status(400).json({ success: false, message: 'weekdays array required' });
+    }
+    weekdays = Array.from(
+      new Set(weekdays.map(n => parseInt(n, 10)).filter(n => n >= 1 && n <= 7))
+    ).sort((a, b) => a - b);
+    if (!weekdays.length) {
+      return res.status(400).json({ success: false, message: 'No valid weekdays (1..7).' });
+    }
+
+    const sMin = Number(startMinutes);
+    const eMin = Number(endMinutes);
+    if (!Number.isFinite(sMin) || !Number.isFinite(eMin) || !(sMin < eMin)) {
+      return res.status(400).json({ success: false, message: 'Invalid time range.' });
+    }
+
+    note = String(note || '').trim();
+
+    // --- create (skip overlaps)
+    const created = [];
+    const skipped = [];
+
+    for (const wd of weekdays) {
+      const overlap = await StaffWeeklyShift.hasOverlap(staffId, wd, sMin, eMin, yearMonth);
+      if (overlap) {
+        skipped.push({ weekday: wd, startMinutes: sMin, endMinutes: eMin, reason: 'overlap' });
+        continue;
+      }
+      const doc = await StaffWeeklyShift.create({
+        staff: staffId,
+        yearMonth,
+        weekday: wd,
+        startMinutes: sMin,
+        endMinutes: eMin,
+        note,
+        active: true,
+      });
+      created.push({ id: String(doc._id), weekday: wd });
+    }
+
+    return res.json({ success: true, created, skipped });
+  } catch (err) {
+    console.error('POST /admin/staff-schedule/create error:', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// DELETE specific weekdays for a staff + month
+// body: { staffId, yearMonth: "YYYY-MM", weekdays: [1..7] }
+router.post('/staff-schedule/delete-weekdays', async (req, res) => {
+  try {
+    let { staffId, yearMonth, weekdays } = req.body || {};
+
+    if (!staffId || !mongoose.Types.ObjectId.isValid(staffId)) {
+      return res.status(400).json({ success: false, message: 'Valid staffId required' });
+    }
+    if (!yearMonth || !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(yearMonth))) {
+      return res.status(400).json({ success: false, message: 'yearMonth must be YYYY-MM' });
+    }
+
+    // weekdays may arrive as ["1","3"] or "1,3" or [1,3]
+    if (typeof weekdays === 'string') {
+      weekdays = weekdays.split(',').map(x => parseInt(x, 10)).filter(Number.isFinite);
+    }
+    if (!Array.isArray(weekdays) || !weekdays.length) {
+      return res.status(400).json({ success: false, message: 'weekdays array required' });
+    }
+    const wdClean = Array.from(
+      new Set(
+        weekdays
+          .map(n => parseInt(n, 10))
+          .filter(n => Number.isInteger(n) && n >= 1 && n <= 7)
+      )
+    );
+    if (!wdClean.length) {
+      return res.status(400).json({ success: false, message: 'No valid weekdays (1..7).' });
+    }
+
+    const result = await StaffWeeklyShift.deleteMany({
+      staff: staffId,
+      yearMonth,
+      weekday: { $in: wdClean },
+      active: true
+    });
+
+    return res.json({ success: true, deletedCount: Number(result.deletedCount || 0) });
+  } catch (e) {
+    console.error('POST /admin/staff-schedule/delete-weekdays error:', e);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// CREATE per-day weekly shifts (different times per weekday)
+router.post('/staff-schedule/create-multi', async (req, res) => {
+  try {
+    let { staffId, yearMonth, dayTimes, note } = req.body || {};
+
+    if (!staffId || !mongoose.Types.ObjectId.isValid(staffId)) {
+      return res.status(400).json({ success: false, message: 'Valid staffId required' });
+    }
+    if (!yearMonth || !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(yearMonth))) {
+      return res.status(400).json({ success: false, message: 'yearMonth must be YYYY-MM' });
+    }
+    if (!Array.isArray(dayTimes) || !dayTimes.length) {
+      return res.status(400).json({ success: false, message: 'dayTimes array required' });
+    }
+
+    note = String(note || '').trim();
+
+    const created = [];
+    const skipped = [];
+
+    for (const dt of dayTimes) {
+      const wd   = parseInt(dt.weekday, 10);
+      const sMin = Number(dt.startMinutes);
+      const eMin = Number(dt.endMinutes);
+
+      if (!(wd >=1 && wd <=7) || !Number.isFinite(sMin) || !Number.isFinite(eMin) || !(sMin < eMin)) {
+        skipped.push({ weekday: wd, reason: 'invalid-range' });
+        continue;
+      }
+
+      const overlap = await StaffWeeklyShift.hasOverlap(staffId, wd, sMin, eMin, yearMonth);
+      if (overlap) {
+        skipped.push({ weekday: wd, reason: 'overlap' });
+        continue;
+      }
+
+      const doc = await StaffWeeklyShift.create({
+        staff: staffId,
+        yearMonth,
+        weekday: wd,
+        startMinutes: sMin,
+        endMinutes: eMin,
+        note,
+        active: true
+      });
+      created.push({ id: String(doc._id), weekday: wd });
+    }
+
+    return res.json({ success: true, created, skipped });
+  } catch (err) {
+    console.error('POST /admin/staff-schedule/create-multi error:', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// Notification Templates (view)
+router.get('/notification', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.render('notification');
+});
+// List templates (optional ?type=notif|declined)
+router.get('/notifications/templates', async (req, res) => {
+  try {
+    const rawType = (req.query.type || '').trim().toLowerCase();
+    const type = rawType === 'notify' ? 'notif' : rawType;
+    const filter = (type && ['notif','declined'].includes(type)) ? { type } : {};
+    const list = await MessageTemplate.find(filter)
+      .sort({ type: 1, isDefault: -1, updatedAt: -1 })
+      .lean();
+    res.json({ success: true, list });
+  } catch (e) {
+    console.error('GET /admin/notifications/templates error:', e);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Create template
+router.post('/notifications/templates', validateRequest(notifTemplateSchema), async (req, res) => {
+  try {
+    const payload = { ...req.body };
+    if (payload.type === 'notify') payload.type = 'notif';
+    const doc = await MessageTemplate.create(payload);
+    res.json({ success: true, template: doc });
+  } catch (e) {
+    console.error('POST /admin/notifications/templates error:', e);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Update template
+router.put('/notifications/templates/:id', validateRequest(notifTemplateUpdateSchema), async (req, res) => {
+  try {
+    const payload = { ...req.body };
+    if (payload.type === 'notify') payload.type = 'notif';
+    const doc = await MessageTemplate.findById(req.params.id);
+    if (!doc) return res.status(404).json({ success: false, message: 'Template not found' });
+
+    // Assign fields if provided
+    ['type','title','body','isDefault'].forEach(k => {
+      if (payload[k] !== undefined) doc[k] = payload[k];
+    });
+
+    await doc.save();
+    res.json({ success: true, template: doc });
+  } catch (e) {
+    console.error('PUT /admin/notifications/templates/:id error:', e);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Delete template
+router.delete('/notifications/templates/:id', async (req, res) => {
+  try {
+    const result = await MessageTemplate.findByIdAndDelete(req.params.id);
+    if (!result) return res.status(404).json({ success: false, message: 'Template not found' });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('DELETE /admin/notifications/templates/:id error:', e);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// Patient page (renders views/patient.ejs)
+// Similar to /petlist, but separate page & table
+
+// GET /admin/patient — identical data to /doctor/d-patient, but rendered for admin
+// ✅ /admin/patient — admin only (doctors are redirected to /doctor/d-patient)
+
+router.get('/patient', authMiddleware, adminOrRedirectDoctor, async (req, res) => {
+  try {
+    // 1) Doctor list (case-insensitive)
+    const doctors = await User.find({ role: /doctor/i })
+      .select('_id username')
+      .sort({ username: 1 })
+      .lean();
+
+    // No doctors yet — render empty shell so the page still loads
+    if (!doctors.length) {
+      return res.render('admin/patient', {
+        rows: [],
+        serviceCategories: [],
+        simpleServices: [],
+        diseases: [],
+        doctor: { userId: '', username: '' },
+        isAdminView: true,
+        adminBase: req.baseUrl || '/admin',
+        activeDoctorId: '',
+        doctors
+      });
+    }
+
+    // 2) Which doctor to show initially (query ?doctorId=… or first in list)
+    const effectiveDoctorId = String(req.query.doctorId || doctors[0]._id);
+    const picked = doctors.find(d => String(d._id) === String(effectiveDoctorId));
+    const effectiveDoctorName = picked ? picked.username : '';
+
+    // 3) Pull that doctor's open reservations (skip Canceled)
+    const docObjId = mongoose.Types.ObjectId.isValid(effectiveDoctorId)
+      ? new mongoose.Types.ObjectId(effectiveDoctorId)
+      : null;
+
+    const reservations = await Reservation.find({
+      status: { $ne: 'Canceled' },
+      $or: [{ doctor: docObjId }, { doctor: String(effectiveDoctorId) }]
+    })
+      .populate('pets.petId', 'petName birthday')
+      .lean();
+
+    const reservationIds = reservations.map(r => String(r._id));
+
+    // 4) Consultations (for hasConsultation & final service label)
+    const consults = await Consultation.find({
+      reservation: { $in: reservationIds }
+    })
+      .select('reservation targetPetId targetPetName services')
+      .lean();
+
+    const serviceByKey = new Map();  // `${resId}::id::${petId}` or `...::name::${petNameLower}`
+    const consultedKey = new Set();
+
+    const extractNames = (arr) =>
+      Array.isArray(arr)
+        ? arr
+            .map(s => (s?.serviceName || s?.name || s?.service?.name || s?.service?.serviceName || '').trim())
+            .filter(Boolean)
+        : [];
+
+    for (const c of (consults || [])) {
+      const resId = String(c.reservation);
+      const label = [...new Set(extractNames(c.services))].join(', ');
+      if (c.targetPetId) {
+        const k = `${resId}::id::${String(c.targetPetId)}`;
+        consultedKey.add(k);
+        if (label) serviceByKey.set(k, label);
+      }
+      if (c.targetPetName) {
+        const k = `${resId}::name::${String(c.targetPetName).toLowerCase()}`;
+        consultedKey.add(k);
+        if (label) serviceByKey.set(k, label);
+      }
+    }
+
+    // 5) Build rows for the table (skip pets already marked done)
+    const rows = [];
+    for (const r of reservations) {
+      for (const p of (r.pets || [])) {
+        if (p?.done) continue;
+
+        const petObj   = p.petId || p;
+        const pid      = petObj?._id ? String(petObj._id) : '';
+        const petName  = petObj?.petName || p.petName || '';
+        const nameKey  = petName.toLowerCase();
+
+        const keyById  = `${String(r._id)}::id::${pid}`;
+        const keyByNm  = `${String(r._id)}::name::${nameKey}`;
+
+        // a) from consultation
+        const svcFromConsult =
+          serviceByKey.get(keyById) || serviceByKey.get(keyByNm) || null;
+
+        // b) from schedule
+        const svcFromSchedule =
+          p?.schedule?.service?.name || p?.schedule?.scheduleDetails || '';
+
+        // c) fallback: requested service
+        let svcRequested = r.service || '—';
+        if (Array.isArray(r.petRequests) && r.petRequests.length) {
+          const pidStr = p?.petId ? String(p.petId) : null;
+          let pr = null;
+          if (pidStr) pr = r.petRequests.find(x => String(x.petId) === pidStr);
+          if (!pr)    pr = r.petRequests.find(x => x.petName === p.petName);
+          if (pr?.service) svcRequested = pr.service;
+        }
+
+        const finalService = svcFromConsult || svcFromSchedule || svcRequested || '—';
+
+        const hasConsultation =
+          p.hasConsult === true ||
+          consultedKey.has(keyById) ||
+          consultedKey.has(keyByNm);
+
+        rows.push({
+          reservationId : String(r._id),
+          ownerName     : r.ownerName || '',
+          petId         : pid,
+          petName       : petName || '—',
+          service       : finalService,
+          petSchedule   : p.schedule || null,
+          hasConsultation,
+          resStatus     : r.status || '',
+          petDone       : !!p.done
+        });
+      }
+    }
+
+    // 6) Modal data: categories, simple services, diseases
+    const serviceCategories = await ServiceCategory.find({}).lean();
+
+    const settings = await PetDetailsSetting.findOne().lean();
+
+    let simpleServices = [];
+    if (Array.isArray(settings?.services) && settings.services.length) {
+      simpleServices = settings.services
+        .map(s => (typeof s === 'string'
+          ? s.trim()
+          : (s?.name || s?.serviceName || s?.title || s?.label || s?.value || '').toString().trim()))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+    } else {
+      simpleServices = (await Service.distinct('serviceName'))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+    }
+
+    const diseases = Array.isArray(settings?.diseases)
+      ? [...settings.diseases].filter(Boolean).sort((a, b) => a.localeCompare(b))
+      : [];
+
+    // 7) Render admin view (patient.ejs includes doctor/d-patient + admin picker)
+    return res.render('admin/patient', {
+      rows,
+      serviceCategories,
+      simpleServices,
+      diseases,
+      doctor: { userId: String(effectiveDoctorId), username: effectiveDoctorName },
+      isAdminView   : true,
+      adminBase     : req.baseUrl || '/admin',
+      activeDoctorId: String(effectiveDoctorId),
+      doctors
+    });
+
+  } catch (err) {
+    console.error('Error rendering /admin/patient', err);
+    res.status(500).send('Server error');
+  }
+});
+// Admin JSON data for the doctor table (used by patient.ejs "Load" button)
+router.get('/patient-data', authMiddleware, allow('admin'), async (req, res) => {
+  try {
+    const effectiveDoctorId = String(req.query.doctorId || '').trim();
+    if (!effectiveDoctorId) {
+      return res.status(400).json({ success: false, message: 'doctorId is required' });
+    }
+
+    // doctor name (optional)
+    const doc = await User.findOne({ _id: effectiveDoctorId }).select('username').lean();
+    const effectiveDoctorName = doc ? doc.username : '';
+
+    // open reservations for that doctor (skip Canceled; skip done pets later)
+    const docObjId = mongoose.Types.ObjectId.isValid(effectiveDoctorId)
+      ? new mongoose.Types.ObjectId(effectiveDoctorId)
+      : null;
+
+    const reservations = await Reservation.find({
+      status: { $ne: 'Canceled' },
+      $or: [{ doctor: docObjId }, { doctor: effectiveDoctorId }]
+    })
+      .populate('pets.petId', 'petName birthday')
+      .lean();
+
+    const reservationIds = reservations.map(r => String(r._id));
+
+    // consultations for service labels + hasConsultation
+    const consults = await Consultation.find({
+      reservation: { $in: reservationIds }
+    })
+      .select('reservation targetPetId targetPetName services')
+      .lean();
+
+    const serviceByKey = new Map(); // `${resId}::id::${petId}` or `...::name::${petNameLower}`
+    const consultedKey = new Set();
+
+    const extractNames = (arr) =>
+      Array.isArray(arr)
+        ? arr.map(s => (s?.serviceName || s?.name || s?.service?.name || s?.service?.serviceName || '').trim())
+             .filter(Boolean)
+        : [];
+
+    for (const c of consults) {
+      const resId = String(c.reservation);
+      const label = [...new Set(extractNames(c.services))].join(', ');
+      if (c.targetPetId) {
+        const k = `${resId}::id::${String(c.targetPetId)}`;
+        consultedKey.add(k);
+        if (label) serviceByKey.set(k, label);
+      }
+      if (c.targetPetName) {
+        const k = `${resId}::name::${String(c.targetPetName).toLowerCase()}`;
+        consultedKey.add(k);
+        if (label) serviceByKey.set(k, label);
+      }
+    }
+
+    const rows = [];
+    for (const r of reservations) {
+      for (const p of (r.pets || [])) {
+        if (p?.done) continue;
+
+        const petObj  = p.petId || p;
+        const pid     = petObj?._id ? String(petObj._id) : '';
+        const petName = petObj?.petName || p.petName || '';
+        const nameKey = petName.toLowerCase();
+
+        const keyById   = `${String(r._id)}::id::${pid}`;
+        const keyByName = `${String(r._id)}::name::${nameKey}`;
+
+        const svcFromConsult  = serviceByKey.get(keyById) || serviceByKey.get(keyByName) || null;
+        const svcFromSchedule = p?.schedule?.service?.name || p?.schedule?.scheduleDetails || '';
+
+        // requested service fallback
+        let svcRequested = r.service || '—';
+        if (Array.isArray(r.petRequests) && r.petRequests.length) {
+          const pidStr = p?.petId ? String(p.petId) : null;
+          let pr = null;
+          if (pidStr) pr = r.petRequests.find(x => String(x.petId) === pidStr);
+          if (!pr)    pr = r.petRequests.find(x => x.petName === p.petName);
+          if (pr?.service) svcRequested = pr.service;
+        }
+
+        const finalService = svcFromConsult || svcFromSchedule || svcRequested || '—';
+
+        const hasConsultation =
+          p.hasConsult === true ||
+          consultedKey.has(keyById) ||
+          consultedKey.has(keyByName);
+
+        rows.push({
+          reservationId : String(r._id),
+          ownerName     : r.ownerName || '',
+          petId         : pid,
+          petName       : petName || '—',
+          service       : finalService,
+          petSchedule   : p.schedule || null,
+          hasConsultation,
+          resStatus     : r.status || '',
+          petDone       : !!p.done
+        });
+      }
+    }
+
+    // modal dropdown data
+    const serviceCategories = await ServiceCategory.find({}).lean();
+
+    const settings = await PetDetailsSetting.findOne().lean();
+    let simpleServices = [];
+    if (Array.isArray(settings?.services) && settings.services.length) {
+      simpleServices = settings.services
+        .map(s => (typeof s === 'string'
+          ? s.trim()
+          : (s?.name || s?.serviceName || s?.title || s?.label || s?.value || '').toString().trim()))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+    } else {
+      simpleServices = (await Service.distinct('serviceName'))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+    }
+
+    const diseases = Array.isArray(settings?.diseases)
+      ? [...settings.diseases].filter(Boolean).sort((a, b) => a.localeCompare(b))
+      : [];
+
+    return res.json({
+      success: true,
+      rows,
+      serviceCategories,
+      simpleServices,
+      diseases,
+      doctor: { userId: effectiveDoctorId, username: effectiveDoctorName }
+    });
+  } catch (err) {
+    console.error('Error in GET /admin/patient-data', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// ===== Admin mirrors of Doctor JSON endpoints used by admin/patient.ejs =====
+
+// GET /admin/consultation/one?reservationId=...&petId=...&petName=...
+router.get('/consultation/one', authMiddleware, allow('admin'), async (req, res) => {
+  try {
+    const { reservationId, petId, petName } = req.query;
+    if (!reservationId) {
+      return res.status(400).json({ success: false, message: 'reservationId required' });
+    }
+
+    // Try resolve petId by name if needed
+    let targetPetId = petId || null;
+    if (!targetPetId && petName) {
+      const r = await Reservation.findById(reservationId)
+        .populate('pets.petId','petName')
+        .lean();
+      const m = r?.pets?.find(p => (p.petId?.petName || p.petName) === petName);
+      if (m?.petId?._id) targetPetId = String(m.petId._id);
+    }
+
+    // Prefer id; fallback to name
+    let q = { reservation: reservationId };
+    if (targetPetId) q.targetPetId = targetPetId;
+
+    let c = await Consultation.findOne(q).sort({ updatedAt: -1, _id: -1 }).lean();
+    if (!c && petName) {
+      c = await Consultation.findOne({
+        reservation: reservationId,
+        targetPetName: petName
+      }).sort({ updatedAt: -1, _id: -1 }).lean();
+    }
+
+    return res.json({ success: true, consultation: c || null });
+  } catch (e) {
+    console.error('admin /consultation/one error:', e);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /admin/services/listByCategory?categoryId=...
+router.get('/services/listByCategory', authMiddleware, allow('admin'), async (req, res) => {
+  try {
+    const { categoryId } = req.query;
+    if (!categoryId) return res.json({ success:false, message:'categoryId is required' });
+    const services = await Service.find({ category: categoryId }).lean();
+    res.json({ success:true, services });
+  } catch (e) {
+    console.error('admin /services/listByCategory', e);
+    res.status(500).json({ success:false, message:'Server error' });
+  }
+});
+
+// GET /admin/consult/appointmentCount?date=YYYY-MM-DD&time=HH:MM%20AM
+router.get('/consult/appointmentCount', authMiddleware, allow('admin'), async (req, res) => {
+  try {
+    const { date, time } = req.query;
+    if (!date || !time) return res.json({ count: 0 });
+
+    const start = new Date(date + 'T00:00:00.000Z');
+    const end   = new Date(date + 'T23:59:59.999Z');
+
+    const hits = await Reservation.find({
+      date  : { $gte: start, $lte: end },
+      time  : time,
+      status: { $nin: ['Canceled','Rejected'] }
+    }).select('petRequests').lean();
+
+    let count = 0;
+    for (const r of hits) {
+      count += (Array.isArray(r.petRequests) && r.petRequests.length) ? r.petRequests.length : 1;
+    }
+    res.json({ count });
+  } catch (e) {
+    console.error('admin /consult/appointmentCount', e);
+    res.json({ count: 0 });
+  }
+});
+
+// GET /admin/settings/appointmentLimit
+router.get('/settings/appointmentLimit', authMiddleware, allow('admin'), async (_req, res) => {
+  try {
+    const s = await AppointmentSetting.findOne().lean();
+    res.json({ limit: Number(s?.limitPerHour ?? 0) });
+  } catch {
+    res.json({ limit: 0 });
+  }
+});
+
+// GET /admin/settings/diseasesBySpecies?reservationId=...&petId=...&petName=...
+router.get('/settings/diseasesBySpecies', authMiddleware, allow('admin'), async (req, res) => {
+  try {
+    const { reservationId, petId, petName } = req.query;
+    if (!reservationId) {
+      return res.status(400).json({ success: false, message: 'reservationId required' });
+    }
+
+    const reservation = await Reservation.findById(reservationId)
+      .populate('pets.petId', 'petName species')
+      .lean();
+    if (!reservation) {
+      return res.status(404).json({ success: false, message: 'Reservation not found' });
+    }
+
+    // Resolve species
+    let species = null;
+    if (petId) {
+      const entry = (reservation.pets || []).find(p => String(p.petId?._id || '') === String(petId));
+      species = entry?.petId?.species || null;
+    } else if (petName) {
+      const entry = (reservation.pets || []).find(p => {
+        const n = p.petId?.petName || p.petName || '';
+        return n.trim().toLowerCase() === petName.trim().toLowerCase();
+      });
+      species = entry?.petId?.species || null;
+    }
+    if (!species && reservation.isExistingPet === false) {
+      species = reservation.species || null;
+    }
+
+    const settings = await PetDetailsSetting.findOne().lean();
+    let list = [];
+    if (settings) {
+      if (species && settings.speciesDiseases && Array.isArray(settings.speciesDiseases[species])) {
+        list = settings.speciesDiseases[species];
+      } else if (Array.isArray(settings.diseases)) {
+        list = settings.diseases;
+      }
+    }
+
+    const diseases = [...new Set((list || [])
+      .map(s => (typeof s === 'string' ? s.trim() : ''))
+      .filter(Boolean))].sort((a,b) => a.localeCompare(b));
+
+    return res.json({ success: true, species: species || null, diseases });
+  } catch (e) {
+    console.error('admin /settings/diseasesBySpecies', e);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /admin/followup/stats?year=YYYY&month=1..12
+router.get('/followup/stats', authMiddleware, allow('admin'), async (req, res) => {
+  try {
+    const year  = parseInt(req.query.year, 10);
+    const month = parseInt(req.query.month, 10);
+    if (!year || !month) return res.json({ limit: 0, counts: {} });
+
+    const TIME_SLOTS = ['08:00 AM','09:00 AM','10:00 AM','11:00 AM','12:00 PM','01:00 PM','02:00 PM','03:00 PM','04:00 PM','05:00 PM'];
+    const perHour = Number((await AppointmentSetting.findOne().lean())?.limitPerHour ?? 0);
+    const perDayLimit = perHour > 0 ? perHour * TIME_SLOTS.length : 0;
+
+    const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const end   = new Date(Date.UTC(year, month,     0, 23, 59, 59, 999));
+
+    const reservations = await Reservation.find({
+      date  : { $gte: start, $lte: end },
+      status: { $nin: ['Canceled', 'Rejected'] }
+    }).select('date petRequests').lean();
+
+    const counts = {};
+    for (const r of reservations) {
+      if (!r.date) continue;
+      const iso = r.date.toISOString().slice(0, 10);
+      const inc = (Array.isArray(r.petRequests) && r.petRequests.length) ? r.petRequests.length : 1;
+      counts[iso] = (counts[iso] || 0) + inc;
+    }
+
+    res.json({ limit: perDayLimit, counts });
+  } catch {
+    res.json({ limit: 0, counts: {} });
+  }
+});
+
+// Inventory helpers used in medication picker on consultation modal
+router.get('/inventory/categories', authMiddleware, allow('admin'), async (_req, res) => {
+  try {
+    const cats = await Inventory.distinct('category');
+    res.json({ success:true, categories: cats });
+  } catch (e) {
+    res.json({ success:true, categories: [] });
+  }
+});
+
+router.get('/inventory/listByCategory', authMiddleware, allow('admin'), async (req, res) => {
+  try {
+    const { category } = req.query;
+    const q = category ? { category } : {};
+    const products = await Inventory.find(q).select('name').lean();
+    res.json({ success:true, products });
+  } catch (e) {
+    res.json({ success:true, products: [] });
+  }
+});
+
+router.get('/inventory/checkQuantity', authMiddleware, allow('admin'), async (req, res) => {
+  try {
+    const { product } = req.query;
+    const doc = await Inventory.findOne({ name: product }).select('quantity').lean();
+    res.json({ success:true, availableQty: Number(doc?.quantity || 0) });
+  } catch (e) {
+    res.json({ success:true, availableQty: 0 });
+  }
+});
 
 module.exports = router;
