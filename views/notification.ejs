@@ -1,0 +1,479 @@
+<% /* views/notification.ejs — Notification Templates Manager */ %>
+<style>
+  .notify-container{ min-height:100vh; padding:12px !important; }
+  .card-shell{ border:1px solid #e9ecef; border-radius:14px; background:#fff; box-shadow:0 3px 12px rgba(30,34,90,0.08); }
+
+  .pill-tabs .nav-link{ border-radius:999px; padding:.35rem .85rem; margin-right:.35rem; }
+  .pill-tabs .nav-link.active{ background:var(--primary); color:#fff; }
+
+  .list-hover .list-group-item{ cursor:pointer; border-left:3px solid transparent; transition:border-color .15s, background .15s; }
+  .list-hover .list-group-item:hover{ background:#f9fbff; }
+  .list-hover .list-group-item.active{
+    background:#f3f8ff; border-color:var(--accent);
+  }
+  .template-badge{ font-size:.72rem; border:1px solid #e0e0e0; padding:.1rem .35rem; border-radius:.4rem; }
+  .form-help{ font-size:.85rem; color:#6c757d; }
+
+  /* counters */
+  .char-counter{ font-size:.8rem; color:#6c757d; }
+  .char-counter.danger{ color:#dc3545; }
+
+  /* skeleton for list while loading */
+  .skeleton{ position:relative; overflow:hidden; background:#eee; border-radius:8px; }
+  .skeleton:after{
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.6) 50%, rgba(255,255,255,0) 100%);
+    transform:translateX(-100%); animation:sweep 1.2s infinite;
+  }
+  @keyframes sweep{ 100% { transform:translateX(100%);} }
+  .skeleton-line{ height:12px; margin:8px 0; border-radius:6px; }
+  .skeleton-sm{ height:9px; width:60%; }
+
+  /* --- Notification list layout (no overlap) --- */
+  #nt-list .nt-item{
+    display:flex;
+    align-items:flex-start;    /* keeps the badge top-aligned */
+    gap:10px;
+  }
+  #nt-list .nt-main{
+    flex:1 1 auto;
+    min-width:0;               /* critical so ellipsis/clamp can work */
+  }
+  #nt-list .nt-title{
+    font-weight:600;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    word-break:break-word;
+    overflow-wrap:anywhere;
+  }
+  #nt-list .nt-body{
+    margin-top:2px;
+    font-size:.9rem;
+    color:#6c757d;
+    display:-webkit-box;
+    -webkit-line-clamp:2;      /* show up to 2 lines */
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+    word-break:break-word;
+    overflow-wrap:anywhere;     /* handle unbroken long strings/URLs */
+  }
+  #nt-list .nt-meta{
+    flex:0 0 auto;
+    white-space:nowrap;
+    text-align:right;
+    margin-left:8px;
+  }
+
+  @media (max-width:576px){
+    /* On small screens, stack to avoid cramped layout */
+    #nt-list .nt-item{ flex-direction:column; }
+    #nt-list .nt-meta{ align-self:flex-start; margin-left:0; margin-top:6px; }
+  }
+</style>
+
+<div class="notify-container container-fluid">
+  <div class="row">
+    <!-- Left column: tabs, search, list -->
+    <div class="col-lg-5 mb-3">
+      <div class="card card-shell">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <ul class="nav pill-tabs" id="nt-type-tabs">
+              <li class="nav-item">
+                <a class="nav-link active" data-type="notif" href="#" title="General notifications">Notify</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" data-type="declined" href="#" title="Decline reasons">Declined</a>
+              </li>
+            </ul>
+            <button id="nt-new" class="btn btn-sm btn-primary" type="button">
+              <span class="mr-1"><i class="fa fa-plus"></i></span> New
+            </button>
+          </div>
+
+          <div class="input-group mb-3">
+            <input id="nt-search" type="text" class="form-control" placeholder="Search title or message...">
+            <div class="input-group-append">
+              <button id="nt-clear" class="btn btn-outline-secondary" type="button" title="Clear search">Clear</button>
+            </div>
+          </div>
+
+          <ul id="nt-list" class="list-group list-hover" aria-live="polite" aria-busy="false"></ul>
+
+          <!-- Empty state -->
+          <div id="nt-empty" class="text-center text-muted py-4" style="display:none;">
+            No templates yet. Click <b>New</b> to create one.
+          </div>
+
+          <!-- Skeleton loader -->
+          <div id="nt-skeleton" style="display:none;">
+            <div class="skeleton p-3 mb-2">
+              <div class="skeleton-line" style="width:40%"></div>
+              <div class="skeleton-line skeleton-sm"></div>
+            </div>
+            <div class="skeleton p-3 mb-2">
+              <div class="skeleton-line" style="width:55%"></div>
+              <div class="skeleton-line skeleton-sm"></div>
+            </div>
+            <div class="skeleton p-3">
+              <div class="skeleton-line" style="width:30%"></div>
+              <div class="skeleton-line skeleton-sm"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column: editor -->
+    <div class="col-lg-7 mb-3">
+      <div class="card card-shell">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <h5 class="mb-0">Template Editor</h5>
+            <span id="nt-current-badge" class="template-badge">New</span>
+          </div>
+
+          <form id="nt-form" autocomplete="off" novalidate>
+            <input type="hidden" id="nt-id" value="">
+
+            <div class="form-group">
+              <label class="d-block">Type</label>
+              <div>
+                <div class="custom-control custom-radio custom-control-inline">
+                  <input type="radio" id="type-notif" name="type" value="notif" class="custom-control-input" checked>
+                  <label class="custom-control-label" for="type-notif">Notify</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                  <input type="radio" id="type-declined" name="type" value="declined" class="custom-control-input">
+                  <label class="custom-control-label" for="type-declined">Declined</label>
+                </div>
+              </div>
+              <div class="form-help">Choose the bucket where this template belongs.</div>
+            </div>
+
+            <div class="form-group mb-2">
+              <label for="nt-title" class="d-flex justify-content-between">
+                <span>Title</span>
+                <span id="cc-title" class="char-counter">0 / 120</span>
+              </label>
+              <input id="nt-title" class="form-control" maxlength="120" placeholder="e.g., Appointment Declined">
+            </div>
+
+            <div class="form-group">
+              <label for="nt-body" class="d-flex justify-content-between">
+                <span>Message</span>
+                <span id="cc-body" class="char-counter">0</span>
+              </label>
+              <textarea id="nt-body" class="form-control" rows="8" placeholder="Write the message..."></textarea>
+              <div class="form-help">Tip: Keep it clear and friendly. You can paste from your clipboard.</div>
+            </div>
+
+            <div class="form-group form-check">
+              <input type="checkbox" class="form-check-input" id="nt-default">
+              <label class="form-check-label" for="nt-default">Set as default for this type</label>
+            </div>
+
+            <div class="d-flex flex-wrap">
+              <button id="nt-save" type="submit" class="btn btn-primary mr-2">
+                <i class="fa fa-save mr-1"></i> Save
+              </button>
+              <button id="nt-delete" type="button" class="btn btn-outline-danger" disabled>
+                <i class="fa fa-trash mr-1"></i> Delete
+              </button>
+            </div>
+          </form>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SweetAlert2 (load if not already loaded globally) -->
+<script>
+  (function ensureSwal(){
+    if (!window.Swal) {
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/sweetalert2@11';
+      document.body.appendChild(s);
+    }
+  })();
+</script>
+
+<script>
+(function(window, $){
+  'use strict';
+
+  // ---- Spinner helpers (lock/unlock buttons) ----
+  function lockBtn($btn, label){
+    if ($btn.data('locked')) return;
+    $btn.data('locked', true);
+    $btn.data('orig-html', $btn.html());
+    $btn.prop('disabled', true)
+        .html('<span class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>' + (label || 'Working…'));
+  }
+  function unlockBtn($btn){
+    if (!$btn.data('locked')) return;
+    $btn.prop('disabled', false).html($btn.data('orig-html'));
+    $btn.data('locked', false);
+  }
+
+  const state = {
+    type: 'notif',
+    all: [],
+    filtered: [],
+    selectedId: ''
+  };
+
+  // ---- DOM refs
+  const $list   = $('#nt-list');
+  const $empty  = $('#nt-empty');
+  const $skel   = $('#nt-skeleton');
+
+  const $id     = $('#nt-id');
+  const $title  = $('#nt-title');
+  const $body   = $('#nt-body');
+  const $typeN  = $('#type-notif');
+  const $typeD  = $('#type-declined');
+  const $isDef  = $('#nt-default');
+  const $badge  = $('#nt-current-badge');
+
+  const $ccTitle= $('#cc-title');
+  const $ccBody = $('#cc-body');
+
+  const $btnNew = $('#nt-new');
+  const $btnSave= $('#nt-save');
+  const $btnDel = $('#nt-delete');
+
+  const $search = $('#nt-search');
+  const $clear  = $('#nt-clear');
+
+  // ---- Utilities
+  function escapeHtml(s){
+    return String(s||'')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function alertErr(msg){
+    if (!window.Swal) return alert(msg || 'Something went wrong.');
+    Swal.fire({ icon:'error', title:'Error', text: msg || 'Something went wrong.' });
+  }
+
+  function uiBadge() {
+    const t = $typeN.prop('checked') ? 'Notify' : 'Declined';
+    if (!$id.val()){ $badge.text('New'); return; }
+    $badge.text(t + ($isDef.prop('checked') ? ' · Default' : ''));
+  }
+
+  function counters(){
+    const tlen = ($title.val()||'').length;
+    $ccTitle.text(`${tlen} / 120`).toggleClass('danger', tlen >= 120);
+    const blen = ($body.val()||'').length;
+    $ccBody.text(`${blen} chars`);
+  }
+
+  function selectNone(){
+    $id.val('');
+    $title.val('');
+    $body.val('');
+    $typeN.prop('checked', state.type === 'notif');
+    $typeD.prop('checked', state.type !== 'notif');
+    $isDef.prop('checked', false);
+    $btnDel.prop('disabled', true);
+    state.selectedId = '';
+    uiBadge(); counters();
+  }
+
+  function renderList(){
+    const rows = state.filtered;
+    $list.empty();
+    $list.attr('aria-busy', 'false');
+    if (!rows.length) { $empty.show(); return; }
+    $empty.hide();
+
+    rows.forEach(t => {
+      const def = t.isDefault ? '<span class="badge badge-info ml-2">Default</span>' : '';
+      const li = $(`
+        <li class="list-group-item nt-item" data-id="${t._id}">
+          <div class="nt-main">
+            <div class="nt-title">${escapeHtml(t.title)}</div>
+            <div class="nt-body">${escapeHtml(t.body)}</div>
+          </div>
+          <div class="nt-meta">
+            <span class="badge badge-light">${t.type === 'notif' ? 'Notify' : 'Declined'}</span>
+            ${def}
+          </div>
+        </li>
+      `);
+      $list.append(li);
+    });
+  }
+
+  function applySearch(){
+    const q = $search.val().trim().toLowerCase();
+    if (!q) {
+      state.filtered = state.all.slice();
+    } else {
+      state.filtered = state.all.filter(t =>
+        (t.title||'').toLowerCase().includes(q) ||
+        (t.body||'').toLowerCase().includes(q)
+      );
+    }
+    renderList();
+  }
+
+  function showSkeleton(load=true){
+    if (load){ $skel.show(); $list.hide(); $empty.hide(); }
+    else { $skel.hide(); $list.show(); }
+  }
+
+  function loadList(){
+    showSkeleton(true);
+    $list.attr('aria-busy', 'true');
+    $.get('/admin/notifications/templates', { type: state.type })
+      .done(res => {
+        state.all = (res && res.list) || [];
+        state.filtered = state.all.slice();
+        showSkeleton(false);
+        renderList();
+      })
+      .fail(() => {
+        showSkeleton(false);
+        state.all = []; state.filtered = [];
+        renderList();
+        alertErr('Failed to load templates.');
+      });
+  }
+
+  function loadOne(id){
+    const t = state.all.find(x => String(x._id) === String(id));
+    if (!t) return;
+    $id.val(t._id);
+    $title.val(t.title || '');
+    $body.val(t.body || '');
+    $typeN.prop('checked', t.type === 'notif');
+    $typeD.prop('checked', t.type === 'declined');
+    $isDef.prop('checked', !!t.isDefault);
+    $btnDel.prop('disabled', false);
+    state.selectedId = String(t._id);
+    uiBadge(); counters();
+  }
+
+  // ---- Debounced search
+  let searchTimer = null;
+  function debouncedSearch(){
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(applySearch, 180);
+  }
+
+  // ---- Events
+  $('#nt-type-tabs .nav-link').off('.nt').on('click.nt', function(e){
+    e.preventDefault();
+    $('#nt-type-tabs .nav-link').removeClass('active');
+    $(this).addClass('active');
+    state.type = $(this).data('type');
+    selectNone();
+    loadList();
+  });
+
+  $btnNew.off('.nt').on('click.nt', function(){
+    selectNone();
+    if (window.Swal) {
+      Swal.fire({icon:'info', title:'New template', text:'Fill in the fields then click Save.'});
+    }
+  });
+
+  $list.off('.nt').on('click.nt', '.list-group-item', function(){
+    const id = $(this).data('id');
+    $list.children().removeClass('active');
+    $(this).addClass('active');
+    loadOne(id);
+  });
+
+  $search.off('.nt').on('input.nt', debouncedSearch);
+  $clear.off('.nt').on('click.nt', function(){
+    $search.val(''); applySearch(); $search.focus();
+  });
+
+  $isDef.off('.nt').on('change.nt', uiBadge);
+  $title.off('.nt').on('input.nt', counters);
+  $body.off('.nt').on('input.nt', counters);
+
+  // Save
+  $('#nt-form').off('.nt').on('submit.nt', function(e){
+    e.preventDefault();
+    const payload = {
+      type:  $typeN.prop('checked') ? 'notif' : 'declined',
+      title: ($title.val()||'').trim(),
+      body:  ($body.val()||'').trim(),
+      isDefault: $isDef.prop('checked')
+    };
+    if (!payload.title) { alertErr('Title is required.'); return; }
+    if (!payload.body)  { alertErr('Message is required.'); return; }
+
+    const id = $id.val();
+    const $btn = $btnSave;
+    lockBtn($btn, id ? 'Saving…' : 'Creating…');
+
+    const ajax = id
+      ? $.ajax({ url: '/admin/notifications/templates/'+encodeURIComponent(id), method:'PUT', data: payload })
+      : $.ajax({ url: '/admin/notifications/templates', method:'POST', data: payload });
+
+    ajax.done(() => {
+      if (window.Swal) {
+        Swal.fire({ icon:'success', title:'Saved', text:'Template saved successfully.' });
+      }
+      selectNone();
+      loadList();
+    }).fail(xhr => {
+      alertErr(xhr?.responseJSON?.message || 'Failed to save template.');
+    }).always(() => {
+      unlockBtn($btn);
+    });
+  });
+
+  // Delete
+  $btnDel.off('.nt').on('click.nt', function(){
+    const id = $id.val();
+    if (!id) return;
+    if (!window.Swal) {
+      if (confirm('Delete this template?')) doDelete();
+      return;
+    }
+    Swal.fire({
+      title:'Delete template?',
+      text:'This cannot be undone.',
+      icon:'warning',
+      showCancelButton:true,
+      confirmButtonColor:'#d33',
+      confirmButtonText:'Delete'
+    }).then(r => { if (r.isConfirmed) doDelete(); });
+
+    function doDelete(){
+      const $btn = $btnDel; lockBtn($btn, 'Deleting…');
+      $.ajax({ url: '/admin/notifications/templates/'+encodeURIComponent(id), method: 'DELETE' })
+        .done(() => {
+          if (window.Swal) Swal.fire({icon:'success', title:'Deleted', text:'Template removed.'});
+          selectNone(); loadList();
+        })
+        .fail(() => alertErr('Failed to delete template.'))
+        .always(() => unlockBtn($btn));
+    }
+  });
+
+  // Keyboard shortcut: Ctrl/Cmd+S to save
+  $(document).off('.ntks').on('keydown.ntks', function(e){
+    const s = (e.key === 's' || e.keyCode === 83);
+    if ((e.ctrlKey || e.metaKey) && s) {
+      e.preventDefault();
+      $btnSave.click();
+    }
+  });
+
+  // Init
+  selectNone();
+  loadList();
+
+})(window, jQuery);
+</script>
