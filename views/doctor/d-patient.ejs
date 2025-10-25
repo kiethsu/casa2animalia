@@ -528,6 +528,12 @@
   opacity: 1 !important;
 }
 
+/* Time dropdown (Schedule modal): red & disabled look for full slots */
+/* Time dropdown: make any disabled option red (Full or Passed) */
+#fuTime option:disabled,
+#fuTime option.full-slot { color: #dc3545 !important; font-weight:600; }
+
+
 
  </style>
 
@@ -537,7 +543,8 @@
   var rowsData = <%- JSON.stringify(typeof rows !== 'undefined' ? rows : []) %>;
   var serviceCategoriesClient = <%- JSON.stringify(typeof serviceCategories !== 'undefined' ? serviceCategories : []) %>;
   var simpleServices = <%- JSON.stringify(typeof simpleServices !== 'undefined' ? simpleServices : []) %>;
-  var diseases = <%- JSON.stringify(typeof diseases !== 'undefined' ? diseases : []) %>; <!-- NEW -->
+  var diseases = <%- JSON.stringify(typeof diseases !== 'undefined' ? diseases : []) %>; // NEW
+
   window.DOCTOR_ID = '<%= doctor && doctor.userId ? doctor.userId : "" %>';
 </script>
 
@@ -836,6 +843,25 @@
             <div class="modal-body">
               <div id="scheduleDatePicker"></div>
               <input type="hidden" id="scheduleDate" name="scheduleDate" required>
+<!-- Follow-Up Time (capacity-aware) -->
+<div class="form-group mt-2">
+  <label for="fuTime">Follow-Up Time</label>
+  <select class="form-control" id="fuTime"></select>
+  <small class="form-text text-muted">
+    Past or full slots are disabled automatically.
+  </small>
+  <div id="fuTimeError" class="text-danger mt-1"></div>
+</div>
+
+<!-- so $(form).serialize() sends the time -->
+<input type="hidden" id="scheduleTime" name="scheduleTime">
+<script>
+// keep hidden payload synced and clear inline error as soon as user picks a slot
+$(document).on('change', '#fuTime', function () {
+  $('#scheduleTime').val($(this).val() || '');
+  $('#fuTimeError').text('');
+});
+</script>
 
 
   <div class="form-group mt-3">
@@ -903,6 +929,8 @@
 
   <script>
     // Utility to build row id consistently (must match server-rendered id)
+
+    
     /* === Always-6-week calendar helpers === */
 function padToSixWeeks($dp){
   const $cal = $dp.find('.ui-datepicker-calendar');
@@ -1212,6 +1240,7 @@ function dzRender(){
 // --- Doctor SSE: singleton so we don't open many connections ---
 (function initDoctorStreamSingleton(){
   try {
+       if (window.IS_ADMIN_VIEW) return; // ← do not open SSE from admin wrapper
     // if we already have an open (or connecting) SSE, reuse it
     if (window.__doctorES && window.__doctorES.readyState !== 2 /* CLOSED */) {
       return;
@@ -1477,7 +1506,8 @@ $('#consultationModal').on('click', '.remove-file-btn', function(e){
 
     // ----------------- Consultation Form Submit -----------------
  // ===== Save Consultation (with spinner) =====
-$("#consultationForm").submit(function(e){
+$("#consultationForm").off('submit').on('submit', function(e){
+
   e.preventDefault();
 
   // spin + lock the primary footer button
@@ -1996,7 +2026,10 @@ function flipConsultButton(reservationId, petId, petName){
 window.__followupStats = { /* '2025-10': { limit: 10, counts: {'2025-10-02': 7, ...} } */ };
 
 function yyyymm(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
-function ymd(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function ymd(d){ 
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); 
+}
+
 
 /**
  * Loads once per month (cached). Server should return:
@@ -2086,6 +2119,10 @@ async function openScheduleModal(btnEl, reservationId, petId, petName){
 
   // keep the existing ISO on the form for submit-side guard
   $("#scheduleForm").attr('data-existing-iso', rowScheduleISO || '');
+// allow currently saved time even if day is full
+const rowExistingTime =
+  (row && row.petSchedule && (row.petSchedule.scheduleTime || row.petSchedule.time || '')) || '';
+$("#scheduleForm").attr('data-existing-time', rowExistingTime);
 
   // decide which month to show first
   const today = new Date();
@@ -2137,6 +2174,8 @@ function isFull(date){
       }
       $("#scheduleDate").val(dateText);
       $("#scheduleDatePicker").datepicker('setDate', d);
+      // ADD THIS:
+$("#scheduleDate").trigger('change'); 
       setTimeout(() => {
         const $dp = $("#scheduleDatePicker");
         padToSixWeeks($dp);
@@ -2208,23 +2247,53 @@ function isFull(date){
 }
 
 // ===== Save Schedule (with spinner + best-effort "full date" guard) =====
+// ===== Save Schedule (with spinner + time validation + best-effort full-date guard) =====
+// ===== Save Schedule (with spinner + time validation + best-effort full-date guard) =====
 $("#scheduleForm").off('submit').on('submit', function(e){
   e.preventDefault();
-
+  // ⬇️ ADD THIS LINE HERE (keeps the hidden input in sync with the visible select)
+  $('#scheduleTime').val($('#fuTime').val() || $('#scheduleTime').val() || '');
   const $saveBtn = $('#scheduleForm .modal-footer .btn.btn-primary').first();
   lockBtn($saveBtn, 'Saving');
 
   const dateVal = $("#scheduleDate").val().trim();
   const svcVal  = $("#scheduleServiceName").val().trim();
-  if (!dateVal){ unlockBtn($saveBtn); return Swal.fire('Missing date', 'Please pick a follow-up date.', 'warning'); }
-  if (!svcVal) { unlockBtn($saveBtn); return Swal.fire('Missing service', 'Please select a follow-up service.', 'warning'); }
 
-  // Best-effort guard: if stats are available and selected date is full (and not the pet’s existing date), block save
+  // required fields
+  if (!dateVal){
+    unlockBtn($saveBtn);
+    return Swal.fire('Missing date', 'Please pick a follow-up date.', 'warning');
+  }
+  if (!svcVal){
+    unlockBtn($saveBtn);
+    return Swal.fire('Missing service', 'Please select a follow-up service.', 'warning');
+  }
+
+  /* === FU time: require a valid, enabled selection === */
+  const $selTime = $('#fuTime');
+  const $optSel  = $selTime.find('option:selected');
+
+  if (!$optSel.length || !$selTime.val()) {
+    unlockBtn($saveBtn);
+    $('#fuTimeError').text('Please choose a time.');
+    return;
+  }
+  if ($optSel.is(':disabled')) {
+    unlockBtn($saveBtn);
+    $('#fuTimeError').text('Selected time is not available. Please pick another slot.');
+    return;
+  }
+  $('#fuTimeError').text('');
+
+  // keep this line right after the guard:
+  $('#scheduleTime').val($('#fuTime').val() || '');
+
+  // Best-effort guard: block if the selected day is already full (and not the pet’s existing date)
   try{
     const existingIso = $("#scheduleForm").attr('data-existing-iso') || '';
     const d = $.datepicker.parseDate('yy-mm-dd', dateVal);
     if (!isNaN(d)){
-      const key = yyyymm(d);
+      const key   = yyyymm(d);
       const stats = window.__followupStats[key];
       if (stats && Number(stats.limit || 0) > 0) {
         const cnt = Number(stats.counts[ymd(d)] || 0);
@@ -2234,7 +2303,7 @@ $("#scheduleForm").off('submit').on('submit', function(e){
         }
       }
     }
-  } catch(_) { /* ignore guard errors; server should still validate */ }
+  } catch(_) { /* ignore guard errors; server will still validate */ }
 
   const payload = $(this).serialize();
 
@@ -2243,7 +2312,9 @@ $("#scheduleForm").off('submit').on('submit', function(e){
     method: 'POST',
     data: payload,
   }).done(function(response){
-    if(!response.success) return Swal.fire('Error', response.message || 'Error saving schedule.', 'error');
+    if(!response.success){
+      return Swal.fire('Error', response.message || 'Error saving schedule.', 'error');
+    }
 
     const resId   = $("#scheduleReservationId").val();
     const petId   = $("#schedulePetId").val();
@@ -2269,36 +2340,55 @@ $("#scheduleForm").off('submit').on('submit', function(e){
 });
 
     // ----------------- Mark as Done (per-pet; /doctor/mark-done) -----------------
-   function markAsDone(reservationId, petId, petName){
-  Swal.fire({ title:'Mark as Done?', text:'Mark this pet as done?', icon:'warning', showCancelButton:true, confirmButtonText:'Yes, done' })
-    .then((res)=>{
-      if(!res.isConfirmed) return;
-      $.ajax({
-        url: '/doctor/mark-done',
-        method: 'POST',
-        data: { reservationId, petId, petName },
-        success: function(resp){
-          if(resp.success){
-            const rowId = buildRowId(reservationId, petId, petName);
-            const $row = $("#"+rowId);
-            // update cell + remove row
-            $row.find(".doneCell").html('<span class="badge badge-done">Done</span>');
-            $row.fadeOut(200, function(){ $(this).remove(); });
-            // keep in-memory list clean (optional)
-            rowsData = (rowsData || []).filter(function(r){
-              const pid = r.petId ? String(r.petId) : '';
-              const pname = r.petName || '';
-              return !(String(r.reservationId)===String(reservationId) && (pid===String(petId||'') && pname===String(petName||'')));
-            });
-            Swal.fire({ icon: 'success', title:'Done', text: resp.allDone ? 'All pets done. Reservation completed.' : 'Pet marked as done.' });
-          } else {
-            Swal.fire('Error', resp.message || 'Error marking as done.', 'error');
-          }
-        },
-        error: function(){ Swal.fire('Error', 'Server error while marking as done.', 'error'); }
-      });
+function markAsDone(reservationId, petId, petName){
+  Swal.fire({
+    title:'Mark as Done?',
+    text:'Mark this pet as done?',
+    icon:'warning',
+    showCancelButton:true,
+    confirmButtonText:'Yes, done'
+  }).then((res)=>{
+    if(!res.isConfirmed) return;
+
+    // lock the clicked button if possible
+    const $btn = $(`tr#${buildRowId(reservationId, petId, petName)} .doneCell button`);
+    if ($btn.length) lockBtn($btn, 'Saving');
+
+    $.ajax({
+      url: '/doctor/mark-done',
+      method: 'POST',
+      data: { reservationId, petId, petName }
+    })
+    .done(function(resp){
+      if(resp && resp.success){
+        const rowId = buildRowId(reservationId, petId, petName);
+        const $row = $("#"+rowId);
+        $row.find(".doneCell").html('<span class="badge badge-done">Done</span>');
+        $row.fadeOut(200, function(){ $(this).remove(); });
+        rowsData = (rowsData || []).filter(function(r){
+          const pid = String(r.petId || '');
+          const pname = String(r.petName || '');
+          return !(String(r.reservationId)===String(reservationId) &&
+                   (pid===String(petId||'') && pname===String(petName||'')));
+        });
+        Swal.fire({
+          icon: 'success',
+          title: 'Done',
+          text: resp.allDone ? 'All pets done. Reservation completed.' : 'Pet marked as done.'
+        });
+      } else {
+        Swal.fire('Error', (resp && resp.message) || 'Error marking as done.', 'error');
+      }
+    })
+    .fail(function(){
+      Swal.fire('Error', 'Server error while marking as done.', 'error');
+    })
+    .always(function(){
+      if ($btn && $btn.length) unlockBtn($btn);
     });
+  });
 }
+
 function fetchHistoryWithFallback(params){
   var dfd = $.Deferred();
 
@@ -2533,6 +2623,136 @@ if (Array.isArray(rec.diseases) && rec.diseases.length) {
     }
   });
 }
+(function(){
+  // ---- shared helpers ----
+  let FU_APPT_LIMIT = null;
+
+  function getLimit(cb){
+    if (FU_APPT_LIMIT != null) return cb(FU_APPT_LIMIT);
+ $.getJSON('/doctor/settings/appointmentLimit', function(r){
+
+      FU_APPT_LIMIT = Number(r?.limit || 5);
+      cb(FU_APPT_LIMIT);
+    }).fail(function(){
+      FU_APPT_LIMIT = 5;
+      cb(5);
+    });
+  }
+
+  function localToday(){
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0,10); // YYYY-MM-DD
+  }
+
+  function ensureFuOptions(){
+    const $sel = $('#fuTime');
+    if (!$sel.length || $sel.find('option').length) return;
+
+    let html = '';
+    for (let hour = 8; hour <= 17; hour++) {
+      const suffix = hour < 12 ? 'AM' : 'PM';
+      const h12 = (hour % 12 === 0) ? 12 : (hour % 12);
+      const label = `${h12}:00 ${suffix}`;
+      html += `<option value="${label}" data-hour="${hour}" data-label="${label}">${label}</option>`;
+    }
+    $sel.html(html);
+  }
+
+  function updatePastForSelectedDate(){
+    const $sel = $('#fuTime'); if (!$sel.length) return;
+    const dateVal = $('#scheduleDate').val() || localToday();
+    const today   = localToday();
+    const currHr  = new Date().getHours();
+
+    $sel.find('option').each(function(){
+      const $opt = $(this);
+      const base = $opt.attr('data-label') || $opt.text();
+      if (dateVal === today) {
+        const slotHr = parseInt($opt.data('hour'), 10);
+        if (slotHr < currHr) {
+          $opt.prop('disabled', true)
+              .attr('data-disabled-by-past','1')
+              .text(base + ' - Passed');
+          return;
+        }
+      }
+      if ($opt.attr('data-disabled-by-past')) {
+        $opt.prop('disabled', false)
+            .removeAttr('data-disabled-by-past')
+            .text(base);
+      }
+    });
+  }
+
+  function markFullSlots(){
+    const $sel = $('#fuTime'); if (!$sel.length) return;
+    const dateVal = $('#scheduleDate').val() || localToday();
+
+    // if editing, allow the *currently saved* slot even if full
+    const existingIso  = $('#scheduleForm').attr('data-existing-iso')  || '';
+    const existingTime = $('#scheduleForm').attr('data-existing-time') || '';
+
+    getLimit(function(limit){
+      $sel.find('option').each(function(){
+        const $opt = $(this);
+        const base = $opt.attr('data-label') || $opt.text();
+        const isExisting = (dateVal === existingIso) && (String($opt.val()) === String(existingTime));
+
+    $.ajax({
+  url: '/doctor/consult/appointmentCount',
+  method: 'GET',
+  data: { time: $opt.val(), date: dateVal },
+          success: function(r){
+            const isFull = Number(r?.count || 0) >= Number(limit || 5);
+
+            if (isFull && !isExisting) {
+              $opt.prop('disabled', true)
+                  .addClass('full-slot')
+                  .attr('data-disabled-by-count','1')
+                  .text(base + ' - Full');
+            } else if ($opt.attr('data-disabled-by-count')) {
+              // only revert if we disabled it in this code path
+              $opt.prop('disabled', false)
+                  .removeClass('full-slot')
+                  .removeAttr('data-disabled-by-count')
+                  .text(base);
+            }
+          }
+        });
+      });
+    });
+  }
+
+  function refreshFuTimeUI(){
+    ensureFuOptions();
+    // store base labels once
+    $('#fuTime option').each(function(){
+      if (!this.hasAttribute('data-label')) this.setAttribute('data-label', this.textContent);
+    });
+    $('#fuTimeError').text('');
+    updatePastForSelectedDate();
+    markFullSlots();
+  }
+  // keep hidden payload synced and clear inline error as soon as user picks a slot
+ // on select change
+$(document).on('change', '#fuTime', function () {
+  $('#scheduleTime').val($(this).val() || '');
+  $('#fuTimeError').text('');
+});
+
+// right at the top of submit handler
+$('#scheduleTime').val($('#fuTime').val() || $('#scheduleTime').val() || '');
+
+
+  // ---- wire up ----
+  $(document).on('change.fu', '#scheduleDate', refreshFuTimeUI);
+  // If your modal id differs, adjust the selector below
+  $(document).on('shown.bs.modal.fu', '#scheduleModal', refreshFuTimeUI);
+
+  // First boot (if the form is visible on load)
+  $(function(){ refreshFuTimeUI(); });
+})();
 
     // initGlobalCalendar(); // call when you want to show it
     // Make inline onclick="..." handlers reachable:
