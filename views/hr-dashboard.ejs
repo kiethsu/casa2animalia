@@ -263,6 +263,12 @@ const pic = typeof profilePic !== 'undefined'
           </a>
         </li>
         <li>
+  <a href="#" class="menu-item" data-content="upcoming">
+    <i class="fas fa-calendar-check"></i> Upcoming
+  </a>
+</li>
+
+        <li>
           <a href="#" class="menu-item" data-content="limit-per-hour">
             <i class="fas fa-clock"></i> Limit Per Hour
           </a>
@@ -316,13 +322,16 @@ const pic = typeof profilePic !== 'undefined'
       reservation: '/hr/reservation',
       petlist: '/hr/petlist',
       'limit-per-hour': '/hr/limit-per-hour',
-      history: '/hr/reservation-history'
+      history: '/hr/reservation-history',
+        upcoming: '/hr/upcoming'   
+
     };
     const TITLE_MAP = {
       reservation: 'Reservation',
       petlist: 'Pet List',
       'limit-per-hour': 'Limit Per Hour',
-      history: 'History'
+      history: 'History',
+        upcoming: 'Upcoming'    
     };
 
     // Make sure jQuery doesn't cache partials
