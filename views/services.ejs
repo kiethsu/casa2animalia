@@ -55,10 +55,18 @@
         <label for="dosage">Dosage</label>
         <input type="text" id="dosage" name="dosage" class="form-control" placeholder="e.g., take 1 tablet twice daily" required>
       </div>
-      <div class="form-group">
-        <label for="price">Price (in Peso)</label>
-        <input type="number" step="0.01" id="price" name="price" class="form-control" required>
-      </div>
+      <div class="form-row">
+  <div class="form-group col-md-6">
+    <label for="basePrice">Base Price (₱)</label>
+    <input type="number" step="0.01" id="basePrice" name="basePrice" class="form-control" required min="0">
+  </div>
+  <div class="form-group col-md-6">
+    <label for="markup">Markup (₱)</label>
+    <input type="number" step="0.01" id="markup" name="markup" class="form-control" value="0" min="0">
+    <small id="addPricePreview" class="text-muted d-block mt-1"></small>
+  </div>
+</div>
+
       <button type="submit" class="btn btn-primary">Add Service</button>
     </form>
   </div>
@@ -76,12 +84,15 @@
     <table class="table table-bordered" id="servicesTable">
       <thead>
         <tr>
-          <th>Category</th>
-          <th>Service Name</th>
-          <th>Weight</th>
-          <th>Dosage</th>
-          <th>Price</th>
-          <th>Actions</th>
+       <th>Category</th>
+<th>Service Name</th>
+<th>Weight</th>
+<th>Dosage</th>
+<th>Base</th>      <!-- NEW -->
+<th>Markup</th>    <!-- NEW -->
+<th>Price</th>
+<th>Actions</th>
+
         </tr>
       </thead>
       <tbody>
@@ -123,10 +134,18 @@
             <label for="editDosage">Dosage</label>
             <input type="text" class="form-control" id="editDosage" name="dosage" required>
           </div>
-          <div class="form-group">
-            <label for="editPrice">Price (in Peso)</label>
-            <input type="number" step="0.01" class="form-control" id="editPrice" name="price" required>
-          </div>
+         <div class="form-row">
+  <div class="form-group col-md-6">
+    <label for="editBasePrice">Base Price (₱)</label>
+    <input type="number" step="0.01" class="form-control" id="editBasePrice" name="basePrice" required min="0">
+  </div>
+  <div class="form-group col-md-6">
+    <label for="editMarkup">Markup (₱)</label>
+    <input type="number" step="0.01" class="form-control" id="editMarkup" name="markup" value="0" min="0">
+    <small id="editPricePreview" class="text-muted d-block mt-1"></small>
+  </div>
+</div>
+
         </div>
         <div class="modal-footer">
           <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -208,25 +227,44 @@
         if (!svc.serviceName) return;
         if (svc.serviceName.toLowerCase().indexOf(searchText) === -1) return;
         if (categoryFilter && svc.category && svc.category.toString() !== categoryFilter) return;
-        rows += `<tr>
-                   <td>${svc.categoryName || ''}</td>
-                   <td>${svc.serviceName}</td>
-                   <td>${svc.weight}</td>
-                   <td>${svc.dosage}</td>
-                   <td>₱${parseFloat(svc.price).toFixed(2)}</td>
-                   <td>
-                     <button class="btn btn-sm btn-info edit-service-btn" data-id="${svc._id}">Edit</button>
-                     <button class="btn btn-sm btn-danger delete-service-btn" data-id="${svc._id}">Delete</button>
-                   </td>
-                 </tr>`;
+    rows += `<tr>
+           <td>${svc.categoryName || ''}</td>
+           <td>${svc.serviceName}</td>
+           <td>${svc.weight}</td>
+           <td>${svc.dosage}</td>
+           <td>₱${parseFloat(svc.basePrice ?? 0).toFixed(2)}</td>   <!-- NEW -->
+           <td>₱${parseFloat(svc.markup ?? 0).toFixed(2)}</td>      <!-- NEW -->
+           <td>₱${parseFloat(svc.price ?? 0).toFixed(2)}</td>
+           <td>
+             <button class="btn btn-sm btn-info edit-service-btn" data-id="${svc._id}">Edit</button>
+             <button class="btn btn-sm btn-danger delete-service-btn" data-id="${svc._id}">Delete</button>
+           </td>
+         </tr>`;
+
       });
       $('#servicesTable tbody').html(rows);
     }
+// === PRICE PREVIEW HELPERS (add after renderServicesTable) ===
+function fmt(n){ return '₱' + (Number(n)||0).toFixed(2); }
+function updateAddPreview(){
+  const b = parseFloat($('#basePrice').val())||0;
+  const m = parseFloat($('#markup').val())||0;
+  $('#addPricePreview').text(`Selling Price = ${fmt(b)} + ${fmt(m)} = ${fmt(b+m)}`);
+}
+function updateEditPreview(){
+  const b = parseFloat($('#editBasePrice').val())||0;
+  const m = parseFloat($('#editMarkup').val())||0;
+  $('#editPricePreview').text(`Selling Price = ${fmt(b)} + ${fmt(m)} = ${fmt(b+m)}`);
+}
 
     // Document ready
     $(document).ready(function() {
       loadCategories();
       loadServices();
+  // Live price previews for Add + Edit
+  $('#basePrice,#markup').on('input', updateAddPreview);
+  $('#editBasePrice,#editMarkup').on('input', updateEditPreview);
+  updateAddPreview(); // show initial preview on page load
 
       // Add Category form submission
       $('#categoryForm').on('submit', function(e) {
@@ -361,15 +399,18 @@
         $.ajax({
           url: '/admin/services/item/' + id,
           method: 'GET',
-          success: function(service) {
-            $('#editServiceId').val(service._id);
-            $('#editServiceName').val(service.serviceName);
-            $('#editWeight').val(service.weight);
-            $('#editDosage').val(service.dosage);
-            $('#editPrice').val(service.price);
-            $('#editServiceCategory').val(service.category);
-            $('#editServiceModal').modal('show');
-          },
+       success: function(service) {
+  $('#editServiceId').val(service._id);
+  $('#editServiceName').val(service.serviceName);
+  $('#editWeight').val(service.weight);
+  $('#editDosage').val(service.dosage);
+  $('#editBasePrice').val(service.basePrice ?? 0);  // NEW
+  $('#editMarkup').val(service.markup ?? 0);        // NEW
+  $('#editServiceCategory').val(service.category);
+  updateEditPreview();                               // NEW: refresh preview
+  $('#editServiceModal').modal('show');
+},
+
           error: function() {
             Swal.fire({
               icon: 'error',
