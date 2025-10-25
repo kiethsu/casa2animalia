@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Reservations (Admin)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- CSS (no SRI while debugging) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.6.2/css/bootstrap.min.css" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/limonte-sweetalert2/11.12.4/sweetalert2.min.css" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" referrerpolicy="no-referrer" />
+  <!-- jQuery UI for autocomplete / datepicker -->
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+
+  <style>
+    body { background:#f8f9fa; }
+
+    /* ===== Super-tight outer shell (edges) ===== */
+    #adminResvRoot{
+      min-height:100vh;
+      padding:4px 4px 8px !important; /* hug left/right/top edges */
+      background:#f7f7f7;
+      position:relative;
+    }
+
+    /* ===== Tiny custom gutters ONLY inside reservation content =====
+       6px total gap between columns (3px each side) — prevents collisions.
+    */
+    .resv-shell{
+      --resv-gap: 6px;
+    }
+    .resv-shell .row{
+      margin-left:  calc(var(--resv-gap) * -0.5) !important;
+      margin-right: calc(var(--resv-gap) * -0.5) !important;
+    }
+    .resv-shell .row > [class^="col-"],
+    .resv-shell .row > [class*=" col-"]{
+      padding-left:  calc(var(--resv-gap) * 0.5) !important;
+      padding-right: calc(var(--resv-gap) * 0.5) !important;
+      min-width:0; /* avoid overflow pushing siblings → “collision” */
+    }
+
+    /* Cancel the wider gutters the HR partial applies inside admin */
+    #adminResvContent .reservation-container{
+      padding:4px 4px 8px !important;
+    }
+    #adminResvContent .reservation-container .row{
+      margin-left:-3px !important;
+      margin-right:-3px !important;
+    }
+    #adminResvContent .reservation-container [class^="col-"],
+    #adminResvContent .reservation-container [class*=" col-"]{
+      padding-left:3px !important;
+      padding-right:3px !important;
+      min-width:0;
+    }
+
+    /* Card look + small vertical rhythm */
+    .resv-shell .card{
+      margin-bottom:8px !important;   /* tighter stack */
+      border:1px solid #e9ecef;
+      border-radius:14px;
+      box-shadow:0 3px 12px rgba(30,34,90,0.08);
+      background:#fff;
+    }
+
+    /* Top toolbar pinned to RIGHT corner (near top cards) */
+    .tools-bar{
+      display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+      margin-bottom:4px; justify-content:flex-end;
+    }
+    #adminHrPickerWrap{ display:flex; align-items:center; gap:10px; }
+    #adminHrPicker{
+      background:#fff;
+      border:1px solid var(--border-color, rgba(0,0,0,.08));
+      border-radius:12px;
+      padding:6px;
+      box-shadow:0 2px 6px rgba(0,0,0,.06);
+      display:flex; align-items:center; gap:6px;
+    }
+    #adminHrPicker .input-group-text{
+      background:transparent; border:0; font-weight:600; color:#344767; padding-left:8px;
+      display:flex; align-items:center; gap:6px;
+    }
+    #adminHrId{ min-width:240px; }
+    #adminHrLoad i{ margin-right:6px; }
+
+    /* Trim extra spacing some partials add so cards hug the top */
+    #adminResvRoot .mt-4, #adminResvRoot .mt-3, #adminResvRoot .mt-2{ margin-top:4px !important; }
+    #adminResvRoot .pt-4, #adminResvRoot .pt-3, #adminResvRoot .pt-2{ padding-top:4px !important; }
+
+    /* Keep overlays above modals */
+    .swal2-container { z-index: 300000 !important; }
+    .ui-datepicker   { z-index: 1200 !important; }
+  </style>
+</head>
+<body>
+
+  <% const PATH_PREFIX = '/admin'; %>
+  <script>
+    // Expose role + prefix
+    window.APP_ROLE   = 'admin';
+    window.API_PREFIX = '<%= PATH_PREFIX %>';
+    window.API_BASE   = window.API_PREFIX; // let included HR code use this as base if it checks
+
+    // Helper: current selected HR (from sessionStorage fallback)
+    function currentHr() {
+      return (window.activeHrId || sessionStorage.getItem('smartvet.admin.activeHrId') || '').trim();
+    }
+
+    // Global URL normalizer for HR->Admin mirroring
+    (function () {
+      function normalize(url) {
+        if (!url) return url;
+
+        // Allow "hr/..." (no leading slash) => "/hr/..."
+        if (url.indexOf('hr/') === 0) url = '/' + url;
+
+        // Map bare endpoints the HR bundle sometimes calls (no prefix)
+        var bareRoots = [
+          // consultation
+          'get-consultation',
+          'get-consultation-details',
+          'assign-doctor',
+
+          // notifications/templates
+          'message-templates',
+          'notify-reservation',
+          'reservation-message-state',
+          'batch-reservation-message-state',
+
+          // payments/marking
+          'mark-paid',
+          'mark-paid-retail',
+
+          // meds from consult modal
+          'update-medication',
+          'remove-medication',
+          'add-medication',
+
+          // reservations (variants the script probes)
+          'reservations',
+          'api/reservations',
+          'list-reservations',
+          'pending-reservations',
+          'reservations/list',
+          'reservations/pending',
+
+          // inventory helpers used in consultation modal
+          'inventory/categories',
+          'inventory/listByCategory',
+          'inventory/checkQuantity',
+
+          // settings helpers (safe to pass through if used)
+          'settings/appointmentLimit',
+          'consult/appointmentCount',
+
+          // additional admin endpoints some HR flows call without prefix
+          'update-petlist',
+          'add-to-petlist',
+          'walkin-reservation',
+
+          // autocomplete in Admin
+          'search-owners'
+        ];
+
+        for (var i = 0; i < bareRoots.length; i++) {
+          var b = bareRoots[i];
+          if (url === b || url === '/' + b || url.indexOf(b + '?') === 0) {
+            url = '/hr/' + b + (url.indexOf('?') > -1 ? url.slice(url.indexOf('?')) : '' );
+            break;
+          }
+        }
+
+        // rewrite root spinner to an admin-local asset
+        if (url === 'spinner.svg' || url === '/spinner.svg') {
+          return (window.API_PREFIX || '/admin') + '/spinner.svg';
+        }
+
+        // Rewrite /customer/* calls the HR UI might do while embedded in Admin
+        if (url.indexOf('/customer/settings/appointmentLimit') === 0 ||
+            url.indexOf('customer/settings/appointmentLimit') === 0) {
+          url = url.replace(/^\/?customer\/settings\/appointmentLimit/, '/settings/appointmentLimit');
+        }
+        if (url.indexOf('/customer/consult/appointmentCount') === 0 ||
+            url.indexOf('customer/consult/appointmentCount') === 0) {
+          url = url.replace(/^\/?customer\/consult\/appointmentCount/, (window.API_PREFIX || '/admin') + '/consult/appointmentCount');
+        }
+
+        // Finally, rewrite any "/hr/..." to "/admin/..."
+        if (url.indexOf('/hr/') === 0) {
+          url = url.replace(/^\/hr\//, (window.API_PREFIX || '/admin') + '/');
+        }
+        return url;
+      }
+
+      // jQuery AJAX (covers $.get/$.post too)
+      (function patchAjax(){
+        function go(){
+          if (!window.jQuery || !jQuery.ajaxPrefilter) { setTimeout(go, 25); return; }
+          if (jQuery.ajaxSetup) jQuery.ajaxSetup({ xhrFields: { withCredentials: true } });
+          jQuery.ajaxPrefilter(function (opts) {
+            if (opts && typeof opts.url === 'string') {
+              opts.url = normalize(opts.url);
+            }
+            // Inject X-View-As-HR header
+            const hrId = currentHr();
+            if (hrId) {
+              opts.headers = opts.headers || {};
+              opts.headers['X-View-As-HR'] = hrId;
+            }
+          });
+        }
+        go();
+      })();
+
+      // fetch()
+      (function patchFetch(){
+        var _fetch = window.fetch;
+        if (!_fetch) return;
+        window.fetch = function (input, init) {
+          try {
+            if (typeof input === 'string') {
+              input = normalize(input);
+            } else if (input && typeof input.url === 'string') {
+              var nu = normalize(input.url);
+              if (nu !== input.url) input = new Request(nu, input);
+            }
+          } catch (_) {}
+
+          init = init || {};
+          if (!init.credentials) init.credentials = 'include';
+
+          try {
+            const headers = new Headers(init.headers || {});
+            const hrId = currentHr();
+            if (hrId) headers.set('X-View-As-HR', hrId);
+            init.headers = headers;
+          } catch (_) {}
+
+          return _fetch(input, init);
+        };
+      })();
+
+      // Axios (some HR code uses this)
+      (function patchAxios(){
+        function tryPatch(){
+          if (!window.axios) { setTimeout(tryPatch, 25); return; }
+          try {
+            axios.defaults.withCredentials = true;
+            axios.interceptors.request.use(function(cfg){
+              try {
+                if (cfg && typeof cfg.url === 'string') {
+                  cfg.url = normalize(cfg.url);
+                }
+                const hrId = currentHr();
+                if (hrId) {
+                  cfg.headers = cfg.headers || {};
+                  cfg.headers['X-View-As-HR'] = hrId;
+                  if (cfg.headers.common) cfg.headers.common['X-View-As-HR'] = hrId;
+                }
+              } catch (_) {}
+              return cfg;
+            });
+          } catch (_) {}
+        }
+        tryPatch();
+      })();
+
+      // Raw XMLHttpRequest (normalize + header injection)
+      (function patchXHR(){
+        try {
+          var origOpen = XMLHttpRequest.prototype.open;
+          var origSend = XMLHttpRequest.prototype.send;
+
+          XMLHttpRequest.prototype.open = function(method, url){
+            try { if (typeof url === 'string') url = normalize(url); } catch (_){}
+            return origOpen.apply(this, [method, url].concat([].slice.call(arguments, 2)));
+          };
+          XMLHttpRequest.prototype.send = function(body){
+            try {
+              const hrId = currentHr();
+              if (hrId) this.setRequestHeader('X-View-As-HR', hrId);
+            } catch (_){}
+            return origSend.call(this, body);
+          };
+        } catch (_) {}
+      })();
+
+      // EventSource (SSE) — cannot set custom headers, so append ?hrId=...
+      (function patchES(){
+        var NativeES = window.EventSource;
+        if (!NativeES) return;
+        function addHrParam(u) {
+          try {
+            var hrId = currentHr();
+            if (!hrId) return u;
+            var url = new URL(u, window.location.origin);
+            url.searchParams.set('hrId', hrId);
+            return url.pathname + url.search + url.hash;
+          } catch (_) {
+            var sep = u.indexOf('?') === -1 ? '?' : '&';
+            return u + sep + 'hrId=' + encodeURIComponent(currentHr());
+          }
+        }
+        function PatchedES(url, cfg) {
+          url = normalize(url);
+          url = addHrParam(url);
+          return new NativeES(url, cfg);
+        }
+        PatchedES.prototype = NativeES.prototype;
+        window.EventSource = PatchedES;
+      })();
+    })();
+  </script>
+
+  <!-- Socket.IO + JS libs -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/limonte-sweetalert2/11.12.4/sweetalert2.all.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.6.2/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Robust jQuery-UI autocomplete shim (prevents $(...).autocomplete errors) -->
+  <script>
+    (function robustAutocomplete(){
+      function attachShim($){
+        if (!$ || $.fn.autocomplete) return;
+
+        var pending = [];
+        $.fn.autocomplete = function(){
+          pending.push({ $el: this, args: arguments });
+          return this;
+        };
+
+        function replayIfReady(){
+          try {
+            if (window.jQuery && window.jQuery.ui && window.jQuery.fn.autocomplete && window.jQuery.fn.autocomplete !== $.fn.autocomplete) {
+              try {
+                pending.forEach(function(call){
+                  try { call.$el.autocomplete.apply(call.$el, call.args); } catch(_){ }
+                });
+              } finally { pending = []; }
+              return true;
+            }
+          } catch (_){ }
+          return false;
+        }
+
+        var needLoad = !(window.jQuery && window.jQuery.ui && window.jQuery.fn && window.jQuery.fn.autocomplete);
+        if (needLoad) {
+          var s = document.createElement('script');
+          s.src = 'https://code.jquery.com/ui/1.13.2/jquery-ui.min.js';
+          s.onload = replayIfReady;
+          document.head.appendChild(s);
+        }
+
+        var tries = 0, timer = setInterval(function(){
+          if (replayIfReady() || ++tries > 80) clearInterval(timer);
+        }, 50);
+      }
+
+      if (window.jQuery) attachShim(window.jQuery);
+
+      try {
+        var _jq = window.jQuery;
+        Object.defineProperty(window, 'jQuery', {
+          configurable: true,
+          get: function(){ return _jq; },
+          set: function(v){
+            _jq = v;
+            try { attachShim(v); } catch(_){ }
+          }
+        });
+      } catch(_){ }
+    })();
+  </script>
+
+  <!-- ApexCharts safe defaults to avoid undefined formatter crashes -->
+  <script>
+    window.Apex = window.Apex || {};
+    window.Apex.tooltip = window.Apex.tooltip || {};
+    if (!window.Apex.tooltip.y || typeof window.Apex.tooltip.y.formatter !== 'function') {
+      window.Apex.tooltip.y = { formatter: function (val) { return val; } };
+    }
+    if (!window.Apex.dataLabels || typeof window.Apex.dataLabels.formatter !== 'function') {
+      window.Apex.dataLabels = { formatter: function (val) { return val; } };
+    }
+    if (!window.Apex.yaxis || !window.Apex.yaxis.labels || typeof window.Apex.yaxis.labels.formatter !== 'function') {
+      window.Apex.yaxis = { labels: { formatter: function (val) { return val; } } };
+    }
+  </script>
+
+  <div id="adminResvRoot" class="container-fluid">
+    <!-- Top toolbar: picker sits in the RIGHT corner -->
+    <div class="tools-bar">
+      <div id="adminHrPickerWrap">
+        <div id="adminHrPicker" class="input-group input-group-sm">
+          <div class="input-group-prepend">
+            <span class="input-group-text">
+              <i class="fas fa-user"></i> <span style="margin-left:6px;">Viewing Front Desk</span>
+            </span>
+          </div>
+          <select id="adminHrId" class="custom-select">
+            <option value="">Loading…</option>
+          </select>
+          <div class="input-group-append">
+            <button id="adminHrLoad" type="button" class="btn btn-primary">
+              <i class="fas fa-sync-alt"></i> Load
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reservation UI (wrapped so our micro-gutter rules apply only here) -->
+    <div id="adminResvContent" class="resv-shell">
+      <%- include('../hr/reservation') %>
+    </div>
+  </div>
+
+  <!-- === Admin-only overrides that must come AFTER the HR partial === -->
+  <style>
+    /* So the big number beside the calendar isn’t bold */
+    #adminResvContent .count-box .count-number{
+      font-weight: 500 !important; /* regular-medium */
+      /* keep the size from HR partial; remove this next line if you prefer 56px */
+      /* font-size: 48px !important; */
+    }
+
+    /* Payment & Details: tone down the title weight */
+    #adminResvContent #paymentPanel .payment-header .title{
+      font-weight: 600 !important; /* was 800 in HR partial */
+    }
+
+    /* Don’t let “today”/calendar day numbers appear bolder */
+    #adminResvContent .flatpickr-day,
+    #adminResvContent .flatpickr-day.today{
+      font-weight: 400 !important;
+    }
+
+    /* Make sure approved & payment cards never collide */
+    #adminResvContent .approved-reservations,
+    #adminResvContent #paymentPanel{
+      margin-bottom: 8px !important;
+    }
+  </style>
+
+  <script>
+    // Populate Front Desk list and wire Load — NO navigation, ever. Show SweetAlert on selection.
+    (function(){
+      const adminBase = '<%= (typeof adminBase !== "undefined" ? adminBase : "/admin") %>';
+      const sel  = document.getElementById('adminHrId');
+      const btn  = document.getElementById('adminHrLoad');
+      const KEY  = 'smartvet.admin.activeHrId';
+
+      async function fetchHRs(){
+        try{
+          const r = await fetch(`${adminBase}/staff/list?roles=HR`, { credentials:'include' });
+          const j = await r.json();
+          sel.innerHTML = '';
+          (j.staff || []).forEach(s => {
+            const o = document.createElement('option');
+            o.value = s._id;
+            o.textContent = s.username || s.email || 'Front Desk';
+            sel.appendChild(o);
+          });
+          if (!sel.options.length) {
+            const o = document.createElement('option'); o.value=''; o.textContent='No Front Desk accounts found';
+            sel.appendChild(o);
+          }
+          const saved = sessionStorage.getItem(KEY);
+          if (saved) {
+            const ix = Array.from(sel.options).findIndex(o => o.value === saved);
+            if (ix >= 0) sel.selectedIndex = ix;
+          }
+          window.activeHrId = sel.value || '';
+        }catch(e){
+          console.error('Failed to load Front Desk list', e);
+          sel.innerHTML = '<option value="">Error loading Front Desk</option>';
+        }
+      }
+
+      sel.addEventListener('change', ()=> sessionStorage.setItem(KEY, sel.value || ''));
+
+      btn.addEventListener('click', function(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+
+        const hrId     = sel.value || '';
+        const theHrName = (sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].text) || 'Front Desk';
+
+        if (!hrId) {
+          if (window.Swal) {
+            Swal.fire({ icon:'warning', title:'Select an account', text:'Please choose a Front Desk account first.' });
+          } else {
+            alert('Please choose a Front Desk account first.');
+          }
+          return false;
+        }
+
+        sessionStorage.setItem(KEY, hrId);
+        window.activeHrId = hrId;
+        window.API_BASE   = adminBase;
+
+        const doRefresh = () => {
+          let handled = false;
+          try {
+            if (typeof window.reloadReservationTables === 'function') {
+              window.reloadReservationTables(); handled = true;
+            } else if (typeof window.reloadCards === 'function') {
+              window.reloadCards(); handled = true;
+            } else if (typeof window.refreshReservations === 'function') {
+              window.refreshReservations(); handled = true;
+            }
+          } catch (e) {
+            console.warn('Refresh hook error:', e);
+          }
+
+          if (!handled) {
+            try {
+              const evt = new CustomEvent('admin:activeHrChanged', { detail: { hrId: window.activeHrId, hrName: theHrName } });
+              window.dispatchEvent(evt);
+            } catch(e) {
+              console.warn('Dispatch custom event failed', e);
+            }
+          }
+        };
+
+        if (window.Swal) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Front Desk access enabled',
+            html: 'You are now accessing the Front Desk account:<br><b>' + (theHrName || 'Front Desk') + '</b>',
+            confirmButtonText: 'OK',
+            allowOutsideClick: false,
+            allowEscapeKey: true
+          }).then(doRefresh);
+        } else {
+          alert('You are now accessing the Front Desk account: ' + theHrName);
+          doRefresh();
+        }
+
+        return false;
+      });
+
+      fetchHRs();
+    })();
+  </script>
+
+</body>
+</html>
