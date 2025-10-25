@@ -1,0 +1,608 @@
+<% /* Doctor Upcoming — calendar + table + reschedule modal with full/disabled time slots */ %>
+
+<style>
+  .upcoming-container{ min-height:100vh; padding:8px 8px 12px !important; }
+  #calendarCountCard{ overflow:visible; width:fit-content; max-width:100%; margin-left:0 !important; margin-right:auto !important; padding:8px 10px; border-radius:14px; border:1px solid #e9ecef; box-shadow:0 3px 12px rgba(30,34,90,0.08); background:#fff; }
+  #calendarCountCard > .d-flex{ justify-content:center; gap:8px; }
+
+  /* Flatpickr look */
+  #calendarMount .flatpickr-calendar.inline{ box-shadow:none; border:0; border-radius:12px; overflow:hidden; }
+  .flatpickr-calendar.inline{ box-shadow:none; border:0; }
+  .flatpickr-day.selected,.flatpickr-day.startRange,.flatpickr-day.endRange{ background:#1E88E5; border-color:#1E88E5; color:#fff; }
+  .flatpickr-day.today{ border-color:#1E88E5; }
+
+  /* GREEN day when there are follow-ups */
+  .flatpickr-day.has-appointment{ background:#22c55e !important; color:#fff !important; }  /* bright green */
+  .flatpickr-day.no-appointment{ box-shadow: inset 0 0 0 1px #e9ecef; }
+
+  .count-box{ flex:0 0 clamp(160px,22vw,200px); border-left:1px dashed #e9ecef; padding:12px; text-align:center; margin:0 auto; }
+  .count-number{ font-size:56px; font-weight:800; line-height:1; }
+  .count-label{ font-size:14px; letter-spacing:.5px; text-transform:uppercase; color:#6c757d; }
+  .count-box .count-number,.count-box .count-label,.count-box .count-date{ width:100%; text-align:center; }
+  @media (max-width: 991.98px){
+    #calendarCountCard > .d-flex{ justify-content:center; }
+    .count-box{ flex:0 0 auto; max-width:240px; border-left:0; border-top:1px dashed #e9ecef; margin-top:12px; }
+  }
+
+  .tools-row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:10px 0; }
+  .search-wrap{ position:relative; width: clamp(220px, 40vw, 340px); }
+  .search-wrap i{ position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:14px; color:#6c757d; }
+  .search-box{ width:100%; height:36px; padding-left:30px; border-radius:999px; border:1px solid #ced4da; background:#fff; }
+
+  .status-filter label{ margin:0 6px 0 0; font-size:.9rem; color:#334155; }
+  .status-filter select{ min-width:170px; height:36px; }
+
+  .table-card{ border-radius:14px; overflow:hidden; box-shadow:0 3px 12px rgba(30,34,90,0.08); background:#fff; }
+  table.custom-table{ width:100%; border-collapse:separate; border-spacing:0; margin:0; }
+  table.custom-table thead tr{ background:#0D47A1; color:#fff; }
+  table.custom-table th, table.custom-table td{ padding:10px 12px; text-align:center; }
+  table.custom-table tbody tr:hover{ background:#f8fbff; }
+
+  .pagination-wrap{ display:flex; justify-content:flex-end; margin-top:8px; }
+  .pagination .page-link{ padding:.25rem .5rem; }
+  .pagination .page-item.disabled .page-link{ color:#adb5bd; }
+
+  .swal2-container{ z-index:6000 !important; }
+  .swal2-container.swal2-top{ top: var(--swal-top-offset, 60px) !important; }
+
+  /* Reschedule modal — time grid */
+  .slot-legend{ font-size:12px; color:#6b7280; }
+  .slot-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px,1fr));
+    gap:8px;
+    margin-top:8px;
+  }
+  .slot-btn{
+    display:flex; align-items:center; justify-content:center;
+    gap:6px;
+    border:1px solid #cbd5e1; background:#fff; border-radius:10px;
+    padding:8px 10px; cursor:pointer; user-select:none;
+    font-size:.95rem; line-height:1.1;
+  }
+  .slot-btn:hover{ background:#f8fafc; }
+  .slot-btn.active{ border-color:#0D47A1; box-shadow:0 0 0 2px rgba(13,71,161,.15) inset; }
+  .slot-btn.disabled{
+    cursor:not-allowed; opacity:.9; background:#fee2e2; border-color:#fecaca; color:#991b1b;
+    pointer-events:none;
+  }
+  .slot-badge{
+    font-size:10px; line-height:1; border-radius:999px; padding:2px 6px; background:#e5e7eb; color:#374151;
+  }
+  .slot-badge.full{ background:#fecaca; color:#991b1b; }
+</style>
+
+<div class="container-fluid upcoming-container">
+  <div class="mb-3">
+    <div class="card p-3" id="calendarCountCard">
+      <div class="d-flex flex-wrap align-items-stretch">
+        <div id="calendarMount"></div>
+        <div class="count-box d-flex flex-column justify-content-center align-items-center">
+          <div id="selectedDateCount" class="count-number">0</div>
+          <div id="selectedDateLabel" class="count-label">follow-ups</div>
+          <div class="count-date small text-muted mt-1" id="selectedDateText"></div>
+        </div>
+      </div>
+      <input id="inlineCalendar" type="text" class="d-none" />
+    </div>
+  </div>
+
+  <div class="tools-row">
+    <div class="search-wrap">
+      <i class="fas fa-search"></i>
+      <input type="text" class="form-control form-control-sm search-box" id="searchInput" placeholder="Search owner, pet, service…">
+    </div>
+    <div class="status-filter d-flex align-items-center">
+      <label for="statusFilter">Status</label>
+      <select id="statusFilter" class="form-control form-control-sm ml-1">
+        <option value="all" selected>All</option>
+        <option value="Done">Done</option>
+        <option value="Not Attended">Not Attended</option>
+        <option value="Scheduled">Scheduled</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <table class="table custom-table mb-0" id="upcomingTable">
+      <thead>
+        <!-- Date column removed; add Reschedule column -->
+        <tr><th>Time</th><th>Owner</th><th>Pet</th><th>Service</th><th>Status</th><th>Reschedule</th></tr>
+      </thead>
+      <tbody><!-- rendered by JS --></tbody>
+    </table>
+  </div>
+
+  <div class="pagination-wrap">
+    <nav aria-label="Upcoming pagination">
+      <ul id="upcomingPager" class="pagination pagination-sm mb-0"></ul>
+    </nav>
+  </div>
+</div>
+
+<!-- Reschedule Modal -->
+<div class="modal fade" id="reschedModal" tabindex="-1" role="dialog" aria-labelledby="reschedModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="reschedModalLabel">Reschedule Follow-up</h6>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body pt-2">
+        <div class="small text-muted mb-1" id="reschedMeta"><!-- Owner / Pet / Service --></div>
+        <div class="row">
+          <div class="col-12">
+            <label class="mb-1">Pick date</label>
+            <input type="text" id="reschedDate" class="form-control form-control-sm" />
+          </div>
+          <div class="col-12 mt-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <label class="mb-1">Pick time</label>
+              <div class="slot-legend">
+                <span class="slot-badge">Available</span>
+                <span class="slot-badge full ml-2">Full</span>
+              </div>
+            </div>
+            <div id="slotGrid" class="slot-grid">
+              <!-- buttons injected -->
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnReschedSave" disabled>Reschedule</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const STATS_URL  = '/doctor/followup/stats';   // ?year=YYYY&month=1..12
+  const LIST_URL   = '/doctor/followup/list';    // ?date=YYYY-MM-DD
+  const SSE_URL    = '/doctor/stream';
+
+  // capacity helpers (used in time grid)
+  const LIMIT_URL  = '/doctor/settings/appointmentLimit';
+  const COUNT_URL  = '/doctor/consult/appointmentCount'; // ?date=YYYY-MM-DD&time=HH:MM AM/PM
+  const ADD_URL    = '/doctor/add-schedule';
+
+  const TIME_SLOTS = ['08:00 AM','09:00 AM','10:00 AM','11:00 AM','12:00 PM','01:00 PM','02:00 PM','03:00 PM','04:00 PM','05:00 PM'];
+
+  let DATE_COUNTS = {};     // {'YYYY-MM-DD': number}
+  let UPCOMING = [];        // rows for active date
+  let fp = null, es = null, pollTimer = null;
+
+  // modal state
+  let reschedFP = null;
+  let APPT_LIMIT = 0;       // per-hour
+  let RESCHED_CTX = null;   // { reservationId, petId, petName, serviceName, baseDateISO, time }
+
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function ymdLocal(d){ const x=new Date(d instanceof Date?d:d); return `${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}`; }
+  function todayISO(){ return ymdLocal(new Date()); }
+  let activeDate = todayISO();
+
+  function normStatus(it){
+    const s = String(it.status || '').trim().toLowerCase();
+    if (s === 'done') return 'Done';
+    if (s === 'not attended') return 'Not Attended';
+    if (s === 'scheduled') return 'Scheduled';
+    const now = new Date();
+    const dayStart = new Date(it.dateISO + 'T00:00:00');
+    const noon = new Date(it.dateISO + 'T12:00:00');
+    if (dayStart < new Date(todayISO() + 'T00:00:00')) return 'Not Attended';
+    if (it.dateISO === todayISO() && now >= noon) return 'Not Attended';
+    return 'Scheduled';
+  }
+
+  const PAGE_SIZE = 10;
+  let currentPage = 1;
+
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+  function getFilteredList(){
+    const q = String($("#searchInput").val() || '').toLowerCase().trim();
+    const statusSel = String($("#statusFilter").val() || 'all').toLowerCase();
+    return UPCOMING.filter(it => {
+      const rowText = `${it.time||''} ${it.ownerName} ${it.petName} ${it.service} ${it.status}`.toLowerCase();
+      const matchesText = !q || rowText.indexOf(q) !== -1;
+      const rowStatus = String(it.status || '—').toLowerCase();
+      const matchesStatus = (statusSel === 'all') || (rowStatus === statusSel);
+      return matchesText && matchesStatus;
+    });
+  }
+
+  function renderTablePage(rows, page){
+    const total = rows.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    page = Math.min(Math.max(1, page), totalPages);
+    currentPage = page;
+    const start = (page - 1) * PAGE_SIZE;
+    const slice = rows.slice(start, start + PAGE_SIZE);
+
+    if (!slice.length){
+      $("#upcomingTable tbody").html('<tr class="__empty"><td colspan="6" class="text-center">No results.</td></tr>');
+    } else {
+      const html = slice.map(it => {
+        const svc = it.service && it.service !== '—' ? it.service : 'Follow-up';
+        return `<tr data-date="${it.dateISO}" data-status="${String(it.status||'—').toLowerCase()}">
+          <td>${escapeHtml(it.time || '—')}</td>
+          <td>${escapeHtml(it.ownerName)}</td>
+          <td>${escapeHtml(it.petName)}</td>
+          <td>${escapeHtml(it.service)}</td>
+          <td>${escapeHtml(it.status || '—')}</td>
+          <td>
+          <button
+  class="btn btn-sm btn-outline-primary resched-btn"
+  data-resvid="${escapeHtml(it.reservationId || '')}"
+  data-petid="${escapeHtml(it.petId || '')}"
+  data-petname="${escapeHtml(it.petName || '')}"
+  data-service="${escapeHtml(svc)}"
+  data-date="${escapeHtml(it.dateISO)}"
+  data-time="${escapeHtml(it.time || '')}">
+  Reschedule
+</button>
+          </td>
+        </tr>`;
+      }).join('');
+      $("#upcomingTable tbody").html(html);
+    }
+    renderPager(total, totalPages);
+    refreshCounter(slice.length);
+  }
+
+  function renderPager(total, totalPages){
+    const $p = $("#upcomingPager");
+    if (total <= PAGE_SIZE){ $p.empty(); return; }
+    const parts = [];
+    const disabledPrev = (currentPage === 1) ? ' disabled' : '';
+    const disabledNext = (currentPage === totalPages) ? ' disabled' : '';
+    parts.push(`<li class="page-item${disabledPrev}"><a class="page-link" href="#" data-page="${currentPage-1}" aria-label="Previous">&laquo;</a></li>`);
+    const windowSize = 3;
+    const start = Math.max(1, currentPage - windowSize);
+    const end   = Math.min(totalPages, currentPage + windowSize);
+    if (start > 1){
+      parts.push(`<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>`);
+      if (start > 2) parts.push(`<li class="page-item disabled"><span class="page-link">…</span></li>`);
+    }
+    for (let i = start; i <= end; i++){
+      const active = (i === currentPage) ? ' active' : '';
+      parts.push(`<li class="page-item${active}"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`);
+    }
+    if (end < totalPages){
+      if (end < totalPages - 1) parts.push(`<li class="page-item disabled"><span class="page-link">…</span></li>`);
+      parts.push(`<li class="page-item"><a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a></li>`);
+    }
+    parts.push(`<li class="page-item${disabledNext}"><a class="page-link" href="#" data-page="${currentPage+1}" aria-label="Next">&raquo;</a></li>`);
+    $p.html(parts.join(''));
+  }
+
+  $(document).off('click.duPager').on('click.duPager', '#upcomingPager .page-link', function(e){
+    e.preventDefault();
+    const p = parseInt($(this).data('page'), 10);
+    if (!p || p === currentPage) return;
+    renderTablePage(getFilteredList(), p);
+  });
+
+  function refreshCounter(visibleCount){
+    const n = Number(visibleCount || 0);
+    $('#selectedDateCount').text(String(n));
+    $('#selectedDateLabel').text(n === 1 ? 'follow-up' : 'follow-ups');
+    const d = new Date(activeDate+'T00:00:00');
+    $('#selectedDateText').text(isNaN(d) ? '' : d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}));
+  }
+
+  /* ===== Server loads ===== */
+  async function loadMonthStats(y, m/*1..12*/){
+    try{
+      const data = await $.getJSON(STATS_URL, { year: y, month: m });
+      DATE_COUNTS = data?.counts || {};
+
+      // Normalize keys for local/UTC mismatch — mark both keys as “has follow-up”
+      window.appointmentDates = Object.create(null);
+      Object.keys(DATE_COUNTS).forEach(k=>{
+        if ((DATE_COUNTS[k]||0) > 0){
+          window.appointmentDates[k] = true;
+          const d = new Date(k+'T00:00:00');
+          if (!isNaN(d)) window.appointmentDates[ymdLocal(d)] = true;
+        }
+      });
+
+      if (fp && typeof fp.redraw === 'function') fp.redraw();
+    }catch(_){
+      DATE_COUNTS = {};
+      window.appointmentDates = Object.create(null);
+      if (fp && typeof fp.redraw === 'function') fp.redraw();
+    }
+  }
+
+  async function loadDayList(iso){
+    $("#upcomingTable tbody").html('<tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Loading…</td></tr>');
+    try{
+      const data = await $.getJSON(LIST_URL, { date: iso });
+      const items = Array.isArray(data?.items) ? data.items : [];
+      UPCOMING = items.map(it => ({ ...it, status: normStatus(it) }));
+      // if server returns a dayCount, blend it in and repaint the calendar
+      if (typeof data?.dayCount === 'number'){
+        DATE_COUNTS[iso] = data.dayCount;
+        window.appointmentDates = window.appointmentDates || Object.create(null);
+        if (data.dayCount > 0){
+          window.appointmentDates[iso] = true;
+          const d = new Date(iso+'T00:00:00'); if (!isNaN(d)) window.appointmentDates[ymdLocal(d)] = true;
+        } else {
+          delete window.appointmentDates[iso];
+        }
+        if (fp && typeof fp.redraw === 'function') fp.redraw();
+      }
+      currentPage = 1;
+      renderTablePage(getFilteredList(), currentPage);
+    }catch(_){
+      UPCOMING = [];
+      renderTablePage([], 1);
+    }
+  }
+
+  /* ===== Calendar ===== */
+  function buildCalendar(){
+    if (typeof window.flatpickr !== 'function'){
+      $('#calendarMount').html('<div class="text-danger">Calendar library not loaded.</div>');
+      return;
+    }
+    if (fp && typeof fp.destroy === 'function'){ try{ fp.destroy(); }catch(_){} }
+    document.getElementById('calendarMount').innerHTML = '';
+    document.getElementById('inlineCalendar').value = '';
+
+    window.appointmentDates = window.appointmentDates || Object.create(null);
+
+    fp = flatpickr('#inlineCalendar', {
+      inline: true,
+      appendTo: document.getElementById('calendarMount'),
+      dateFormat: 'Y-m-d',
+      defaultDate: activeDate,
+      onChange(selected){
+        activeDate = (selected && selected[0]) ? ymdLocal(selected[0]) : activeDate;
+        currentPage = 1;
+        loadDayList(activeDate);
+        refreshCounter(0);
+        triggerOnDemandPoll();
+      },
+      onMonthChange(selectedDates, dateStr, instance){
+        const y = instance.currentYear;
+        const m = instance.currentMonth + 1;
+        loadMonthStats(y, m);
+      },
+      onDayCreate(_dObj, _dStr, _inst, dayElem){
+        const key = ymdLocal(dayElem.dateObj);
+        if (window.appointmentDates[key]) dayElem.classList.add('has-appointment');
+        else dayElem.classList.add('no-appointment');
+      }
+    });
+    window.fp = fp;
+
+    const now = new Date();
+    loadMonthStats(now.getFullYear(), now.getMonth()+1);
+    loadDayList(activeDate);
+  }
+
+  /* ===== SSE (live) ===== */
+  function wireSSE(){
+    try{
+      if (es && typeof es.close === 'function') { es.close(); es = null; }
+      es = new EventSource(SSE_URL);
+      es.onmessage = function(ev){
+        let msg; try { msg = JSON.parse(ev.data); } catch(_) { return; }
+        if (!msg || !msg.type) return;
+
+        if (msg.type === 'followup:scheduled'){
+          const iso = (msg.payload && msg.payload.iso) || '';
+          if (iso){
+            DATE_COUNTS[iso] = (DATE_COUNTS[iso] || 0) + 1;
+            window.appointmentDates = window.appointmentDates || Object.create(null);
+            window.appointmentDates[iso] = true;
+            const d = new Date(iso+'T00:00:00'); if (!isNaN(d)) window.appointmentDates[ymdLocal(d)] = true;
+            if (fp && typeof fp.redraw === 'function') fp.redraw();
+          }
+          if (iso === activeDate) loadDayList(activeDate);
+          return;
+        }
+
+        if (msg.type === 'consultation:upserted'){
+          loadDayList(activeDate);
+        }
+      };
+    } catch(e){ console.warn('SSE unavailable:', e); }
+  }
+
+  /* ===== Today polling (safety) ===== */
+  function startTodayPolling(){
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(function(){
+      if (document.hidden) return;
+      if (activeDate !== todayISO()) return;
+      loadDayList(activeDate);
+    }, 15000);
+  }
+  function stopPolling(){ if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+  function triggerOnDemandPoll(){ if (activeDate === todayISO()) startTodayPolling(); else stopPolling(); }
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) loadDayList(activeDate); });
+
+  /* ===== Noon auto-flip ===== */
+  (function autoNoonFlip(){
+    function run(){
+      const now = new Date();
+      if (activeDate !== todayISO() || now.getHours() < 12) return;
+      let dirty = false;
+      for (const it of UPCOMING){
+        if (it.status === 'Scheduled'){
+          it.status = 'Not Attended';
+          dirty = true;
+        }
+      }
+      if (dirty) renderTablePage(getFilteredList(), currentPage);
+    }
+    setInterval(run, 60*1000); run();
+  })();
+
+  /* ===== Reschedule modal logic ===== */
+  async function getLimit(){
+    try{
+      const r = await $.getJSON(LIMIT_URL);
+      return Number(r?.limit || 0);
+    }catch(_){ return 0; }
+  }
+  async function getCount(iso, time){
+    try{
+      const r = await $.getJSON(COUNT_URL, { date: iso, time });
+      return Number(r?.count || 0);
+    }catch(_){ return 0; }
+  }
+
+  function buildSlotButton(t, full){
+    const fullCls = full ? ' disabled' : '';
+    const badge = full ? '<span class="slot-badge full">Full</span>' : '';
+    return `<button type="button" class="slot-btn${fullCls}" data-time="${t}">
+      <span>${t}</span>${badge}
+    </button>`;
+  }
+
+  async function renderTimeGrid(iso){
+    $('#slotGrid').html('<div class="text-muted small">Loading time slots…</div>');
+    // fetch limit (cache it for session)
+    if (!APPT_LIMIT) APPT_LIMIT = await getLimit();
+
+    if (APPT_LIMIT === 0){
+      // unlimited → render all as available
+      const html = TIME_SLOTS.map(t => buildSlotButton(t, false)).join('');
+      $('#slotGrid').html(html);
+      return;
+    }
+
+    try{
+      const promises = TIME_SLOTS.map(t => getCount(iso, t).then(cnt => ({ t, cnt })).catch(()=>({ t, cnt:0 })));
+      const results = await Promise.all(promises);
+      const html = results.map(({t, cnt}) => buildSlotButton(t, cnt >= APPT_LIMIT)).join('');
+      $('#slotGrid').html(html);
+    }catch(_){
+      const html = TIME_SLOTS.map(t => buildSlotButton(t, false)).join('');
+      $('#slotGrid').html(html);
+    }
+  }
+
+  function openReschedModal(ctx){
+    RESCHED_CTX = { ...ctx, selectedTime: '' };
+
+    // meta header
+    $('#reschedMeta').text(`${ctx.ownerName} • ${ctx.petName} — ${ctx.serviceName}`);
+
+    // date picker
+    try{ if (reschedFP && typeof reschedFP.destroy === 'function') reschedFP.destroy(); }catch(_){}
+    $('#reschedDate').val('');
+    reschedFP = flatpickr('#reschedDate', {
+      dateFormat: 'Y-m-d',
+      defaultDate: ctx.baseDateISO || activeDate,
+      minDate: todayISO(),
+      onChange: function(sel){
+        const iso = sel && sel[0] ? ymdLocal(sel[0]) : (ctx.baseDateISO || activeDate);
+        // reset selection
+        RESCHED_CTX.selectedTime = '';
+        $('#btnReschedSave').prop('disabled', true);
+        // repaint time grid with capacity
+        renderTimeGrid(iso);
+      },
+      onReady: function(_, __, inst){
+        const iso = ymdLocal(inst.selectedDates[0] || new Date());
+        renderTimeGrid(iso);
+      }
+    });
+
+    // clear previous active state
+    $('#slotGrid').off('click.resel').on('click.resel', '.slot-btn:not(.disabled)', function(){
+      $('#slotGrid .slot-btn').removeClass('active');
+      $(this).addClass('active');
+      RESCHED_CTX.selectedTime = String($(this).data('time') || '');
+      $('#btnReschedSave').prop('disabled', !RESCHED_CTX.selectedTime);
+    });
+
+    $('#btnReschedSave').prop('disabled', true);
+    $('#reschedModal').modal('show');
+  }
+
+  async function saveReschedule(){
+    try{
+      const pickDate = reschedFP && reschedFP.selectedDates && reschedFP.selectedDates[0]
+        ? ymdLocal(reschedFP.selectedDates[0])
+        : activeDate;
+
+      const time = RESCHED_CTX.selectedTime || '';
+      if (!pickDate || !time){
+        return Swal.fire({ icon:'warning', title:'Pick date & time', timer:1500, showConfirmButton:false });
+      }
+
+      const payload = {
+        reservationId: RESCHED_CTX.reservationId,
+        scheduleDate : pickDate,
+        scheduleTime : time,
+        // ensure we ALWAYS send details (route requires it)
+        scheduleDetails: RESCHED_CTX.serviceName || 'Follow-up',
+        scheduleServiceName: RESCHED_CTX.serviceName || 'Follow-up'
+      };
+      if (RESCHED_CTX.petId) payload.petId = RESCHED_CTX.petId;
+      else payload.petName = RESCHED_CTX.petName;
+
+      $('#btnReschedSave').prop('disabled', true).text('Saving…');
+
+      const resp = await $.ajax({
+        url: ADD_URL, method:'POST',
+        contentType:'application/json',
+        data: JSON.stringify(payload)
+      });
+
+      $('#btnReschedSave').text('Reschedule');
+      $('#reschedModal').modal('hide');
+
+      Swal.fire({ icon:'success', title:'Follow-up rescheduled', timer:1400, showConfirmButton:false });
+
+      // Refresh current day + calendar month (in case moved date)
+      loadDayList(activeDate);
+      const d = new Date(pickDate+'T00:00:00');
+      loadMonthStats(d.getFullYear(), d.getMonth()+1);
+    } catch(e){
+      console.error('saveReschedule error', e);
+      $('#btnReschedSave').prop('disabled', false).text('Reschedule');
+      let msg = 'Server error';
+      if (e?.responseJSON?.message) msg = e.responseJSON.message;
+      Swal.fire({ icon:'error', title:'Unable to reschedule', text: msg });
+    }
+  }
+
+  // open modal from table
+$(document).off('click.openRes').on('click.openRes', '.resched-btn', function(){
+  const $b = $(this);
+  const timeCell = $b.data('time') || $b.closest('tr').find('td:nth-child(1)').text().trim();
+  const ctx = {
+    reservationId: String($b.data('resvid') || ''),
+    petId: String($b.data('petid') || '') || null,
+    petName: String($b.data('petname') || ''),
+    ownerName: $b.closest('tr').find('td:nth-child(2)').text().trim(),
+    serviceName: String($b.data('service') || 'Follow-up'),
+    baseDateISO: String($b.data('date') || activeDate),
+    time: String(timeCell || '')
+  };
+  openReschedModal(ctx);
+});
+
+  $('#btnReschedSave').off('click.saveRes').on('click.saveRes', saveReschedule);
+
+  /* ===== Init ===== */
+  $(function(){
+    buildCalendar();
+    wireSSE();
+    $('#searchInput').off('keyup.du').on('keyup.du', function(){ currentPage = 1; renderTablePage(getFilteredList(), currentPage); });
+    $('#statusFilter').off('change.du').on('change.du', function(){ currentPage = 1; renderTablePage(getFilteredList(), currentPage); });
+  });
+})();
+</script>
