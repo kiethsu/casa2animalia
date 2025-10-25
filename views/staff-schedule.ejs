@@ -1,0 +1,283 @@
+<div class="container-fluid upcoming-container">
+  <style>
+  /* ===== Match upcoming.ejs page shell (tight edges) ===== */
+  .upcoming-container{
+    min-height:100vh;
+    padding:8px 8px 12px !important; /* left/right/top same as upcoming.ejs */
+    background:#f7f7f7;
+  }
+
+  /* Remove Bootstrap's row negative margins & column paddings inside our shell */
+  .upcoming-container > .row{ margin-left:0 !important; margin-right:0 !important; }
+  .upcoming-container > .row > [class^="col-"],
+  .upcoming-container > .row > [class*=" col-"]{
+    padding-left:0 !important; padding-right:0 !important;
+  }
+
+  /* Cards styled like upcoming.ejs */
+  .upcoming-container .card,
+  .upcoming-container .table-card{
+    margin-bottom:14px;
+    border:1px solid #e9ecef;
+    border-radius:14px;
+    box-shadow:0 3px 12px rgba(30,34,90,0.08);
+    background:#fff;
+  }
+
+  /* ========= Staff Schedule page styles ========= */
+
+  /* compact inner blocks for Month + Weekdays */
+  .picker-block{
+    border:1px solid #e9ecef;
+    border-radius:12px;
+    background:#fafafa;
+    padding:12px;
+  }
+  .picker-title{
+    font-weight:600; color:#0D47A1; margin-bottom:6px;
+  }
+  .picker-help{
+    font-size:.85rem; color:#6c757d;
+  }
+
+  /* highlight selected days/months */
+  #ss-dow .ss-dow-btn.active,
+  #ss-months .ss-month-btn.active{
+    background: var(--primary);
+    color:#fff;
+    border-color: var(--primary);
+  }
+
+  /* make chips neat & consistent */
+  #ss-dow .ss-dow-btn,
+  #ss-months .ss-month-btn{
+    border-radius:999px;
+    min-width:64px;
+  }
+
+  .ss-badge {
+    display:inline-block;
+    padding:.15rem .35rem;
+    border:1px solid #e0e0e0;
+    border-radius:.35rem;
+    font-size:.8rem;
+    margin:.1rem 0;
+    white-space:nowrap;
+    background:#fff;
+  }
+
+  /* per-day inputs */
+  #ss-per-day-list .ss-day-row{
+    display:flex; align-items:center; gap:.5rem; margin-bottom:.35rem; flex-wrap:wrap;
+  }
+  #ss-per-day-list .ss-day-row label{ width:60px; margin:0; }
+  #ss-per-day-list .ss-day-row input{ width:120px; }
+
+  /* inline filters in week-card header */
+  .ss-filter-inline {
+    display:flex; flex-wrap:wrap; align-items:end; gap:.5rem;
+  }
+  .ss-filter-inline .form-group { margin-bottom:0; }
+  .ss-filter-inline label      { margin-bottom:.2rem; font-size:.8rem; color:#6c757d; }
+  /* ===== Tiny button spinner ===== */
+.btn.is-loading{ pointer-events:none; opacity:.9; }
+.btn-spinner{
+  display:inline-block; width:1em; height:1em;
+  border:2px solid currentColor; border-right-color:transparent;
+  border-radius:50%; margin-right:.5rem; vertical-align:-.15em;
+  animation:ss-spin .6s linear infinite;
+}
+@keyframes ss-spin { to { transform: rotate(360deg); } }
+
+  </style>
+
+  <div class="row">
+    <!-- Header card -->
+    <div class="col-12 mb-3">
+      <div class="card">
+        <div class="card-body d-flex align-items-center justify-content-between">
+          <div>
+            <h5 class="mb-1" style="color:#0D47A1;">Staff Schedule</h5>
+            <small class="text-muted">Assign shifts, view availability, and manage leaves.</small>
+          </div>
+          <div>
+            <button id="ss-add-shift" class="btn btn-outline-primary btn-sm">
+              <i class="fa fa-plus"></i> Add Shift
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Shift panel (hidden until opened) -->
+    <div id="ss-add-panel" class="col-12 mb-3 d-none">
+      <div class="card">
+        <div class="card-body">
+          <div class="row">
+            <!-- Left: Month + Weekdays (organized) -->
+            <div class="col-lg-6 mb-3">
+              <div class="picker-block mb-3">
+                <div class="picker-title">Month for this shift</div>
+                <div class="picker-help mb-2">Pick a year, then choose the month.</div>
+
+                <div class="form-row align-items-center">
+                  <!-- Year dropdown -->
+                  <div class="col-5 col-md-4 mb-2">
+                    <select id="ss-year" class="form-control"></select>
+                  </div>
+                  <div class="w-100 d-block d-md-none"></div>
+
+                  <!-- Month buttons (radio-style) -->
+                  <div class="col-12">
+                    <div id="ss-months" class="d-flex flex-wrap">
+                      <button type="button" class="btn btn-outline-secondary m-1 ss-month-btn" data-value="1">Jan</button>
+                      <button type="button" class="btn btn-outline-secondary m-1 ss-month-btn" data-value="2">Feb</button>
+                      <button type="button" class="btn btn-outline-secondary m-1 ss-month-btn" data-value="3">Mar</button>
+                      <button type="button" class="btn btn-outline-secondary m-1 ss-month-btn" data-value="4">Apr</button>
+                      <button type="button" class="btn btn-outline-secondary m-1 ss-month-btn" data-value="5">May</button>
+                      <button type="button" class="btn btn-outline-secondary m-1 ss-month-btn" data-value="6">Jun</button>
+                      <button type="button" class="btn btn-outline-secondary m-1 ss-month-btn" data-value="7">Jul</button>
+                      <button type="button" class="btn btn-outline-secondary m-1 ss-month-btn" data-value="8">Aug</button>
+                      <button type="button" class="btn btn-outline-secondary m-1 ss-month-btn" data-value="9">Sep</button>
+                      <button type="button" class="btn btn-outline-secondary m-1 ss-month-btn" data-value="10">Oct</button>
+                      <button type="button" class="btn btn-outline-secondary m-1 ss-month-btn" data-value="11">Nov</button>
+                      <button type="button" class="btn btn-outline-secondary m-1 ss-month-btn" data-value="12">Dec</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="picker-block">
+                <div class="picker-title">Pick weekdays</div>
+                <div class="d-flex align-items-center mb-2" style="gap:.5rem;">
+                  <small class="picker-help">Click to toggle days.</small>
+                  <button type="button" id="ss-dow-all"   class="btn btn-link btn-sm p-0">Select all</button>
+                  <span class="text-muted">·</span>
+                  <button type="button" id="ss-dow-clear" class="btn btn-link btn-sm p-0">Clear</button>
+                </div>
+                <div id="ss-dow" class="d-flex flex-wrap">
+                  <!-- ISO weekday values: 1=Mon ... 7=Sun -->
+                  <button type="button" class="btn btn-outline-secondary m-1 flex-fill ss-dow-btn" data-value="1">Mon</button>
+                  <button type="button" class="btn btn-outline-secondary m-1 flex-fill ss-dow-btn" data-value="2">Tue</button>
+                  <button type="button" class="btn btn-outline-secondary m-1 flex-fill ss-dow-btn" data-value="3">Wed</button>
+                  <button type="button" class="btn btn-outline-secondary m-1 flex-fill ss-dow-btn" data-value="4">Thu</button>
+                  <button type="button" class="btn btn-outline-secondary m-1 flex-fill ss-dow-btn" data-value="5">Fri</button>
+                  <button type="button" class="btn btn-outline-secondary m-1 flex-fill ss-dow-btn" data-value="6">Sat</button>
+                  <button type="button" class="btn btn-outline-secondary m-1 flex-fill ss-dow-btn" data-value="7">Sun</button>
+                </div>
+                <small class="text-muted d-block mt-1">Shifts repeat on the selected weekdays within the chosen month.</small>
+              </div>
+            </div>
+
+            <!-- Right: Staff + Time inputs -->
+            <div class="col-lg-6">
+              <div class="form-group">
+                <label>Staff</label>
+                <select id="ss-staff-select" class="form-control">
+                  <option value="">Loading…</option>
+                </select>
+              </div>
+
+              <!-- Same-time toggle -->
+              <div class="form-group mb-2">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="ss-same-time" checked>
+                  <label class="form-check-label" for="ss-same-time">
+                    Use the same Start/End for all selected days
+                  </label>
+                </div>
+              </div>
+
+              <!-- Global Start/End (same for all) -->
+              <div id="ss-global-time-row" class="form-row">
+                <div class="form-group col-6">
+                  <label>Start</label>
+                  <input id="ss-start" class="form-control" placeholder="HH:MM"/>
+                </div>
+                <div class="form-group col-6">
+                  <label>End</label>
+                  <input id="ss-end" class="form-control" placeholder="HH:MM"/>
+                </div>
+              </div>
+
+              <!-- Per-day Start/End (only visible when same-time is OFF) -->
+              <div id="ss-per-day-times" class="d-none">
+                <label class="mt-2 d-block">Per-day times</label>
+                <div id="ss-per-day-list"></div>
+                <small class="text-muted d-block mt-1">Tip: select weekdays first, then set times for each.</small>
+              </div>
+
+              <div class="d-flex mt-2" style="gap:.5rem;">
+                <button id="ss-save" class="btn btn-primary btn-sm">Save Weekly Shift(s)</button>
+                <button id="ss-cancel-panel" class="btn btn-light btn-sm">Cancel</button>
+              </div>
+            </div>
+          </div>
+          <small class="text-muted d-block mt-2">Tip: choose multiple weekdays, pick month, set times, then save.</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Week grid (filters inline in header) -->
+    <div class="col-12 mb-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex flex-wrap justify-content-between align-items-end mb-3" style="gap:.75rem;">
+            <h6 class="mb-0">Schedule (Week View)</h6>
+            <div class="ss-filter-inline">
+              <div class="form-group">
+                <label>Month</label>
+                <input id="ss-filter-ym" type="month" class="form-control form-control-sm"/>
+              </div>
+              <div class="form-group">
+                <label>Role</label>
+                <select id="ss-role-filter" class="form-control form-control-sm">
+                  <option value="">All</option>
+                  <option value="Doctor">Doctor</option>
+                  <option value="HR">HR</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Staff</label>
+                <select id="ss-staff" class="form-control form-control-sm">
+                  <option value="">All</option>
+                </select>
+              </div>
+              <button id="ss-refresh" class="btn btn-primary btn-sm">Apply</button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0">
+              <thead class="thead-light">
+                <tr>
+                  <th>Staff</th>
+                  <th>Mon</th>
+                  <th>Tue</th>
+                  <th>Wed</th>
+                  <th>Thu</th>
+                  <th>Fri</th>
+                  <th>Sat</th>
+                  <th>Sun</th>
+                </tr>
+              </thead>
+              <tbody id="ss-body">
+                <tr>
+                  <td colspan="8" class="text-center text-muted">No data yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <small class="text-muted d-block mt-2">Tip: Use the filters above to view a specific month, role, or staff.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.__ADMIN_BASE__ = <%- JSON.stringify(adminBase || '/admin') %>;
+</script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="/js/staff-schedule.js"></script>
