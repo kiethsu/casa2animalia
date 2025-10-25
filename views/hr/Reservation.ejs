@@ -17,12 +17,137 @@
     var dd = pad2(d.getDate());
     return yyyy + '-' + mm + '-' + dd;
   }
+function collectServicesForRow(res){
+  const set = new Set();
+
+  const asArray = v => Array.isArray(v) ? v : (v != null ? [v] : []);
+  const tokenFrom = v => {
+    if (!v) return null;
+    if (typeof v === 'string') return v.trim();
+    if (typeof v === 'number') return String(v);
+    if (typeof v === 'object') {
+      // 👇 added categoryName as a final fallback for structured follow-ups
+      return (v.name || v.label || v.title || v.serviceName || v.serviceTitle ||
+              v.scheduleDetails || v.details || v.categoryName || '')
+              .toString().trim() || null;
+    }
+    return null;
+  };
+  const addAny = v => {
+    if (!v) return;
+    if (Array.isArray(v)) { v.forEach(addAny); return; }
+    const t = tokenFrom(v);
+    if (t) set.add(t);
+  };
+
+  addAny(res && res.service);
+
+  if (Array.isArray(res && res.petRequests)) {
+    res.petRequests.forEach(pr => {
+      addAny(pr && pr.services);
+      addAny(pr && pr.service);
+      addAny(pr && pr.requestedServices);
+    });
+  }
+
+  const topFU = res && (res.schedule || res.followUp || res.followup || res.follow_up);
+  if (topFU) {
+    addAny(topFU.service);
+    addAny(topFU.serviceName);
+    addAny(topFU.services);
+    addAny(topFU.scheduleDetails);
+    addAny(topFU.followUpService);
+  }
+
+  if (Array.isArray(res && res.pets)) {
+    res.pets.forEach(p => {
+      const sch = p && (p.schedule || p.followUp || p.followup || p.follow_up);
+      if (!sch) return;
+      addAny(sch.service);
+      addAny(sch.serviceName);
+      addAny(sch.services);
+      addAny(sch.scheduleDetails);
+      addAny(sch.followUpService);
+    });
+  }
+
+  return Array.from(set);
+}
+function _svcTokenFrom(v){
+  if (!v) return null;
+  if (typeof v === 'string') return v.trim();
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'object') {
+    return (v.name || v.serviceName || v.title || v.label ||
+            v.scheduleDetails || v.details || v.categoryName || '')
+            .toString().trim() || null;
+  }
+  return null;
+}
+function _svcAdd(set, v){
+  if (!v) return;
+  if (Array.isArray(v)) { v.forEach(x => _svcAdd(set, x)); return; }
+  const t = _svcTokenFrom(v);
+  if (t) set.add(t);
+}
+
+/** Returns an array of service names for the i-th pet row.
+ *  Falls back to per-pet follow-up schedule fields when petRequests are blank.
+ */
+function servicesForPet(r, i){
+  const set = new Set();
+
+  const pr = (Array.isArray(r.petRequests) ? r.petRequests[i] : null) || null;
+  _svcAdd(set, pr && pr.services);
+  _svcAdd(set, pr && pr.service);
+  _svcAdd(set, pr && pr.requestedServices);
+
+  const pet = (Array.isArray(r.pets) ? r.pets[i] : null) || null;
+  const sch = pet && (pet.schedule || pet.followUp || pet.followup || pet.follow_up);
+  if (sch){
+    _svcAdd(set, sch.service);
+    _svcAdd(set, sch.serviceName);
+    _svcAdd(set, sch.services);
+    _svcAdd(set, sch.scheduleDetails);
+    _svcAdd(set, sch.followUpService);
+  }
+  return Array.from(set);
+}
+
+// tiny chip helper used in the modal
+function chipHtml(txt){
+  const s = String(txt||'').replace(/[&<>"]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m]));
+  return `<span class="badge badge-secondary mr-1 mb-1">${s}</span>`;
+}
 
   // Safe date for sorting
   function safeDateValue(d){
     var x = new Date(d);
     return isNaN(x) ? new Date(0) : x;
   }
+function resolvePreferredDoctorName(r){
+  const ANY = 'Anyone';
+  if (!r) return ANY;
+
+  // 1) Full object from server?
+  if (r.preferredDoctor && (r.preferredDoctor.username || r.preferredDoctor.name)) {
+    return r.preferredDoctor.username || r.preferredDoctor.name;
+  }
+
+  // 2) Server sent a name string?
+  if (r.preferredDoctorName || r.preferredDoctorUsername) {
+    return r.preferredDoctorName || r.preferredDoctorUsername;
+  }
+
+  // 3) Server sent an id (preferredDoctorId / preferredDoctorID / preferredDoctor as id)
+  const rawId = r.preferredDoctorId || r.preferredDoctorID ||
+                (typeof r.preferredDoctor === 'string' ? r.preferredDoctor : null);
+
+  if (!rawId || /^(any|anyone|null|undefined)$/i.test(String(rawId))) return ANY;
+
+  const doc = (window.doctors || []).find(d => String(d._id) === String(rawId));
+  return (doc && (doc.username || doc.name)) ? (doc.username || doc.name) : ANY;
+}
 
   // Normalize any time to "HH:MM" 24h (defaults to 00:00)
   function safeTimeHHmm(timeStr){
@@ -886,8 +1011,161 @@ var ongoingReservations = (reservations||[]).filter(function(r){
 /* Spinner overlay anchor for Approved/Ongoing card */
 .approved-reservations { position: relative; }
 #paymentPanel .btn-icon.spinning i { animation: spin .8s linear infinite; }
+/* ===== Notify (SweetAlert2) polish + status badge + send-button spinner (UPDATED) ===== */
+.notify-popup{
+  position: relative !important;
+  width: min(560px, 92vw) !important;
+  padding: 16px !important;
+  border-radius: 14px !important;
+}
+.notify-popup .swal2-title{
+  font-size: 1rem !important;
+  font-weight: 800 !important;
+  color: #244b7a !important;
+}
+.notify-popup .swal2-html-container{
+  margin: 0 !important;
+  overflow-x: hidden !important;
+  max-height: none !important;
+}
+.notify-popup .swal2-actions{ margin-top: 12px !important; }
+
+/* Fields */
+.notify-field{ display: block; margin-top: 10px; }
+.notify-label{ display: block; font-weight: 600; font-size: .9rem; color: #374151; margin-bottom: 6px; }
+.notify-select{
+  display: block; width: 100%; max-width: 100%;
+  border: 1px solid #e5e7eb; border-radius: 10px; padding: .5rem .75rem; box-sizing: border-box;
+  background: #fff; line-height: 1.2; appearance: auto;
+}
+.notify-select:focus{ outline: 0; border-color: #93c5fd; box-shadow: 0 0 0 .15rem rgba(147,197,253,.35); }
+.notify-preview{
+  border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px;
+  background: #f9fafb; min-height: 84px;
+  word-break: break-word; overflow-wrap: anywhere; white-space: pre-wrap;
+  font-size: .92rem; color: #111827;
+}
+.notify-textarea{
+  width: 100%; min-height: 110px;
+  border: 1px solid #e5e7eb; border-radius: 10px;
+  padding: .5rem .75rem; box-sizing: border-box; resize: vertical;
+}
+
+/* Buttons */
+.notify-btn-confirm{
+  background: linear-gradient(90deg,#1E88E5,#06b6d4);
+  border: 0; color: #fff; border-radius: 10px;
+  padding: 10px 16px; font-weight: 700;
+  box-shadow: 0 6px 16px rgba(30,136,229,.25);
+  transition: transform .06s ease, box-shadow .2s ease, filter .2s ease;
+  position: relative; /* for spinner */
+}
+.notify-btn-confirm:hover{ transform: translateY(-1px); box-shadow: 0 8px 22px rgba(30,136,229,.32); }
+.notify-btn-confirm:active{ transform: translateY(0); filter: brightness(.96); }
+.notify-btn-confirm:focus{ outline: none; box-shadow: 0 0 0 .15rem rgba(30,136,229,.35); }
+
+.notify-btn-cancel{
+  background: #fff; color: #334155;
+  border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 10px 14px; font-weight: 600;
+  transition: background .15s ease, color .15s ease, border-color .15s ease, transform .06s ease;
+}
+.notify-btn-cancel:hover{ background:#f8fafc; border-color:#cbd5e1; transform: translateY(-1px); }
+.notify-btn-cancel:active{ transform: translateY(0); }
+.notify-btn-cancel:focus{ outline: none; box-shadow: 0 0 0 .15rem rgba(148,163,184,.35); }
+
+/* Tighter action bar + mobile stacking */
+.swal2-actions{ gap: 10px !important; justify-content: flex-end !important; }
+@media (max-width: 480px){
+  .swal2-actions{ flex-direction: column-reverse; width: 100%; }
+  .notify-btn-confirm, .notify-btn-cancel{ width: 100%; }
+}
+
+/* —— Status badge in the top-right corner —— */
+.notify-status{
+  position: absolute; top: 10px; right: 12px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px; border-radius: 999px;
+  font-size: .78rem; font-weight: 700;
+  background: #f8fafc; color: #334155;
+  box-shadow: 0 0 0 1px #e2e8f0 inset;
+}
+.notify-status .dot{
+  width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;
+}
+.notify-status.is-ready  .dot{ background:#60a5fa; } /* blue */
+.notify-status.is-sending{
+  background:#fff7ed; color:#9a3412; box-shadow:0 0 0 1px #fed7aa inset;
+}
+.notify-status.is-sending .dot{
+  background:#f59e0b; animation: pulse 1.2s ease-in-out infinite;
+}
+.notify-status.is-sent{
+  background:#ecfdf5; color:#065f46; box-shadow:0 0 0 1px #a7f3d0 inset;
+}
+.notify-status.is-sent .dot{ background:#10b981; }  /* green */
+.notify-status.is-error{
+  background:#fef2f2; color:#991b1b; box-shadow:0 0 0 1px #fecaca inset;
+}
+.notify-status.is-error .dot{ background:#ef4444; }  /* red */
+
+@keyframes pulse { 0%{transform:scale(1);opacity:.8} 50%{transform:scale(1.35);opacity:1} 100%{transform:scale(1);opacity:.8} }
+
+/* —— Spinner INSIDE the Send button —— */
+.notify-btn-confirm .btn-spinner{
+  margin-left: 8px; width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,.6); border-top-color: #fff;
+  border-radius: 50%; display: none; vertical-align: -2px;
+}
+.notify-btn-confirm.loading .btn-spinner{
+  display: inline-block; animation: spin .8s linear infinite;
+}
+.notify-btn-confirm.loading{ pointer-events: none; }
+
+/* We prefer the button spinner, so hide SweetAlert's central loader */
+.notify-popup .swal2-loader{ display: none !important; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Optional: honor reduced motion */
+@media (prefers-reduced-motion: reduce){
+  .notify-status.is-sending .dot,
+  .notify-btn-confirm.loading .btn-spinner{
+    animation: none !important;
+  }
+}
+/* Customer responded: Confirmed / Resched */
+.notify-status.is-confirmed{
+  background:#ecfdf5; color:#065f46; box-shadow:0 0 0 1px #a7f3d0 inset;
+}
+.notify-status.is-confirmed .dot{ background:#10b981; }
+
+.notify-status.is-resched{
+  background:#fff7ed; color:#9a3412; box-shadow:0 0 0 1px #fed7aa inset;
+}
+.notify-status.is-resched .dot{ background:#f59e0b; }
+/* Notify button turns green after customer responds */
+.btn-notified{
+  background:#16a34a !important; /* green-600 */
+  color:#fff !important;
+  border-color:#16a34a !important;
+}
+
+.svc-cell .svc-compact { white-space: nowrap; }
+ :root { --notify-cta: #1E88E5; } /* reuse the same blue you already use */
+  .notify-btn-confirm{
+    background: linear-gradient(90deg,var(--notify-cta),#06b6d4);
+  }
+  /* make “Confirm” text inside the preview match the button color */
+  .notify-preview .cta-confirm { color: var(--notify-cta); font-weight: 700; }
+/* put this at the end of your <style> block */
+#declineModal .modal-header .close { display: none !important; }
+
 
 </style>
+<!-- Socket.IO client -->
+<script src="/socket.io/socket.io.js"></script>
+
 <script>
 // === RESERVATION PAGE LIFECYCLE (strong unmount) ===
 // If a previous reservation page instance exists, unmount it first.
@@ -958,6 +1236,319 @@ if (window.__RESV_UNMOUNT) { try { window.__RESV_UNMOUNT(); } catch(e){} }
   window.__RESV_REG.beforeNav = __beforeNav;    // <— so we can remove it on unmount
 })();
 </script>
+<script>
+  // Small client cache so re-open feels instant even before the AJAX comes back
+  window.__notifyState = window.__notifyState || {}; // { [reservationId]: 'ready'|'sent'|'confirm'|'resched' }
+</script>
+
+<script>
+  // HR socket bootstrap (connect once, forward events to the open Notify modal)
+  (function () {
+    if (!window.__HR_SOCKET) {
+      const socket = io({ transports: ['websocket', 'polling'] });
+      window.__HR_SOCKET = socket;
+    }
+    const socket = window.__HR_SOCKET;
+
+    // Idempotent: only wire the listener once
+    if (!window.__HR_SOCKET_WIRED) {
+     socket.on('reservation:response', function (payload) {
+  try {
+    // Normalize payload → { id|reservationId, action: 'confirm'|'resched' }
+    const id = String(payload?.reservationId || payload?.id || '');
+    const action = String(payload?.action || '');
+
+    // Always reflect the state in the Pending table (even if no modal is open)
+    if (id && typeof window.markNotifyGreen === 'function') {
+      const last = {
+        status: 'responded',
+        response: action === 'confirm' ? 'confirm' : (action === 'resched' ? 'resched' : undefined),
+      };
+      window.markNotifyGreen(id, last);
+    }
+
+    // Keep your existing modal-specific hook
+    if (typeof window.__onReservationNotifyResponse === 'function') {
+      window.__onReservationNotifyResponse(payload);
+    }
+  } catch (e) {}
+});
+
+      window.__HR_SOCKET_WIRED = true;
+    }
+  })();
+</script>
+<!-- ⬇️ Paste the SSE listener block RIGHT BELOW the HR socket bootstrap ⬇️ -->
+<script>
+// Reuse a single EventSource for HR events
+(function attachNotifyStateListener(){
+  if (window.__HR_SSE_READY) return;
+  window.__HR_SSE_READY = true;
+
+  const es = (window.hrEventSource instanceof EventSource)
+    ? window.hrEventSource
+    : new EventSource('/hr/stream');
+  window.hrEventSource = es;
+
+  // Button + modal updater
+  function markNotifyGreen(reservationId, last){
+    const btn = document.querySelector(
+      `.js-notify-btn[data-reservation-id="${reservationId}"]`
+    );
+    if (btn && last && last.status === 'responded') {
+      btn.classList.add('btn-notified');
+      btn.dataset.notifyState = 'responded';
+      btn.title = (last.response === 'confirm')
+        ? 'Customer confirmed'
+        : 'Customer requested reschedule';
+    }
+
+    const statusEl = document.querySelector(
+      `.notify-status[data-reservation-id="${reservationId}"]`
+    );
+    if (statusEl) {
+      const label =
+        last.response === 'confirm' ? 'Confirmed' :
+        last.response === 'resched' ? 'Reschedule requested' :
+        last.status || 'Updated';
+      statusEl.textContent = label;
+      statusEl.classList.add('text-green-600');
+    }
+
+    if (window.__notifyState) {
+      window.__notifyState[reservationId] =
+        (last.response === 'confirm') ? 'confirm' :
+        (last.response === 'resched') ? 'resched' :
+        (last.status === 'sent') ? 'sent' : last.status;
+    }
+  }
+  window.markNotifyGreen = markNotifyGreen;
+
+  // --- Handle default "message" events (server sends {type:'reservation:notify-state', ...}) ---
+  es.onmessage = function(ev){
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg && msg.type === 'reservation:notify-state') {
+        markNotifyGreen(msg.reservationId || msg.id, msg.last || msg);
+      }
+    } catch(e){}
+  };
+
+  // --- ALSO handle a *named* SSE event: `event: reservation:notify-state` ---
+  es.addEventListener('reservation:notify-state', function(ev){
+    try {
+      const msg = JSON.parse(ev.data);
+      markNotifyGreen(msg.reservationId || msg.id, msg.last || msg);
+    } catch(e){}
+  });
+// --- ALSO handle a *named* SSE event: `event: reservation:notify-state` ---
+  es.addEventListener('reservation:notify-state', function(ev){
+    try {
+      const msg = JSON.parse(ev.data);
+      markNotifyGreen(msg.reservationId || msg.id, msg.last || msg);
+    } catch(e){}
+  });
+
+  // ⬇⬇ INSERT THIS WHOLE BLOCK HERE ⬇⬇
+  // When any HR screen declines a reservation, remove it here
+  es.addEventListener('reservation:declined', function(ev){
+    try {
+      const data = JSON.parse(ev.data || '{}');
+      const id = String(data.id || data.reservationId || '');
+      if (!id) return;
+
+      const $row = $(`#appointmentsTableBody tr[data-reservation-id="${id}"], #reservation-${id}`);
+      if (!$row.length) return;
+      const dateKey = $row.data('date');
+      $row.remove();
+
+      // Refresh calendar/list like elsewhere
+      const anyLeft = $(`#appointmentsTableBody tr[data-date="${dateKey}"]`).length > 0;
+      window.appointmentDates = window.appointmentDates || {};
+      if (anyLeft) window.appointmentDates[dateKey] = true;
+      else delete window.appointmentDates[dateKey];
+      if (window.fp && typeof window.fp.redraw === 'function') window.fp.redraw();
+      if (window.activeDate === dateKey && typeof window.filterRows === 'function') window.filterRows();
+    } catch(e){}
+  });
+  // ⬆⬆ END INSERT ⬆⬆
+
+  // (optional) tiny debug
+  es.onopen  = () => { window.__HR_SSE_CONNECTED = true; };
+  es.onerror = () => { window.__HR_SSE_CONNECTED = false; };
+})();
+</script>
+<script>
+// === Hydrate notify buttons on page load ===
+// Tries a batch endpoint first. If you don’t have it, it falls back to per-id GETs.
+(function hydrateNotifyButtonsOnLoad(){
+  if (typeof window.markNotifyGreen !== 'function') return;
+
+  const btns = Array.from(document.querySelectorAll('.js-notify-btn'));
+  if (!btns.length) return;
+
+  const ids = btns
+    .map(b => b && b.dataset && b.dataset.reservationId)
+    .filter(Boolean);
+
+  function applyState(id, last){
+    try { window.markNotifyGreen(id, last || {}); } catch(_) {}
+  }
+
+  // Try batch (recommended). If your server doesn't have this yet, fallback runs.
+  $.ajax({
+    url: '/hr/batch-reservation-message-state',
+    method: 'POST',
+    data: { ids: ids }
+  })
+  .done(function(resp){
+    if (resp && resp.success && Array.isArray(resp.items) && resp.items.length){
+      resp.items.forEach(item => {
+        const id   = String(item.reservationId || item.id || '');
+        const last = item.last || item;
+        if (id) applyState(id, last);
+      });
+      return;
+    }
+    fallbackPerId();
+  })
+  .fail(fallbackPerId);
+
+  function fallbackPerId(){
+    ids.forEach(id => {
+      $.get('/hr/reservation-message-state', { reservationId: id })
+       .done(function(r){
+         const last = r && (r.last || r);
+         if (last) applyState(id, last);
+       });
+    });
+  }
+})();
+</script>
+
+<script>
+/* ========= Realtime for new "Pending" reservations (all-in-one + fallback) ========= */
+(function ensureRealtimePending(){
+  if (window.__RESV_RT2_WIRED) return; window.__RESV_RT2_WIRED = true;
+
+  const DEBUG = false; // set to true to see logs in DevTools
+
+  function log(){ if (DEBUG) console.log.apply(console, arguments); }
+  function hasRow(id){ return document.getElementById('reservation-' + id); }
+
+  function extractReservation(x){
+    if (!x) return null;
+    if (x.reservation) return x.reservation;
+    if (Array.isArray(x)) { for (const v of x){ const r = extractReservation(v); if (r) return r; } }
+    if (x.data) return extractReservation(x.data);
+    if (x._id && (String(x.status||'')).toLowerCase()==='pending') return x;
+    return null;
+  }
+
+  function onAnyEvent(ev, ...args){
+    try{
+      log('[socket any]', ev, args);
+      const r = extractReservation(args[0]) || extractReservation(args[1]) || null;
+      if (r && r._id && (String(r.status||'')).toLowerCase()==='pending' && !hasRow(r._id)){
+        log('→ append new pending from event', ev, r._id);
+        if (typeof window.appendPendingRow === 'function') window.appendPendingRow(r);
+      }
+    } catch(_) {}
+  }
+
+  // ---- Socket.IO wireup (supports v2 and v3+) ----
+  const socket = (window.__HR_SOCKET) || io({ transports: ['websocket','polling'] });
+  window.__HR_SOCKET = socket;
+
+  // try to "join" common channels (harmless if server ignores)
+  try {
+    socket.emit('join', { room: 'hr' });
+    socket.emit('join', { channel: 'reservations' });
+    socket.emit('join', { scope: 'hr-reservations' });
+  } catch(_){}
+
+  if (typeof socket.onAny === 'function'){
+    socket.onAny(onAnyEvent);
+  } else if (!socket.__patchedOnAny) {
+    const onevent = socket.onevent;
+    socket.onevent = function(packet){
+      const args = packet.data || [];
+      onAnyEvent(args[0], ...args.slice(1));
+      return onevent.call(this, packet);
+    };
+    socket.__patchedOnAny = true;
+  }
+
+  // A few explicit event names, just in case
+  ['reservation:created','reservation:new','reservation:new-pending','reservation:added','reservations:changed']
+    .forEach(ev => socket.on(ev, payload => onAnyEvent(ev, payload)));
+
+  // ---- POLLING FALLBACK (auto-detects a working endpoint; only used if SSE/socket don’t fire) ----
+  let pollTimer = null, pollUrl = null;
+
+  function parseList(resp){
+    if (resp && resp.success && Array.isArray(resp.reservations)) return resp.reservations; // {success, reservations:[]}
+    if (Array.isArray(resp)) return resp;                                                   // plain array
+    if (resp && Array.isArray(resp.data)) return resp.data;                                 // {data:[]}
+    return null;
+  }
+
+  function startPolling(){
+    if (!pollUrl || pollTimer) return;
+    pollTimer = setInterval(function(){
+      $.get(pollUrl).done(function(resp){
+        const list = parseList(resp) || [];
+        list.forEach(r=>{
+          if ((String(r.status||'').toLowerCase()==='pending') && r._id && !hasRow(r._id)){
+            if (typeof window.appendPendingRow === 'function') window.appendPendingRow(r);
+          }
+        });
+      });
+    }, 5000); // adjust if you want faster/slower
+    log('Polling fallback enabled on', pollUrl);
+  }
+
+  // Try a few likely endpoints. If one works, we keep polling it.
+(function detectEndpoint(i=0){
+  // 1) If you set a manual override, use it immediately
+  if (window.__RESV_PENDING_LIST_URL) {
+    const url = window.__RESV_PENDING_LIST_URL;
+    $.get(url).done(function(resp){
+      const list = parseList(resp);
+      if (list) { pollUrl = url; startPolling(); }
+    });
+    return;
+  }
+
+  // 2) Otherwise try a few common candidates (one-time 404s are normal)
+  const candidates = [
+    '/hr/pending-reservations',
+    '/hr/reservations?status=Pending',
+    '/hr/list-reservations?status=Pending',
+    '/hr/api/reservations?status=Pending',
+    '/api/reservations?status=Pending',
+    '/reservations?status=Pending',
+    '/reservations/pending',
+    '/reservations/list?status=Pending'
+  ];
+  if (i >= candidates.length) return;
+  const url = candidates[i];
+  $.get(url).done(function(resp){
+    const list = parseList(resp);
+    if (list) { pollUrl = url; startPolling(); }
+    else { detectEndpoint(i+1); }
+  }).fail(function(){ detectEndpoint(i+1); });
+})();
+
+  // ---- SSE: catch named “created” events if your server emits them that way ----
+  try {
+    const es = window.hrEventSource instanceof EventSource ? window.hrEventSource : new EventSource('/hr/stream');
+    window.hrEventSource = es;
+    ['reservation:created','reservation:new','reservation:new-pending','reservation:added']
+      .forEach(name => es.addEventListener(name, e => { try { const p = JSON.parse(e.data); onAnyEvent(name, p); } catch(_){ } }));
+  } catch(_){}
+})();
+</script>
 
 
    <!-- Optional debug output -->
@@ -1012,16 +1603,18 @@ if (window.__RESV_UNMOUNT) { try { window.__RESV_UNMOUNT(); } catch(e){} }
       <!-- Pending Appointments Table -->
       <div class="table-responsive fixed-table-container">
         <table class="table table-hover mb-0">
-          <thead>
-            <tr>
-              <th>Owner Name</th>
-              <th>Time</th>
-              <th>Service</th>
-              <th class="text-center">Details</th>
-              <th class="text-center">Action</th>
-            </tr>
-          </thead>
-         <tbody id="appointmentsTableBody">
+ <thead>
+  <tr>
+    <th>Owner Name</th>
+    <th>Time</th>
+    <th>Service</th>
+    <th class="text-center">Details</th>
+    <th class="text-center">Notify</th>
+    <th class="text-center">Action</th>
+  </tr>
+</thead>
+
+<tbody id="appointmentsTableBody">
   <% pendingReservations.forEach(function(reservation) { 
        const rowDateP = resolveDate(reservation);
        const petCount =
@@ -1037,18 +1630,49 @@ if (window.__RESV_UNMOUNT) { try { window.__RESV_UNMOUNT(); } catch(e){} }
         data-petcount="<%= petCount %>">
       <td class="ownerName"><%= reservation.ownerName %></td>
       <td><%= formatTime(reservation.time) %></td>
-      <td><%= reservation.service %></td>
+      <%
+  const _svcs = collectServicesForRow(reservation);
+  const _firstSvc = _svcs[0] || '—';
+  const _more = Math.max(0, _svcs.length - 1);
+%>
+<% const _label = _svcs.length ? (_firstSvc + (_more ? (' +' + _more) : '')) : '—'; %>
+<td class="svc-cell">
+  <span class="svc-compact" title="<%= _svcs.join(', ') %>"><%= _label %></span>
+</td>
+
+
       <td class="text-center">
         <button class="btn btn-info btn-sm equal-btn mx-auto d-block"
                 onclick="viewReservation('<%= reservation._id %>','pending')">
           View
         </button>
       </td>
+
+      <!-- NEW: Notify column -->
+  <td class="text-center">
+  <button
+    class="btn btn-outline-primary btn-sm equal-btn mx-auto d-block js-notify-btn"
+    data-reservation-id="<%= reservation._id %>"
+    onclick="notifyReservation('<%= reservation._id %>')">
+    Notify
+  </button>
+</td>
+
+
+      <!-- UPDATED: Action column (Approve + Decline) -->
       <td class="text-center">
-        <button class="btn btn-success btn-sm equal-btn mx-auto d-block"
-                onclick="approveReservation('<%= reservation._id %>')">
-          Approve
-        </button>
+        <div class="btn-group btn-group-sm" role="group">
+          <button class="btn btn-success equal-btn"
+                  onclick="approveReservation('<%= reservation._id %>')">
+            Approve
+          </button>
+       <button
+  class="btn btn-danger equal-btn js-decline-btn"
+  data-reservation-id="<%= reservation._id %>">
+  Decline
+</button>
+
+        </div>
       </td>
     </tr>
   <% }); %>
@@ -1368,6 +1992,52 @@ if (window.__RESV_UNMOUNT) { try { window.__RESV_UNMOUNT(); } catch(e){} }
           Note: Please review all details carefully before closing.
         </span>
         <button type="button" class="btn btn-secondary px-4" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Decline Modal (BS4) -->
+<div class="modal fade" id="declineModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Decline reservation</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="decline-reservation-id">
+
+        <!-- Reasons (loaded from /hr/message-templates?type=declined) -->
+        <div class="mb-3">
+          <label class="form-label">Select a reason</label>
+          <div id="decline-reason-list" class="list-group small">
+            <!-- radios injected here -->
+          </div>
+          <div class="form-text">These are from your Message Templates (type: <code>declined</code>).</div>
+        </div>
+
+        <!-- Final message preview / editable -->
+        <div class="mb-3">
+          <label for="decline-message" class="form-label">Message to customer</label>
+          <textarea id="decline-message" class="form-control" rows="5" placeholder="Explain why the appointment is declined…"></textarea>
+        </div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="decline-also-email" checked>
+          <label class="form-check-label" for="decline-also-email">
+            Also email the customer (if an email is on file)
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-dismiss="modal">Cancel</button>
+        <button type="button" id="decline-submit" class="btn btn-danger">
+          Decline &amp; Notify
+        </button>
       </div>
     </div>
   </div>
@@ -1822,14 +2492,12 @@ function setOngoingActionButtons(reservationId, flags) {
 </script>
 
 <script>
-// Append a fresh Pending row + refresh highlights/counter (browser-safe, with pet count & correct day)
 function appendPendingRow(res) {
   try {
     if (!res || !res._id) return;
     const id = String(res._id);
     if (document.getElementById('reservation-' + id)) return;
 
-    // --- local helpers ---
     const pad2 = n => { n = parseInt(n, 10) || 0; return (n < 10 ? '0' : '') + n; };
     const ymdFromDate = (dateLike) => {
       const d = new Date(dateLike);
@@ -1857,10 +2525,9 @@ function appendPendingRow(res) {
       const h12 = (h % 12 === 0) ? 12 : (h % 12);
       return `${h12}:${m} ${suffix}`;
     };
+    const esc = s => String(s||'').replace(/[&<>"]/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m]));
 
-    // --- build row props ---
     const rawDate = res.date || (res.schedule && res.schedule.scheduleDate) || res.createdAt || new Date().toISOString();
-    // prefer server-sent exact key (avoids timezone drift), else fallback
     const dateKey = (typeof res.dateKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(res.dateKey))
       ? res.dateKey
       : ymdFromDate(rawDate);
@@ -1868,7 +2535,65 @@ function appendPendingRow(res) {
     const hhmm   = safeTimeHHmm(res.time);
     const pretty = formatTime(res.time);
 
-    // pet count for the counter card
+    // Build a normalized service list (deduped)
+ // Build a normalized service list (deduped) — now includes follow-ups
+const svcList = (() => {
+  const set = new Set();
+  const asArray = v => Array.isArray(v) ? v : (v != null ? [v] : []);
+  const tokenFrom = v => {
+    if (!v) return null;
+    if (typeof v === 'string') return v.trim();
+    if (typeof v === 'number') return String(v);
+    if (typeof v === 'object') {
+      return (v.name || v.label || v.title || v.serviceName || v.serviceTitle || v.scheduleDetails || v.details || '')
+        .toString().trim() || null;
+    }
+    return null;
+  };
+  const addAny = v => {
+    if (!v) return;
+    if (Array.isArray(v)) { v.forEach(addAny); return; }
+    const t = tokenFrom(v);
+    if (t) set.add(t);
+  };
+
+  // legacy / initial
+  addAny(res.service);
+  (Array.isArray(res.petRequests) ? res.petRequests : []).forEach(pr => {
+    addAny(pr && pr.services);
+    addAny(pr && pr.service);
+    addAny(pr && pr.requestedServices);
+  });
+
+  // reservation-level FU
+  const topFU = res.schedule || res.followUp || res.followup || res.follow_up;
+  if (topFU) {
+    addAny(topFU.service);
+    addAny(topFU.serviceName);
+    addAny(topFU.services);
+    addAny(topFU.scheduleDetails);
+    addAny(topFU.followUpService);
+  }
+
+  // per-pet FU
+  (Array.isArray(res.pets) ? res.pets : []).forEach(p => {
+    const sch = p && (p.schedule || p.followUp || p.followup || p.follow_up);
+    if (!sch) return;
+    addAny(sch.service);
+    addAny(sch.serviceName);
+    addAny(sch.services);
+    addAny(sch.scheduleDetails);
+    addAny(sch.followUpService);
+  });
+
+  return Array.from(set);
+})();
+
+    const svcFirst  = svcList[0] || '—';
+    const moreCount = Math.max(0, svcList.length - 1);
+    const svcLabel  = svcList.length ? `${svcFirst}${moreCount ? ' +' + moreCount : ''}` : '—';
+    const svcHtml   = `<span class="svc-compact" title="${esc(svcList.join(', '))}">${esc(svcLabel)}</span>`;
+
     const petCount = Number(res.petCount) > 0
       ? Number(res.petCount)
       : (Array.isArray(res.petRequests) && res.petRequests.length
@@ -1880,16 +2605,28 @@ function appendPendingRow(res) {
           data-date="${dateKey}"
           data-time="${hhmm}"
           data-petcount="${petCount}">
-        <td class="ownerName">${res.ownerName || '—'}</td>
+        <td class="ownerName">${esc(res.ownerName || '—')}</td>
         <td>${pretty}</td>
-        <td>${res.service || '—'}</td>
+        <td class="svc-cell">${svcHtml}</td>
         <td class="text-center">
           <button class="btn btn-info btn-sm equal-btn mx-auto d-block"
                   onclick="viewReservation('${id}','pending')">View</button>
         </td>
         <td class="text-center">
-          <button class="btn btn-success btn-sm equal-btn mx-auto d-block"
-                  onclick="approveReservation('${id}')">Approve</button>
+          <button
+            class="btn btn-outline-primary btn-sm equal-btn mx-auto d-block js-notify-btn"
+            data-reservation-id="${id}"
+            onclick="notifyReservation('${id}')">
+            Notify
+          </button>
+        </td>
+        <td class="text-center">
+          <div class="btn-group btn-group-sm" role="group">
+            <button class="btn btn-success equal-btn" onclick="approveReservation('${id}')">Approve</button>
+           <button class="btn btn-danger equal-btn js-decline-btn"
+        data-reservation-id="${id}">Decline</button>
+
+          </div>
         </td>
       </tr>
     `;
@@ -1897,19 +2634,35 @@ function appendPendingRow(res) {
     const $tbody = $('#appointmentsTableBody');
     $tbody.find('tr.no-appointment').remove();
     $tbody.prepend(row);
+// Hydrate notify state for this newly inserted row
+(function hydrateJustAppended(){
+  if (!window.markNotifyGreen) return;
+  const cached = window.__notifyState && window.__notifyState[id];
+  if (cached) {
+    // Map our local cache to the "last" shape expected by markNotifyGreen
+    const last = (cached === 'confirm' || cached === 'resched')
+      ? { status: 'responded', response: cached }
+      : { status: cached };
+    window.markNotifyGreen(id, last);
+    return;
+  }
+  // Ask the server for the current last state
+  $.get('/hr/reservation-message-state', { reservationId: id })
+    .done(function(r){
+      const last = r && (r.last || r);
+      if (last) window.markNotifyGreen(id, last);
+    });
+})();
 
-    // mark calendar day & redraw
     (window.appointmentDates || (window.appointmentDates = {}))[dateKey] = true;
     if (window.fp && typeof window.fp.redraw === 'function') window.fp.redraw();
 
-    // ALWAYS refilter so the row only shows on its selected day
     if (typeof window.filterRows === 'function') window.filterRows();
   } catch (e) {
     console.error('appendPendingRow failed:', e);
   }
 }
 </script>
-
 
 <script>
 // Recalculate Meds + Services + Grand totals (safe on empty tables)
@@ -2303,9 +3056,10 @@ function updatePendingCount() {
   // empty-state row
   $('#appointmentsTableBody tr.no-appointment').remove();
   if (shown === 0) {
-    $('#appointmentsTableBody').append(
-      '<tr class="no-appointment"><td colspan="5" class="text-center">No appointments found for the selected date.</td></tr>'
-    );
+  $('#appointmentsTableBody').append(
+  '<tr class="no-appointment"><td colspan="6" class="text-center">No appointments found for the selected date.</td></tr>'
+);
+
   }
 
   // NEW: refresh the big counter and date text
@@ -2454,6 +3208,169 @@ $(document).off('click.resv', '#ongoingTab').on('click.resv', '#ongoingTab', fun
   setTimeout(hideAOSpinner, 0);
 });
   // ---- actions exposed for inline onclicks ----
+// --- Decline via SweetAlert2 (styled like your Notify modal) ---
+
+
+  window._escHtml = window._escHtml || window._esc || function (s) {
+    return String(s || '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  };
+
+// wire the Decline buttons
+$(document).off('click.resv', '.js-decline-btn').on('click.resv', '.js-decline-btn', function(){
+  const reservationId = $(this).data('reservationId');
+  openDeclineDialog(reservationId);
+});
+function openDeclineDialog(reservationId){
+  if (!reservationId) return Swal.fire('Error','Missing reservation id.','error');
+
+  // helper to update the badge
+  function setDeclineBadge(state, label){
+    const $badge = $('#declineStatus');
+    if (!$badge.length) return;
+    $badge.removeClass('is-ready is-sending is-sent is-error')
+          .addClass(state)
+          .html(`<span class="dot"></span> ${label}`);
+  }
+
+  $.get('/hr/message-templates', { type: 'declined' })
+    .done(function(resp){
+      const items = (resp && resp.templates) || [];
+
+      Swal.fire({
+        title: 'Decline reservation',
+        html: buildDeclineHtmlDropdown(items),
+        showCancelButton: true,
+        confirmButtonText: 'Decline',
+        cancelButtonText: 'Cancel',
+        focusConfirm: false,
+        allowOutsideClick: () => !Swal.isLoading(),
+        customClass: {
+          popup: 'notify-popup',
+          confirmButton: 'notify-btn-confirm',
+          cancelButton: 'notify-btn-cancel'
+        },
+        didOpen: () => {
+          // default textarea fill from selected template
+          const $sel = $('#declineReasonSelect');
+          const $txt = $('#declineMessage');
+          const def = items.find(x => x.isDefault) || items[0];
+          if (def && def.body) $txt.val(def.body);
+
+          $sel.on('change', function(){
+            const id = $(this).val();
+            const t  = items.find(x => String(x._id) === String(id));
+            $txt.val(t ? (t.body || '') : '');
+          });
+
+          // add spinner node inside confirm button (matches your notify css)
+          const btn = Swal.getConfirmButton();
+          if (btn && !btn.querySelector('.btn-spinner')){
+            btn.insertAdjacentHTML('beforeend','<span class="btn-spinner"></span>');
+          }
+        },
+        preConfirm: () => {
+          const templateId = $('#declineReasonSelect').val() || '';
+          const message    = ($('#declineMessage').val() || '').trim();
+
+          if (!templateId && !message) {
+            Swal.showValidationMessage('Please select a reason or type a message.');
+            return false;
+          }
+
+          // UI → “Declining…”
+          setDeclineBadge('is-sending', 'Declining…');
+          const btn = Swal.getConfirmButton();
+          const cancel = Swal.getCancelButton();
+          if (btn)   btn.classList.add('loading');   // shows .btn-spinner
+          if (btn)   btn.disabled = true;
+          if (cancel) cancel.disabled = true;
+
+          // server call
+          return $.post('/hr/decline-reservation', {
+            reservationId,
+            templateId,
+            message,
+            alsoEmail: false,
+            sendToCustomerInbox: true,
+            suppressCustomerPopup: true
+          }).then(r => {
+            if (!r || !r.success) throw new Error(r && r.message || 'Failed to decline.');
+            // show success before the popup closes
+            setDeclineBadge('is-sent', 'Declined');
+            return r;
+          }).catch(err => {
+            // show error and keep dialog open
+            setDeclineBadge('is-error', 'Failed');
+            const btn = Swal.getConfirmButton();
+            const cancel = Swal.getCancelButton();
+            if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+            if (cancel) { cancel.disabled = false; }
+            Swal.showValidationMessage(err.message || 'Failed to decline.');
+          });
+        }
+      }).then(result => {
+        if (!result.isConfirmed) return;
+
+        // remove row + refresh counts/heatmap (unchanged from your code)
+        const $row = $(`#appointmentsTableBody tr[data-reservation-id="${reservationId}"], #reservation-${reservationId}`);
+        const dateKey = $row.data('date');
+        $row.remove();
+
+        (function refreshAfterRemoval(dKey){
+          if (!dKey) { if (typeof window.filterRows === 'function') window.filterRows(); return; }
+          const anyLeft = $('#appointmentsTableBody tr[data-date="' + dKey + '"]').length > 0;
+          window.appointmentDates = window.appointmentDates || {};
+          if (anyLeft) window.appointmentDates[dKey] = true;
+          else delete window.appointmentDates[dKey];
+          if (window.fp && typeof window.fp.redraw === 'function') window.fp.redraw();
+          if (window.activeDate === dKey && typeof window.filterRows === 'function') window.filterRows();
+        })(dateKey);
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Declined',
+          text: 'Reservation has been declined.',
+          timer: 1200,
+          showConfirmButton: false
+        });
+      });
+    })
+    .fail(function(){
+      Swal.fire('Error','Could not load decline reasons.','error');
+    });
+}
+
+function buildDeclineHtmlDropdown(items){
+  const opts = items.map(t => `
+    <option value="${t._id}" ${t.isDefault ? 'selected' : ''}>
+      ${_escHtml(t.title || '(Untitled)')}
+    </option>
+  `).join('');
+
+  return `
+    <div class="notify-status is-ready" id="declineStatus">
+      <span class="dot"></span> Decline
+    </div>
+
+    <div class="notify-field">
+      <label class="notify-label" for="declineReasonSelect">Reason</label>
+      <select id="declineReasonSelect" class="notify-select">
+        <option value="">— Select a reason —</option>
+        ${opts}
+      </select>
+    </div>
+
+    <div class="notify-field">
+      <label class="notify-label" for="declineMessage">Message to customer</label>
+      <textarea id="declineMessage" class="notify-textarea"
+        placeholder="Explain why the appointment is declined…"></textarea>
+    </div>
+  `;
+}
+
   window.viewReservation = function(id){ viewDetails(id); };
 
 // Approve -> move from Pending table to Approved list immediately (and refresh calendar/count)
@@ -2514,7 +3431,282 @@ window.approveReservation = function(reservationId){
       .fail(() => Swal.fire('Error','Server error while approving reservation.','error'));
   });
 };
+window.declineReservation = function(reservationId){
+  Swal.fire({
+    title: 'Decline Reservation?',
+    text: 'Are you sure you want to decline this reservation?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, decline',
+    cancelButtonText: 'Cancel'
+  }).then((result) => {
+    if (!result.isConfirmed) return;
 
+    $.post('/hr/decline-reservation', { reservationId })
+      .done(function (response) {
+        if (!response?.success) {
+          return Swal.fire('Error', response?.message || 'Error declining reservation.', 'error');
+        }
+
+        // capture before remove (for calendar refresh)
+        const $row    = $('#reservation-' + reservationId);
+        const dateKey = $row.data('date');
+        $row.remove();
+
+        // refresh calendar heat + visible list & counter for that date
+        (function refreshAfterRemoval(dKey){
+          if (!dKey) { if (typeof window.filterRows === 'function') window.filterRows(); return; }
+          const anyLeft = $('#appointmentsTableBody tr[data-date="' + dKey + '"]').length > 0;
+
+          if (!window.appointmentDates) window.appointmentDates = {};
+          if (anyLeft) { window.appointmentDates[dKey] = true; }
+          else { delete window.appointmentDates[dKey]; }
+
+          if (window.fp && typeof window.fp.redraw === 'function') window.fp.redraw();
+          if (window.activeDate === dKey && typeof window.filterRows === 'function') window.filterRows();
+        })(dateKey);
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Declined',
+          text: 'Reservation has been declined.',
+          timer: 900,
+          showConfirmButton: false
+        });
+      })
+      .fail(() => Swal.fire('Error','Server error while declining reservation.','error'));
+  });
+};
+
+  // Small helper to escape HTML in option/preview
+  function _escHtml(s){
+    return String(s || '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
+window.notifyReservation = function(reservationId){
+  if (!reservationId) return Swal.fire('Error', 'Missing reservation id.', 'error');
+
+  // 1) Pull reservation for personalization
+  $.get('/hr/get-consultation', { reservationId })
+    .done(function(resp){
+      if (!resp?.success) return Swal.fire('Error', resp?.message || 'Could not load reservation.', 'error');
+
+      const r = resp.reservation || {};
+      const ownerName = (r.ownerName || 'Owner').trim();
+
+      // Pet names
+      const petNames = (() => {
+        const names = new Set();
+        (Array.isArray(r.petRequests) ? r.petRequests : []).forEach(pr => pr?.petName && names.add(String(pr.petName).trim()));
+        (Array.isArray(r.pets) ? r.pets : []).forEach(p => p?.petName && names.add(String(p.petName).trim()));
+        return names.size ? Array.from(names).join(', ') : 'your pet';
+      })();
+
+      // Date & time
+      const dateLike = r.date || r.schedule?.scheduleDate || r.createdAt;
+      const visitDate = (d => {
+        if (!d) return 'N/A';
+        const x = new Date(d);
+        return isNaN(x) ? String(d) : x.toLocaleDateString('en-US',{ month:'short', day:'numeric', year:'numeric' });
+      })(dateLike);
+      const visitTime = (timeStr => {
+        if (!timeStr || typeof timeStr!=='string') return '';
+        const m = timeStr.trim().match(/^(\d{1,2}):?(\d{2})?\s*([AaPp][Mm])?$/);
+        if(!m) return '';
+        let h = parseInt(m[1],10) || 0, min = parseInt(m[2]||'0',10)||0;
+        const suf = (m[3]||'').toUpperCase();
+        if (suf==='PM' && h<12) h+=12; if (suf==='AM' && h===12) h=0;
+        const hh = h%12===0 ? 12 : h%12, mm = (min<10? '0' : '') + min;
+        return `${hh}:${mm} ${h<12?'AM':'PM'}`;
+      })(r.time);
+      const whenTxt = visitTime ? `${visitDate} at ${visitTime}` : `${visitDate}`;
+
+      // Preferred doctor
+      const preferredDoctor = (function resolvePreferredDoctorNameLocal(res){
+        try { if (typeof window.resolvePreferredDoctorName === 'function') return window.resolvePreferredDoctorName(res); } catch(_){}
+        const ANY = 'Anyone';
+        if (!res) return ANY;
+        if (res.preferredDoctor && (res.preferredDoctor.username || res.preferredDoctor.name))
+          return res.preferredDoctor.username || res.preferredDoctor.name;
+        if (res.preferredDoctorName || res.preferredDoctorUsername)
+          return res.preferredDoctorName || res.preferredDoctorUsername;
+        const rawId = res.preferredDoctorId || res.preferredDoctorID ||
+                      (typeof res.preferredDoctor === 'string' ? res.preferredDoctor : null);
+        if (!rawId || /^(any|anyone|null|undefined)$/i.test(String(rawId))) return ANY;
+        const doc = (window.doctors || []).find(d => String(d._id) === String(rawId));
+        return (doc && (doc.username || doc.name)) ? (doc.username || doc.name) : ANY;
+      })(r);
+
+      // Optional clinic phone
+      const clinicPhone = (window.__clinicPhone || '').toString().trim();
+
+      // 2) Messages
+      const inAppDU = [
+        `Hi ${ownerName},`,
+        ``,
+        `Regarding your appointment for ${petNames} on ${whenTxt}:`,
+        `Your preferred doctor (${preferredDoctor}) is not available at that time.`,
+        ``,
+        `If you'd like to continue with another available doctor, tap “Confirm”.`,
+        `If you'd prefer to choose a different slot with your preferred doctor, tap “Resched”.`
+      ].join('\n');
+
+      const emailDU = [
+        `Hi ${ownerName},`,
+        ``,
+        `Regarding your appointment for ${petNames} on ${whenTxt}:`,
+        `Your preferred doctor (${preferredDoctor}) is not available at that time.`,
+        ``,
+        `You can reply CONFIRM if you will continue with another available doctor, or reply RESCHED if you want to reschedule with your preferred doctor.`,
+        clinicPhone
+          ? `You can also message us at ${clinicPhone}.`
+          : `You can also reply to this email and we’ll assist you.`,
+        `You can visit your Appointment page (Appointments menu) to confirm or reschedule as well.`,
+        ``,
+        `Thank you!`
+      ].join('\n');
+
+      // 3) Modal UI (KEEP DROPDOWN, single option “Doctor unavailable”)
+      const html = `
+        <div id="notifyStatus" class="notify-status is-ready" data-reservation-id="${reservationId}" aria-live="polite">
+          <span class="dot" aria-hidden="true"></span><span class="text">Ready</span>
+        </div>
+
+        <div class="notify-field">
+          <label class="notify-label" for="notifTemplateSelect">Message template</label>
+          <select id="notifTemplateSelect" class="notify-select">
+            <option value="doctor_unavailable" selected>Doctor unavailable</option>
+          </select>
+        </div>
+
+        <div class="notify-field">
+          <label class="notify-label">Preview</label>
+          <div id="duPreview" class="notify-preview"></div>
+        </div>
+      `;
+
+      Swal.fire({
+        title: 'Doctor unavailable',
+        html,
+        width: 560,
+        heightAuto: false,
+        scrollbarPadding: false,
+        showCancelButton: true,
+        confirmButtonText: 'Send',
+        cancelButtonText: 'Close',
+        showLoaderOnConfirm: true,
+        buttonsStyling: false,
+        focusConfirm: false,
+        allowOutsideClick: () => !Swal.isLoading(),
+        customClass: {
+          popup: 'notify-popup',
+          confirmButton: 'notify-btn-confirm',
+          cancelButton: 'notify-btn-cancel'
+        },
+
+        didOpen: () => {
+          const socket = window.__HR_SOCKET; if (socket) socket.emit('join', { reservationId });
+
+          // Status badge helpers
+          const $status = $('#notifyStatus');
+          function setStatus(state, text){
+            $status.removeClass('is-ready is-sending is-sent is-error is-confirmed is-resched')
+                   .addClass('is-' + state);
+            $status.find('.text').text(text);
+          }
+          Swal.__notifySetStatus = setStatus;
+          setStatus('ready','Ready');
+
+          // Preview (make the word Confirm match button color)
+          const esc = s => String(s||'').replace(/[&<>"]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m]));
+          const duPreviewHtml = esc(inAppDU)
+            .replace(/“Confirm”/g, '“<span style="color:#1E88E5;font-weight:700">Confirm</span>”')
+            .replace(/\n/g,'<br>');
+          $('#duPreview').html(duPreviewHtml);
+
+          // hydrate last state
+          (function hydrate(){
+            const cbtn = Swal.getConfirmButton();
+            const cached = window.__notifyState?.[reservationId];
+            if (cached === 'sent') { setStatus('sent','Sent'); if (cbtn){ cbtn.disabled = true; cbtn.textContent = 'Sent'; } }
+            $.get('/hr/reservation-message-state', { reservationId })
+              .done(r => {
+                const last = r?.last;
+                if (!last) return;
+                if (last.status === 'sent' && !last.response){
+                  setStatus('sent','Sent'); if (cbtn){ cbtn.disabled = true; cbtn.textContent = 'Sent'; }
+                  window.__notifyState[reservationId] = 'sent';
+                } else if (last.status === 'responded'){
+                  if (last.response === 'confirm'){ setStatus('confirmed','Confirmed'); window.__notifyState[reservationId] = 'confirm'; }
+                  if (last.response === 'resched'){ setStatus('resched','Reschedule requested'); window.__notifyState[reservationId] = 'resched'; }
+                }
+              });
+          })();
+
+          // Live customer responses (Confirm / Resched)
+          window.__onReservationNotifyResponse = function(payload){
+            if (!payload || String(payload.id||payload.reservationId) !== String(reservationId)) return;
+            if (payload.action === 'confirm'){ setStatus('confirmed','Confirmed'); window.__notifyState[reservationId] = 'confirm'; }
+            if (payload.action === 'resched'){ setStatus('resched','Reschedule requested'); window.__notifyState[reservationId] = 'resched'; }
+          };
+
+          // add button spinner
+          const cbtn = Swal.getConfirmButton();
+          if (cbtn && !cbtn.querySelector('.btn-spinner')){
+            cbtn.insertAdjacentHTML('beforeend','<span class="btn-spinner" aria-hidden="true"></span>');
+          }
+        },
+
+        willClose: () => {
+          const socket = window.__HR_SOCKET; if (socket) socket.emit('leave', { reservationId });
+          try { delete Swal.__notifySetStatus; } catch(_){}
+          if (window.__onReservationNotifyResponse) { try { delete window.__onReservationNotifyResponse; } catch(_){ } }
+        },
+
+        preConfirm: () => {
+          const cbtn = Swal.getConfirmButton();
+          if (cbtn) cbtn.classList.add('loading');
+          if (Swal.__notifySetStatus) Swal.__notifySetStatus('sending','Sending…');
+
+          function doneOK(){
+            if (Swal.__notifySetStatus) Swal.__notifySetStatus('sent','Sent');
+            if (cbtn){
+              cbtn.classList.remove('loading');
+              cbtn.disabled = true;
+              cbtn.textContent = 'Sent';
+            }
+            window.__notifyState = window.__notifyState || {};
+            window.__notifyState[reservationId] = 'sent';
+            return false; // keep modal open to watch live responses
+          }
+          function doneErr(err){
+            if (cbtn) cbtn.classList.remove('loading');
+            if (Swal.__notifySetStatus) Swal.__notifySetStatus('error','Failed');
+            Swal.showValidationMessage(err?.message || 'Send failed.');
+          }
+
+          // Send interactive in-app + non-interactive email
+          const payload = {
+            reservationId,
+            templateKey: 'doctor_unavailable',
+            message: inAppDU,     // in-app (with buttons)
+            interactive: true,
+            emailAlso: true,
+            emailMessage: emailDU,
+            reason: 'doctor_unavailable'
+          };
+          return $.post('/hr/notify-reservation', payload)
+            .then(r => { if (!r?.success) throw new Error(r?.message || 'Send failed.'); return doneOK(); })
+            .catch(doneErr);
+        }
+      });
+    })
+    .fail(() => Swal.fire('Error','Could not load reservation.','error'));
+};
 
 // Assign Doctor -> move from Approved to Ongoing instantly
 window.assignDoctor = function(reservationId, doctorId){
@@ -2543,131 +3735,449 @@ window.assignDoctor = function(reservationId, doctorId){
 
 
 
-  // ---- details modal ----
-  function viewDetails(reservationId){
-    $.get('/hr/get-consultation', { reservationId })
-      .done(function(resp){
-        if (!resp.success) return Swal.fire('Error', resp.message || 'Error fetching details.', 'error');
+  /// ---- details modal ----
+function viewDetails(reservationId){
+  $.get('/hr/get-consultation', { reservationId })
+    .done(function(resp){
+      if (!resp.success) return Swal.fire('Error', resp.message || 'Error fetching details.', 'error');
 
-        const r = resp.reservation || {};
-        const status = (r.status || '').trim();
+      const r = resp.reservation || {};
+      function _escHtml(s){
+  return String(s||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function normalizeServices(val){
+  if (!val) return [];
+  if (Array.isArray(val)) return val.map(String).map(s=>s.trim()).filter(Boolean);
+  return String(val).split(',').map(s=>s.trim()).filter(Boolean);
+}
+function renderServiceBadges(val){
+  const list = normalizeServices(val);
+  if (!list.length) return '—';
+  return list.map(s => `<span class="badge badge-light mr-1 mb-1">${_escHtml(s)}</span>`).join(' ');
+}
 
-        function formatVisitDate(dateStr){
-          if (!dateStr) return 'N/A';
-          const d = new Date(dateStr);
-          const month = d.toLocaleString('en-US',{month:'long'}).toLowerCase();
-          return `${month} ${d.getDate()} ${d.getFullYear()}`;
-        }
+      const status = (r.status || '').trim();
 
-        const dateToShow = r.date || (r.schedule && r.schedule.scheduleDate) || r.createdAt;
-        const dateFmt    = formatVisitDate(dateToShow);
-        const allPetNames = Array.isArray(r.pets) && r.pets.length
-          ? r.pets.map(p => (p.petId?.petName || p.petName)).join(', ')
-          : 'N/A';
+      function formatVisitDate(dateStr){
+        if (!dateStr) return 'N/A';
+        const d = new Date(dateStr);
+        const month = d.toLocaleString('en-US',{month:'long'}).toLowerCase();
+        return `${month} ${d.getDate()} ${d.getFullYear()}`;
+      }
 
-        let html = '<div class="container-fluid p-0">';
+      // Resolve Preferred Doctor from various possible shapes (object, id, name)
+      function resolvePreferredDoctorName(res){
+        const ANY = 'Anyone';
+        if (!res) return ANY;
 
-        if (status === 'Pending') {
-          if (Array.isArray(r.petRequests) && r.petRequests.length){
-            html += '<h6 class="mt-1 mb-2" style="font-weight:700;color:#224b7a;">Per-Pet Requests</h6>';
-            html += '<table class="details-table mb-3"><thead><tr><th>Pet</th><th>Service</th><th>Concerns</th></tr></thead><tbody>';
-            r.petRequests.forEach(pr => {
-              html += `<tr>
-                <td>${pr.petName || '—'}</td>
-                <td>${pr.service || '—'}</td>
-                <td>${(pr.concerns && pr.concerns.trim()) ? pr.concerns : '—'}</td>
-              </tr>`;
-            });
-            html += '</tbody></table>';
-          } else {
-            html += '<p class="mb-0">No pet requests found.</p>';
-          }
-          html += '</div>';
-          $('#hrConsultDetailsBody').html(html);
-          return $('#hrConsultViewModal').modal('show');
-        }
-
-        html += '<table class="details-table">';
-        html += `<tr><th>Pet(s)</th><td>${allPetNames}</td></tr>`;
-        html += `<tr><th>Date</th><td>${dateFmt}</td></tr>`;
-        html += `<tr><th>Time</th><td>${r.time || 'N/A'}</td></tr>`;
-        html += `<tr><th>Doctor</th><td>${(r.doctor && r.doctor.username) ? r.doctor.username : 'N/A'}</td></tr>`;
-        html += '</table>';
-
-        if (Array.isArray(r.petRequests) && r.petRequests.length){
-          html += '<h6 class="mt-3">Per-Pet Requests</h6>';
-          html += '<table class="details-table mb-3"><thead><tr><th>Pet</th><th>Service</th><th>Concerns</th></tr></thead><tbody>';
-          r.petRequests.forEach(pr => {
-            html += `<tr>
-              <td>${pr.petName || '—'}</td>
-              <td>${pr.service || '—'}</td>
-              <td>${(pr.concerns && pr.concerns.trim()) ? pr.concerns : '—'}</td>
-            </tr>`;
-          });
-          html += '</tbody></table>';
-        }
-
-        const showPetInfo = (status !== 'Approved' && status !== 'Pending');
-        if (showPetInfo) {
-          const hasExtra = (r.pets || []).some(p => p.petId && (p.petId.birthday || p.petId.species || p.petId.breed || p.petId.sex));
-          if (hasExtra){
-            html += '<h6 class="mt-3">Pet Info</h6>';
-            html += '<table class="details-table mb-3"><thead><tr><th>Pet</th><th>Birthday</th><th>Species</th><th>Breed</th><th>Sex</th></tr></thead><tbody>';
-            (r.pets || []).forEach(p => {
-              const petName = p.petId?.petName || p.petName || '—';
-              const bday    = p.petId?.birthday ? formatVisitDate(p.petId.birthday) : 'N/A';
-              const species = p.petId?.species || '—';
-              const breed   = p.petId?.breed   || '—';
-              const sex     = p.petId?.sex     || '—';
-              html += `<tr><td>${petName}</td><td>${bday}</td><td>${species}</td><td>${breed}</td><td>${sex}</td></tr>`;
-            });
-            html += '</tbody></table>';
+        // 1) Full object from server
+        if (res.preferredDoctor && typeof res.preferredDoctor === 'object') {
+          const pd = res.preferredDoctor;
+          if (pd.username || pd.name) return pd.username || pd.name;
+          if (pd._id) {
+            const found = (window.doctors || []).find(d => String(d._id) === String(pd._id));
+            if (found) return found.username || found.name || ANY;
           }
         }
 
-        if (r.physicalExam) {
-          html += '<table class="details-table mb-3"><thead><tr><th>Weight</th><th>Temperature</th><th>Observations</th></tr></thead><tbody>';
-          html += `<tr><td>${r.physicalExam.weight || 'N/A'}</td><td>${r.physicalExam.temperature || 'N/A'}</td><td>${r.physicalExam.observations || 'N/A'}</td></tr>`;
-          html += '</tbody></table>';
-        }
-        if (r.diagnosis) html += `<div class="mb-3"><strong>Diagnosis:</strong><p>${r.diagnosis}</p></div>`;
-        if (Array.isArray(r.services) && r.services.length){
-          html += '<table class="details-table mb-3"><thead><tr><th>Service</th><th>Details</th><th>File</th></tr></thead><tbody>';
-          r.services.forEach(s => {
-            let url = s.file || '';
-            if (url) {
-              url = url.replace(/^public/, '').replace(/^([^/])/, '/$1');
-              if (!/^https?:\/\//.test(url)) url = window.location.origin + url;
-            }
-            html += `<tr><td>${s.serviceName || ''}</td><td>${s.details || '—'}</td><td>${url ? `<a href="${url}" download>Download</a>` : '—'}</td></tr>`;
-          });
-          html += '</tbody></table>';
-        }
-        if (Array.isArray(r.medications) && r.medications.length){
-          html += '<table class="details-table mb-3"><thead><tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr></thead><tbody>';
-          r.medications.forEach(m => {
-            html += `<tr><td>${m.name || m.medicationName || '—'}</td><td>${m.quantity || '—'}</td><td>${m.dosage || '—'}</td><td>${m.remarks || '—'}</td></tr>`;
-          });
-          html += '</tbody></table>';
-        }
-        if (r.confinementStatus && r.confinementStatus.length) {
-          html += `<p><strong>Confinement:</strong> ${r.confinementStatus.join(', ')}</p>`;
-        }
-        if (r.notes) html += `<p><strong>Additional Notes:</strong> ${r.notes}</p>`;
-        if (r.schedule && (r.schedule.scheduleDate || r.schedule.scheduleDetails)) {
-          const d = r.schedule.scheduleDate
-            ? new Date(r.schedule.scheduleDate).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
-            : '';
-          const det = r.schedule.scheduleDetails ? (' — ' + r.schedule.scheduleDetails) : '';
-          html += `<hr><p><strong>Follow-Up:</strong> ${d}${det}</p>`;
+        // 2) Plain name string fields
+        if (res.preferredDoctorName || res.preferredDoctorUsername) {
+          return res.preferredDoctorName || res.preferredDoctorUsername;
         }
 
-        html += '</div>';
-        $('#hrConsultDetailsBody').html(html);
-        $('#hrConsultViewModal').modal('show');
-      })
-      .fail(() => Swal.fire('Error', 'Server error while fetching details.', 'error'));
+        // 3) ID string fields (or preferredDoctor as id)
+        const rawId = res.preferredDoctorId || res.preferredDoctorID ||
+                      (typeof res.preferredDoctor === 'string' ? res.preferredDoctor : null);
+
+        if (!rawId || /^(any|anyone|null|undefined)$/i.test(String(rawId))) return ANY;
+
+        const doc = (window.doctors || []).find(d => String(d._id) === String(rawId));
+        return (doc && (doc.username || doc.name)) ? (doc.username || doc.name) : ANY;
+      }
+
+      const dateToShow = r.date || (r.schedule && r.schedule.scheduleDate) || r.createdAt;
+      const dateFmt    = formatVisitDate(dateToShow);
+      const allPetNames = Array.isArray(r.pets) && r.pets.length
+        ? r.pets.map(p => (p.petId?.petName || p.petName)).join(', ')
+        : 'N/A';
+      const preferredName = resolvePreferredDoctorName(r);
+
+      let html = '<div class="container-fluid p-0">';
+// PENDING VIEW
+if (status === 'Pending') {
+  // APPROVED VIEW
+if (status === 'Approved') {
+  // helpers (same idea as server-side, but client-side)
+  const asArray = v => Array.isArray(v) ? v : (v != null ? [v] : []);
+  const tokenFrom = v => {
+    if (!v) return null;
+    if (typeof v === 'string') return v.trim();
+    if (typeof v === 'number') return String(v);
+    if (typeof v === 'object') {
+      return (v.name || v.label || v.title || v.serviceName || v.serviceTitle || v.scheduleDetails || v.details || '').toString().trim() || null;
+    }
+    return null;
+  };
+  const collectAllServices = (res) => {
+    const set = new Set();
+    const addAny = v => {
+      if (!v) return;
+      if (Array.isArray(v)) { v.forEach(addAny); return; }
+      const t = tokenFrom(v);
+      if (t) set.add(t);
+    };
+
+    // legacy / initial
+    addAny(res && res.service);
+    (asArray(res && res.petRequests) || []).forEach(pr => {
+      addAny(pr && pr.services);
+      addAny(pr && pr.service);
+      addAny(pr && pr.requestedServices);
+    });
+
+    // reservation-level FU
+    const topFU = res && (res.schedule || res.followUp || res.followup || res.follow_up);
+    if (topFU) {
+      addAny(topFU.service);
+      addAny(topFU.serviceName);
+      addAny(topFU.services);
+      addAny(topFU.scheduleDetails);
+      addAny(topFU.followUpService);
+    }
+
+    // per-pet FU
+    (asArray(res && res.pets) || []).forEach(p => {
+      const sch = p && (p.schedule || p.followUp || p.followup || p.follow_up);
+      if (sch) {
+        addAny(sch.service);
+        addAny(sch.serviceName);
+        addAny(sch.services);
+        addAny(sch.scheduleDetails);
+        addAny(sch.followUpService);
+      }
+    });
+
+    return Array.from(set);
+  };
+
+  const servicesAll = collectAllServices(r);
+  const servicesChips = servicesAll.length ? renderServiceBadges(servicesAll) : '—';
+
+  // doctor name (fallbacks)
+  const preferredName =
+    (r.preferredDoctor && (r.preferredDoctor.username || r.preferredDoctor.name)) ||
+    r.preferredDoctorName || r.preferredDoctorUsername || 'Anyone';
+
+  html += '<h6 class="mt-1 mb-2" style="font-weight:700;color:#224b7a;">Summary</h6>';
+  html += '<table class="details-table mb-3"><tbody>'
+       + `<tr><th>Preferred Doctor</th><td>${_escHtml(preferredName)}</td></tr>`
+       + `<tr><th>Date</th><td>${dateFmt}</td></tr>`
+       + `<tr><th>Time</th><td>${r.time ? _escHtml(formatTime(r.time)) : 'N/A'}</td></tr>`
+       + `<tr><th>Service(s)</th><td>${servicesChips}</td></tr>`
+       + '</tbody></table>';
+
+  // Per-Pet (merge initial + FU)
+  const rowsByPet = new Map();
+  const addRow = (petName, svcs, concerns) => {
+    const key = String(petName || '—');
+    const row = rowsByPet.get(key) || { petName: key, services: new Set(), concerns: '' };
+    asArray(svcs).forEach(s => { const t = tokenFrom(s); if (t) row.services.add(t); });
+    if (!row.concerns && concerns) row.concerns = concerns;
+    rowsByPet.set(key, row);
+  };
+
+  // initial per-pet requests
+  if (Array.isArray(r.petRequests)) {
+    r.petRequests.forEach(pr => {
+      addRow(pr?.petName, pr?.services || pr?.service || pr?.requestedServices, (pr?.concerns || '').trim());
+    });
   }
+
+  // per-pet follow-ups
+  if (Array.isArray(r.pets)) {
+    r.pets.forEach(p => {
+      const sch = p?.schedule || p?.followUp || p?.followup || p?.follow_up;
+      const svc = sch?.service || sch?.serviceName || sch?.services || sch?.scheduleDetails || sch?.followUpService;
+      if (svc) addRow(p?.petName, svc, '');
+    });
+  }
+
+  if (rowsByPet.size) {
+    html += '<h6 class="mt-1 mb-2" style="font-weight:700;color:#224b7a;">Per-Pet Requests</h6>';
+    html += '<table class="details-table mb-3"><thead><tr><th>Pet</th><th>Service(s)</th><th>Concerns</th></tr></thead><tbody>';
+    rowsByPet.forEach(row => {
+      const chips = row.services.size ? renderServiceBadges(Array.from(row.services)) : '—';
+      html += `<tr>
+        <td>${_escHtml(row.petName)}</td>
+        <td>${chips}</td>
+        <td>${_escHtml(row.concerns || '—')}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  } else {
+    html += '<p class="mb-0">No per-pet requests found.</p>';
+  }
+
+  html += '</div>';
+  $('#hrConsultDetailsBody').html(html);
+  return $('#hrConsultViewModal').modal('show');
+}
+
+  // Summary (adds Preferred Doctor)
+  html += '<h6 class="mt-1 mb-2" style="font-weight:700;color:#224b7a;">Summary</h6>';
+  html += '<table class="details-table mb-3"><tbody>'
+       + `<tr><th>Preferred Doctor</th><td>${preferredName}</td></tr>`
+       + `<tr><th>Date</th><td>${dateFmt}</td></tr>`
+       + `<tr><th>Time</th><td>${r.time || 'N/A'}</td></tr>`
+       + '</tbody></table>';
+
+  // ✅ Reservation-level follow-up banner (if any)
+  (function () {
+    const fuName = (r && r.schedule && (r.schedule.service?.name || r.schedule.scheduleDetails)) || '';
+    if (!fuName) return;
+    const fuTimeTxt = r.schedule.time ? ` • ${_escHtml(formatTime(r.schedule.time))}` : '';
+    html += `<div class="alert alert-info py-2 px-3 mb-2">
+               <strong>Reservation-level Follow-up:</strong> ${_escHtml(fuName)}${fuTimeTxt}
+             </div>`;
+  })();
+
+  // ✅ Per-Pet Requests (initial requests + per-pet follow-up)
+  (function () {
+    const rowsByPet = new Map();
+    const asArray = v => Array.isArray(v) ? v : (v ? [v] : []);
+    const addRow = (petName, services, concerns) => {
+      const key = String(petName || '—');
+      const row = rowsByPet.get(key) || { petName: key, services: [], concerns: '' };
+      // merge services (dedupe)
+      const set = new Set(row.services);
+      asArray(services).forEach(s => { if (s && String(s).trim()) set.add(String(s).trim()); });
+      row.services = Array.from(set);
+      // keep original concerns if available (from initial request)
+      if (!row.concerns && concerns) row.concerns = concerns;
+      rowsByPet.set(key, row);
+    };
+
+    // a) Initial customer per-pet requests
+    if (Array.isArray(r?.petRequests)) {
+      r.petRequests.forEach(pr => {
+        const petName  = pr?.petName || '—';
+        const services = asArray(pr?.services).length ? pr.services : asArray(pr?.service || pr?.requestedServices);
+        addRow(petName, services, (pr?.concerns || '').trim());
+      });
+    }
+
+    // b) Per-pet follow-up schedules (structured service name or details)
+    if (Array.isArray(r?.pets)) {
+      r.pets.forEach(p => {
+        const petName = p?.petName || '—';
+        const sch     = p?.schedule || {};
+        const svcName = sch?.service?.name || sch?.scheduleDetails;
+        if (svcName) addRow(petName, [svcName], '');
+      });
+    }
+
+    if (rowsByPet.size) {
+      html += '<h6 class="mt-1 mb-2" style="font-weight:700;color:#224b7a;">Per-Pet Requests</h6>';
+      html += '<table class="details-table mb-3"><thead>'
+           + '<tr><th>Pet</th><th>Service(s)</th><th>Concerns</th></tr>'
+           + '</thead><tbody>';
+
+      rowsByPet.forEach(row => {
+        const chips = row.services.length
+          ? renderServiceBadges(row.services)     // your existing badge renderer
+          : '—';
+        html += `<tr>
+                   <td>${_escHtml(row.petName)}</td>
+                   <td>${chips}</td>
+                   <td>${_escHtml(row.concerns || '—')}</td>
+                 </tr>`;
+      });
+
+      html += '</tbody></table>';
+    } else {
+      html += '<p class="mb-0">No pet requests found.</p>';
+    }
+  })();
+
+  html += '</div>';
+  $('#hrConsultDetailsBody').html(html);
+  return $('#hrConsultViewModal').modal('show');
+}
+
+const _svcCombined = (() => {
+  const set = new Set();
+  const add = v => {
+    if (!v) return;
+    if (Array.isArray(v)) return v.forEach(add);
+    String(v).split(',').forEach(s => { s = s.trim(); if (s) set.add(s); });
+  };
+  add(r.service);
+  (Array.isArray(r.petRequests) ? r.petRequests : []).forEach(pr =>
+    add(pr?.services || pr?.service || pr?.requestedServices)
+  );
+  return Array.from(set);
+})();
+
+     // NON-PENDING VIEW (updated for follow-ups)
+html += '<table class="details-table">';
+html += `<tr><th>Pet(s)</th><td>${allPetNames}</td></tr>`;
+
+// Collect combined services from initial request + reservation-level + per-pet follow-ups
+const __allSvc = (typeof collectServicesForRow === 'function')
+  ? collectServicesForRow(r)
+  : (Array.isArray(_svcCombined) ? _svcCombined : (_svcCombined ? [_svcCombined] : []));
+html += `<tr><th>Service(s)</th><td>${renderServiceBadges(__allSvc)}</td></tr>`;
+
+html += `<tr><th>Date</th><td>${dateFmt}</td></tr>`;
+html += `<tr><th>Time</th><td>${r.time || 'N/A'}</td></tr>`;
+html += `<tr><th>Doctor</th><td>${
+  (r.doctor && (r.doctor.username || r.doctor.name))
+    ? (r.doctor.username || r.doctor.name)
+    : 'N/A'
+}</td></tr>`;
+html += `<tr><th>Preferred</th><td>${preferredName}</td></tr>`;
+html += '</table>';
+
+// -------- Per-Pet Requests (supports follow-ups) --------
+(function(){
+  const maxRows = Math.max(
+    Array.isArray(r.petRequests) ? r.petRequests.length : 0,
+    Array.isArray(r.pets)        ? r.pets.length        : 0
+  );
+  if (maxRows <= 0) return;
+
+  function esc(s){
+    return String(s||'').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  }
+  function _addSvc(out, v){
+    if (!v) return;
+    if (Array.isArray(v)) return v.forEach(x => _addSvc(out, x));
+    if (typeof v === 'string' || typeof v === 'number') {
+      const t = String(v).trim(); if (t) out.add(t);
+    } else if (typeof v === 'object') {
+      const t = (v.name || v.serviceName || v.title || v.label ||
+                 v.scheduleDetails || v.details || v.categoryName || '')
+                .toString().trim();
+      if (t) out.add(t);
+    }
+  }
+  function servicesForPet(res, idx){
+    const out = new Set();
+    const pr  = (Array.isArray(res.petRequests) ? res.petRequests[idx] : null) || {};
+    const pet = (Array.isArray(res.pets)        ? res.pets[idx]        : null) || {};
+
+    // Initial per-pet request
+    _addSvc(out, pr.services);
+    _addSvc(out, pr.service);
+    _addSvc(out, pr.requestedServices);
+
+    // Per-pet follow-up schedule (structured or textual)
+    const sch = pet && (pet.schedule || pet.followUp || pet.followup || pet.follow_up);
+    if (sch){
+      _addSvc(out, sch.service);
+      _addSvc(out, sch.serviceName);
+      _addSvc(out, sch.services);
+      _addSvc(out, sch.scheduleDetails);
+      _addSvc(out, sch.followUpService);
+      if (sch.service && sch.service.name) _addSvc(out, sch.service.name);
+      if (sch.service && sch.service.categoryName) _addSvc(out, sch.service.categoryName);
+    }
+    return Array.from(out);
+  }
+
+  html += '<h6 class="mt-3">Per-Pet Requests</h6>';
+  html += '<table class="details-table mb-3"><thead><tr><th>Pet</th><th>Service(s)</th><th>Concerns</th></tr></thead><tbody>';
+
+  for (let i = 0; i < maxRows; i++){
+    const pr  = (Array.isArray(r.petRequests) ? r.petRequests[i] : {}) || {};
+    const pet = (Array.isArray(r.pets)        ? r.pets[i]        : {}) || {};
+    const petName =
+      pet?.petId?.petName || pet?.petName || pr?.petName || '—';
+
+    const svcArr   = servicesForPet(r, i);
+    const svcCell  = renderServiceBadges(svcArr.length ? svcArr : ['—']);
+    const concerns = esc((pr.concerns || '').trim()) || '—';
+
+    html += `<tr>
+      <td>${esc(petName)}</td>
+      <td>${svcCell}</td>
+      <td>${concerns}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+})();
+
+// -------- Pet Info (unchanged from your block) --------
+const showPetInfo = (status !== 'Approved' && status !== 'Pending');
+if (showPetInfo) {
+  const hasExtra = (r.pets || []).some(p =>
+    p.petId && (p.petId.birthday || p.petId.species || p.petId.breed || p.petId.sex)
+  );
+  if (hasExtra){
+    html += '<h6 class="mt-3">Pet Info</h6>';
+    html += '<table class="details-table mb-3"><thead><tr><th>Pet</th><th>Birthday</th><th>Species</th><th>Breed</th><th>Sex</th></tr></thead><tbody>';
+    (r.pets || []).forEach(p => {
+      const petName = p.petId?.petName || p.petName || '—';
+      const bday    = p.petId?.birthday ? formatVisitDate(p.petId.birthday) : 'N/A';
+      const species = p.petId?.species || '—';
+      const breed   = p.petId?.breed   || '—';
+      const sex     = p.petId?.sex     || '—';
+      html += `<tr><td>${petName}</td><td>${bday}</td><td>${species}</td><td>${breed}</td><td>${sex}</td></tr>`;
+    });
+    html += '</tbody></table>';
+  }
+}
+
+// -------- Physical exam / diagnosis / services / meds (unchanged) --------
+if (r.physicalExam) {
+  html += '<table class="details-table mb-3"><thead><tr><th>Weight</th><th>Temperature</th><th>Observations</th></tr></thead><tbody>';
+  html += `<tr><td>${r.physicalExam.weight || 'N/A'}</td><td>${r.physicalExam.temperature || 'N/A'}</td><td>${r.physicalExam.observations || 'N/A'}</td></tr>`;
+  html += '</tbody></table>';
+}
+if (r.diagnosis) html += `<div class="mb-3"><strong>Diagnosis:</strong><p>${r.diagnosis}</p></div>`;
+if (Array.isArray(r.services) && r.services.length){
+  html += '<table class="details-table mb-3"><thead><tr><th>Service</th><th>Details</th><th>File</th></tr></thead><tbody>';
+  r.services.forEach(s => {
+    let url = s.file || '';
+    if (url) {
+      url = url.replace(/^public/, '').replace(/^([^/])/, '/$1');
+      if (!/^https?:\/\//.test(url)) url = window.location.origin + url;
+    }
+    html += `<tr><td>${s.serviceName || ''}</td><td>${s.details || '—'}</td><td>${url ? `<a href="${url}" download>Download</a>` : '—'}</td></tr>`;
+  });
+  html += '</tbody></table>';
+}
+if (Array.isArray(r.medications) && r.medications.length){
+  html += '<table class="details-table mb-3"><thead><tr><th>Name</th><th>Qty</th><th>Dosage</th><th>Remarks</th></tr></thead><tbody>';
+  r.medications.forEach(m => {
+    html += `<tr><td>${m.name || m.medicationName || '—'}</td><td>${m.quantity || '—'}</td><td>${m.dosage || '—'}</td><td>${m.remarks || '—'}</td></tr>`;
+  });
+  html += '</tbody></table>';
+}
+if (r.confinementStatus && r.confinementStatus.length) {
+  html += `<p><strong>Confinement:</strong> ${r.confinementStatus.join(', ')}</p>`;
+}
+if (r.notes) html += `<p><strong>Additional Notes:</strong> ${r.notes}</p>`;
+
+// Follow-up (reservation-level)
+if (r.schedule && (r.schedule.scheduleDate || r.schedule.scheduleDetails)) {
+  const d = r.schedule.scheduleDate
+    ? new Date(r.schedule.scheduleDate).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+    : '';
+  const det = r.schedule.scheduleDetails ? (' — ' + r.schedule.scheduleDetails) : '';
+  html += `<hr><p><strong>Follow-Up:</strong> ${d}${det}</p>`;
+}
+
+html += '</div>';
+$('#hrConsultDetailsBody').html(html);
+$('#hrConsultViewModal').modal('show');
+
+    })
+    .fail(() => Swal.fire('Error', 'Server error while fetching details.', 'error'));
+}
+
 // === Cache helpers (put this above window.viewReceipt) ===
 function computeReservationFlagsFromPayload(payload) {
   // Prefer explicit flags returned by the server in a `flags` object
@@ -4208,4 +5718,183 @@ $(document).on('ajaxError.resv', function (_evt, jqXHR, settings, thrown) {
   if (jqXHR && (jqXHR.statusText === 'abort' || jqXHR.status === 0)) return;
   console.error('[RESV] AJAX error:', settings && settings.url, jqXHR && jqXHR.status, thrown);
 });
+</script>
+<script>
+/* === Consultation Details modal: follow-up hides Pet Info + always show Service(s) === */
+(function () {
+  // tiny html esc
+  function esc(s){
+    return String(s||'')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  // robust “is this a follow-up?”
+  function isFollowUp(res){
+    if (!res) return false;
+    const top = res.followUp || res.followup || res.follow_up || res.schedule;
+    const topFlag =
+      !!(res.isFollowUp ||
+         (top && (top.isFollowUp || /follow[- ]?up/i.test(String(top.type || top.scheduleType || top.scheduleDetails || '')))));
+    const perPet =
+      Array.isArray(res.pets) &&
+      res.pets.some(p=>{
+        const sch = p && (p.followUp || p.followup || p.follow_up || p.schedule);
+        return sch && (sch.isFollowUp || /follow[- ]?up/i.test(String(sch.type || sch.scheduleType || sch.scheduleDetails || '')));
+      });
+    return topFlag || perPet;
+  }
+
+  // collect services from legacy / petRequests / follow-up shapes (deduped)
+  function collectServices(res){
+    const set = new Set();
+    const asArray = v => Array.isArray(v) ? v : (v != null ? [v] : []);
+    const tokenFrom = v => {
+      if (!v) return null;
+      if (typeof v === 'string') return v.trim();
+      if (typeof v === 'number') return String(v);
+      if (typeof v === 'object') {
+        return (v.name || v.label || v.title || v.serviceName || v.serviceTitle || v.scheduleDetails || v.details || '')
+          .toString().trim() || null;
+      }
+      return null;
+    };
+    const addAny = v => {
+      if (!v) return;
+      if (Array.isArray(v)) { v.forEach(addAny); return; }
+      const t = tokenFrom(v);
+      if (t) set.add(t);
+    };
+
+    // legacy / top-level
+    addAny(res && res.service);
+
+    // initial per-pet requests
+    asArray(res && res.petRequests).forEach(pr=>{
+      addAny(pr && pr.services);
+      addAny(pr && pr.service);
+      addAny(pr && pr.requestedServices);
+    });
+
+    // follow-up (top)
+    const topFU = res && (res.schedule || res.followUp || res.followup || res.follow_up);
+    if (topFU) {
+      addAny(topFU.service);
+      addAny(topFU.serviceName);
+      addAny(topFU.services);
+      addAny(topFU.scheduleDetails);
+      addAny(topFU.followUpService);
+    }
+
+    // follow-up (per-pet)
+    asArray(res && res.pets).forEach(p=>{
+      const sch = p && (p.schedule || p.followUp || p.followup || p.follow_up);
+      if (!sch) return;
+      addAny(sch.service);
+      addAny(sch.serviceName);
+      addAny(sch.services);
+      addAny(sch.scheduleDetails);
+      addAny(sch.followUpService);
+    });
+
+    return Array.from(set);
+  }
+
+  function fmtDate(dLike){
+    if (!dLike) return 'N/A';
+    const d = new Date(dLike);
+    if (isNaN(d)) return String(dLike);
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  }
+  function fmtTime(tLike){
+    if (!tLike) return 'N/A';
+    // use your safeTimeHHmm if available
+    const hhmm = (window.safeTimeHHmm
+      ? window.safeTimeHHmm(tLike)
+      : (function(s){
+          const m = String(s).trim().match(/^(\d{1,2}):?(\d{2})?\s*([AaPp][Mm])?$/);
+          if(!m) return '00:00';
+          let h = parseInt(m[1],10)||0, mi=parseInt(m[2]||'0',10)||0, suf=(m[3]||'').toUpperCase();
+          if(suf==='PM'&&h<12)h+=12; if(suf==='AM'&&h===12)h=0;
+          return (h<10?'0':'')+h+':'+(mi<10?'0':'')+mi;
+        })(tLike));
+    const [hStr, m] = hhmm.split(':'); let h = parseInt(hStr,10);
+    const suf = h<12?'AM':'PM', h12 = (h%12===0?12:h%12);
+    return `${h12}:${m} ${suf}`;
+  }
+
+  function resolvePreferredDoctorNameClient(r){
+    const ANY = 'Anyone';
+    if (!r) return ANY;
+    if (r.preferredDoctor && (r.preferredDoctor.username || r.preferredDoctor.name)) {
+      return r.preferredDoctor.username || r.preferredDoctor.name;
+    }
+    if (r.preferredDoctorName || r.preferredDoctorUsername) {
+      return r.preferredDoctorName || r.preferredDoctorUsername;
+    }
+    const rawId = r.preferredDoctorId || r.preferredDoctorID ||
+                  (typeof r.preferredDoctor === 'string' ? r.preferredDoctor : null);
+    if (!rawId || /^(any|anyone|null|undefined)$/i.test(String(rawId))) return ANY;
+    const doc = (window.doctors || []).find(d => String(d._id) === String(rawId));
+    return (doc && (doc.username || doc.name)) ? (doc.username || doc.name) : ANY;
+  }
+
+  function renderConsultationDetails(res){
+    const dateLike = res.date || (res.schedule && res.schedule.scheduleDate) || res.createdAt;
+    const timeLike = res.time || (res.schedule && res.schedule.time);
+    const services = collectServices(res);
+
+    const svcHtml = services.length
+      ? `<ul style="margin:0;padding-left:18px">${services.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`
+      : '<span class="text-muted">—</span>';
+
+    // Pet Info (omit entirely when follow-up)
+    const showPetInfo = !isFollowUp(res);
+    let petInfoRow = '';
+    if (showPetInfo) {
+      const pets =
+        (Array.isArray(res.pets) && res.pets.length)
+          ? res.pets.map(p => `${esc(p?.petName || p?.name || '—')}${p?.species ? ' • ' + esc(p.species) : ''}`).join(', ')
+          : (Array.isArray(res.petRequests) && res.petRequests.length
+              ? res.petRequests.map(p => esc(p?.petName || p?.name || '—')).join(', ')
+              : '—');
+      petInfoRow = `<tr><th>Pet Info</th><td>${pets}</td></tr>`;
+    }
+
+    const prefDoc = resolvePreferredDoctorNameClient(res);
+
+    return `
+      <table class="details-table">
+        <tr><th>Owner</th><td>${esc(res.ownerName || '—')}</td></tr>
+        <tr><th>Preferred Doctor</th><td>${esc(prefDoc)}</td></tr>
+        <tr><th>Date</th><td>${fmtDate(dateLike)}</td></tr>
+        <tr><th>Time</th><td>${fmtTime(timeLike)}</td></tr>
+        ${petInfoRow}
+        <tr><th>Service(s)</th><td>${svcHtml}</td></tr>
+      </table>
+    `;
+  }
+
+  // Override to ensure the modal uses the new renderer
+  window.viewReservation = function(id /*, from */){
+    const list = window.reservationsData || [];
+    const res = list.find(r => String(r._id) === String(id));
+    if (res) {
+      $('#hrConsultDetailsBody').html(renderConsultationDetails(res));
+      $('#hrConsultViewModal').modal('show');
+      return;
+    }
+    // fallback fetch if not in local list
+    $.get('/hr/reservation', { id: id })
+      .done(function(r){
+        const data = r && (r.reservation || r.data || r);
+        $('#hrConsultDetailsBody').html(renderConsultationDetails(data));
+        $('#hrConsultViewModal').modal('show');
+      })
+      .fail(function(){
+        $('#hrConsultDetailsBody').html('<div class="text-danger">Failed to load details.</div>');
+        $('#hrConsultViewModal').modal('show');
+      });
+  };
+})();
 </script>
