@@ -119,36 +119,52 @@ router.get('/reservation', authMiddleware, allow('admin'), async (req, res) => {
       .lean();
 
     // annotate flags using PetList (multi-pet aware)
-    for (let r of reservations) {
-      const petNames = (r.pets || [])
-        .map(p => p.petId?.petName || p.petName)
-        .filter(Boolean);
+   // annotate flags using PetList (multi-pet aware) — SAFE with populated owner
+for (let r of reservations) {
+  const petNames = (r.pets || [])
+    .map(p => p?.petId?.petName || p?.petName)
+    .filter(Boolean);
 
-      if (!petNames.length) {
-        r.petExists = false; r.isStacked = false; r.isInitialEntry = false;
-        continue;
-      }
+  if (!petNames.length) {
+    r.petExists = false; r.isStacked = false; r.isInitialEntry = false;
+    continue;
+  }
 
-      const entries = await PetList.find(
-        { owner: r.owner, petName: { $in: petNames } },
-        'petName reservation consultationHistory'
-      ).lean();
+  // IMPORTANT: r.owner might be an ObjectId OR a populated object
+  const ownerId = r?.owner?._id || r?.owner || null;
 
-      const byName = new Map(entries.map(e => [e.petName, e]));
-      let allExist = true, allStacked = true, anyInitial = false;
+  let entries = [];
+  if (ownerId) {
+    entries = await PetList.find(
+      { owner: ownerId, petName: { $in: petNames } },
+      'petName reservation consultationHistory'
+    ).lean();
+  } else if (r.ownerName) {
+    // Walk-in fallback when there is no account owner
+    entries = await PetList.find(
+      { ownerName: r.ownerName, petName: { $in: petNames } },
+      'petName reservation consultationHistory'
+    ).lean();
+  }
 
-      for (const name of petNames) {
-        const entry = byName.get(name);
-        if (!entry) { allExist = false; allStacked = false; continue; }
-        const hasThisReservation = (entry.consultationHistory || [])
-          .some(ch => String(ch.reservation) === String(r._id));
-        if (!hasThisReservation) allStacked = false;
-        if (String(entry.reservation) === String(r._id)) anyInitial = true;
-      }
-      r.petExists = allExist;
-      r.isStacked = allStacked;
-      r.isInitialEntry = anyInitial;
-    }
+  const byName = new Map(entries.map(e => [e.petName, e]));
+  let allExist = true, allStacked = true, anyInitial = false;
+
+  for (const name of petNames) {
+    const entry = byName.get(name);
+    if (!entry) { allExist = false; allStacked = false; continue; }
+
+    const hasThisReservation = (entry.consultationHistory || [])
+      .some(ch => String(ch.reservation) === String(r._id));
+    if (!hasThisReservation) allStacked = false;
+
+    if (String(entry.reservation) === String(r._id)) anyInitial = true;
+  }
+
+  r.petExists = allExist;
+  r.isStacked = allStacked;
+  r.isInitialEntry = anyInitial;
+}
 
     const ongoingReservations = reservations.filter(r =>
       (r.status === 'Paid' || r.status === 'Done' || !!r.doctor) &&
