@@ -305,6 +305,12 @@
           </a>
         </li>
         <li>
+  <a href="#" class="menu-item" data-content="d-upcoming">
+    <i class="fa-solid fa-calendar-check"></i>Upcoming
+  </a>
+</li>
+
+        <li>
           <a href="#" class="menu-item" data-content="d-history">
             <i class="fa-solid fa-clock-rotate-left"></i>History
           </a>
@@ -348,10 +354,12 @@
       // Map doctor partials to routes (Dashboard removed)
       const PATH_MAP = {
         'd-patient'  : '/doctor/d-patient',
+          'd-upcoming' : '/doctor/d-upcoming',  
         'd-history'  : '/doctor/d-history'
       };
       const TITLE_MAP = {
         'd-patient'  : 'Patient',
+          'd-upcoming' : 'Upcoming',  
         'd-history'  : 'History'
       };
 
