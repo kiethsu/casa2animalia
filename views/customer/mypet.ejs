@@ -368,6 +368,54 @@
 
 /* smaller screens */
 @media (max-width: 576px){ .rv-grid{ grid-template-columns: 1fr; } }
+/* --- Disease chips (prettier) --- */
+#diseaseChips{
+  display:flex; flex-wrap:wrap; gap:.4rem; align-items:flex-start;
+}
+
+.disease-chip{
+  display:inline-flex; align-items:center; gap:.45rem;
+  padding:.38rem .7rem; border-radius:999px;
+  border:1px solid #cfe2ff; background:linear-gradient(180deg,#eef6ff,#f8fbff);
+  color:#0D47A1; font-weight:600; font-size:.85rem;
+  box-shadow:0 2px 8px rgba(13,71,161,.08);
+  transition:transform .12s ease, box-shadow .12s ease, background .2s ease, border-color .2s ease;
+  will-change: transform;
+}
+
+.disease-chip .fa-virus{
+  font-size:.9rem; opacity:.85;
+}
+
+.disease-chip:hover{
+  transform:translateY(-1px);
+  box-shadow:0 8px 18px rgba(30,136,229,.18);
+  background:linear-gradient(180deg,#e7f1ff,#f5f9ff);
+}
+
+.disease-chip em{
+  font-style:normal; font-weight:600; color:#64748b; margin-left:.1rem;
+}
+
+.disease-chip button{
+  width:20px; height:20px;
+  display:inline-flex; align-items:center; justify-content:center;
+  border-radius:50%; border:1px solid #cfe2ff; background:#ffffff;
+  color:#0D47A1; cursor:pointer; line-height:1; padding:0;
+  transition:background .12s ease, transform .12s ease, border-color .12s ease;
+}
+
+.disease-chip button:hover{
+  background:#eaf3ff; transform:scale(1.05);
+}
+
+.disease-chip.chip-other{ border-style:dashed; }
+
+@keyframes chip-pop{
+  from{ transform:scale(.96); opacity:.0; }
+  to  { transform:scale(1);    opacity:1;  }
+}
+.disease-chip.chip-pop{ animation:chip-pop .18s ease-out; }
 
 </style>
 
@@ -392,42 +440,67 @@
                     placeholder="Enter pet name"
                   >
                 </div>
-                <div class="form-group">
-                  <label for="species">Species</label>
-                  <select class="form-control" id="species">
-                    <option value="">Select species</option>
-                    <% petDetails.species.forEach(sp => { %>
-                      <option value="<%= sp %>"><%= sp %></option>
-                    <% }); %>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="petBreed">Pet Breed</label>
-                  <select class="form-control" id="petBreed">
-                    <option value="">Select breed</option>
-                  </select>
-                </div>
+         <div class="form-group">
+  <label for="species">Species</label>
+  <select class="form-control" id="species">
+    <option value="">Select species</option>
+    <% petDetails.species.forEach(sp => { %>
+      <option value="<%= sp %>"><%= sp %></option>
+    <% }); %>
+    <option value="Other">Other</option>
+  </select>
+</div>
+
+<div class="form-group" id="breedGroup">
+  <label for="petBreed">Pet Breed</label>
+  <select class="form-control" id="petBreed">
+    <option value="">Select breed</option>
+  </select>
+</div>
+
                 <div class="form-group">
                   <label for="petBirthday">Birthday</label>
                   <input type="date" class="form-control" id="petBirthday">
                 </div>
-                <div class="form-group">
-                  <label for="existingDisease">Existing Disease</label>
-                  <select class="form-control" id="existingDisease">
-                    <option value="">Select disease</option>
-                    <option value="None">None</option>
-                    <option value="Other">Other</option>
-                    <% petDetails.diseases.forEach(d => { %>
-                      <option value="<%= d %>"><%= d %></option>
-                    <% }); %>
-                  </select>
-                  <input
-                    type="text"
-                    class="form-control mt-2 d-none"
-                    id="otherDisease"
-                    placeholder="Specify disease"
-                  >
-                </div>
+              <div class="form-group">
+  <label>Existing Disease(s)</label>
+
+  <!-- keep the original <select>, but hide it; we'll sync values to it -->
+  <select class="form-control d-none" id="existingDiseases" multiple>
+    <option value="None">None</option>
+    <% petDetails.diseases.forEach(d => { %>
+      <option value="<%= d %>"><%= d %></option>
+    <% }); %>
+    <option value="Other">Other</option>
+  </select>
+
+  <!-- custom dropdown with checkboxes -->
+  <div class="dropdown" id="diseaseDropdown" style="width:100%;">
+    <button type="button" class="form-control text-left d-flex justify-content-between align-items-center"
+            id="diseaseDropdownBtn">
+      <span id="diseaseDropdownLabel">Select disease(s)</span>
+      <i class="fa fa-chevron-down"></i>
+    </button>
+    <div class="dropdown-menu w-100 p-2" id="diseaseMenu">
+      <input type="text" class="form-control mb-2" id="diseaseSearch" placeholder="Search diseases...">
+      <div id="diseaseOptions" style="max-height:220px; overflow:auto;"></div>
+      <div class="d-flex justify-content-between mt-2">
+        <button type="button" class="btn btn-sm btn-light" id="diseaseClear">Clear</button>
+        <button type="button" class="btn btn-sm btn-primary" id="diseaseDone">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <small class="form-text text-muted">You can pick multiple. “None” is exclusive.</small>
+
+  <!-- shown only if "Other" is selected -->
+  <input type="text" class="form-control mt-2 d-none" id="otherDisease" placeholder="Optional: specify other disease">
+
+  <!-- chips appear here -->
+  <div id="diseaseChips" class="mt-2"></div>
+</div>
+
+
                 <div class="form-group">
                   <label for="sex">Sex</label>
                   <select class="form-control" id="sex">
@@ -680,6 +753,216 @@ function unlockBtn($btn) {
   $btn.prop('disabled', false);
   $btn.removeData('orig-html');
 }
+// Normalize anything (Date, ISO, timestamp) to YYYY-MM-DD for <input type="date">
+function toDateInput(val){
+  if (!val) return '';
+  if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) return val; // already good
+  const d = new Date(val);
+  if (isNaN(d)) return '';
+  // convert to local date before slicing
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0,10);
+}
+
+/* =========================
+   Disease multi-select UI
+   ========================= */
+function renderDiseaseOptions() {
+  const $sel = $('#existingDiseases'); // hidden select
+  const $box = $('#diseaseOptions');
+  $box.empty();
+
+  // Build checkbox list from the hidden select's options
+  $sel.find('option').each(function () {
+    const val = $(this).val();
+    const label = $(this).text();
+    const id = 'dopt_' + btoa(encodeURIComponent(val)).replace(/=/g,''); // stable id
+
+    const checked = ($sel.val() || []).includes(val) ? 'checked' : '';
+    $box.append(`
+      <div class="form-check">
+        <input class="form-check-input disease-opt" type="checkbox" id="${id}" value="${$('<div/>').text(val).html()}" ${checked}>
+        <label class="form-check-label" for="${id}">${$('<div/>').text(label).html()}</label>
+      </div>
+    `);
+  });
+}
+
+function syncSelectFromChecks() {
+  const values = $('.disease-opt:checked').map(function(){ return $(this).val(); }).get();
+
+  // “None” is exclusive
+  let chosen = values.slice();
+  if (chosen.includes('None') && chosen.length > 1) {
+    chosen = ['None'];
+    // uncheck everything except None
+    $('.disease-opt').prop('checked', false);
+    $('.disease-opt[value="None"]').prop('checked', true);
+  }
+
+  // show/hide free text for Other
+  const hasOther = chosen.includes('Other');
+  $('#otherDisease').toggleClass('d-none', !hasOther);
+
+  // write to hidden select
+  $('#existingDiseases').val(chosen);
+  renderDiseaseChips();
+  updateDiseaseButtonLabel();
+}
+// pastel theme derived from text (stable per disease)
+function hueFromString(str){
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 360;
+  return h;
+}
+function applyChipTheme($chip, label, isOther){
+  const h = hueFromString(label || 'x');
+  // soft pastels
+  const bg = `hsl(${h} 100% 97%)`;
+  const bd = `hsl(${h} 80% 85%)`;
+  const fg = `hsl(${h} 60% 28%)`;
+
+  $chip.css({
+    background: `linear-gradient(180deg, ${bg}, #ffffff)`,
+    borderColor: bd,
+    color: fg
+  });
+  $chip.find('button').css({ borderColor: bd, color: fg });
+  if (isOther) $chip.addClass('chip-other');
+}
+
+function renderDiseaseChips() {
+  const values = $('#existingDiseases').val() || [];
+  const $chips = $('#diseaseChips').empty();
+
+  if (!values.length) {
+    $('#diseaseDropdownLabel').text('Select disease(s)');
+    return;
+  }
+
+  // regular selections (skip showing "Other" literal)
+  values.forEach(v => {
+    if (v === 'Other') return;
+    const safe = $('<div/>').text(v).html();
+    const $chip = $(`
+      <span class="disease-chip chip-pop" title="${safe}" data-val="${safe}">
+        <i class="fa-solid fa-virus"></i>
+        ${safe}
+        <button type="button" class="remove-chip" aria-label="Remove">×</button>
+      </span>
+    `);
+    applyChipTheme($chip, v, false);
+    $chips.append($chip);
+  });
+
+  // if Other is selected and user typed a value, render it prettily too
+  if (values.includes('Other')) {
+    const extra = ($('#otherDisease').val() || '').trim();
+    if (extra) {
+      const safeExtra = $('<div/>').text(extra).html();
+      const $other = $(`
+        <span class="disease-chip chip-other chip-pop" title="${safeExtra}" data-val="${safeExtra}">
+          <i class="fa-solid fa-virus"></i>
+          ${safeExtra} <em>(Other)</em>
+          <button type="button" class="remove-chip remove-other" aria-label="Remove">×</button>
+        </span>
+      `);
+      applyChipTheme($other, extra, true);
+      $chips.append($other);
+    }
+  }
+}
+
+
+
+function updateDiseaseButtonLabel() {
+  const values = $('#existingDiseases').val() || [];
+  if (values.length === 0) {
+    $('#diseaseDropdownLabel').text('Select disease(s)');
+  } else if (values.length === 1) {
+    $('#diseaseDropdownLabel').text(values[0]);
+  } else {
+    $('#diseaseDropdownLabel').text(values.length + ' selected');
+  }
+}
+
+function closeDiseaseMenu() {
+  $('#diseaseMenu').removeClass('show');
+}
+
+function openDiseaseMenu() {
+  $('#diseaseMenu').addClass('show');
+}
+
+// init on ready
+renderDiseaseOptions();
+renderDiseaseChips();
+updateDiseaseButtonLabel();
+
+// open/close
+$('#diseaseDropdownBtn').on('click', function(e){
+  e.stopPropagation();
+  $('#diseaseMenu').toggleClass('show');
+});
+
+// search
+$('#diseaseSearch').on('input', function(){
+  const q = $(this).val().toLowerCase();
+  $('#diseaseOptions .form-check').each(function(){
+    const txt = $(this).text().toLowerCase();
+    $(this).toggle(txt.indexOf(q) !== -1);
+  });
+});
+
+// check/uncheck
+$(document).on('change', '.disease-opt', function(){
+  // If user checks "None", uncheck others
+  if (this.value === 'None' && this.checked) {
+    $('.disease-opt').not(this).prop('checked', false);
+  } else if (this.value !== 'None' && this.checked) {
+    $('.disease-opt[value="None"]').prop('checked', false);
+  }
+  syncSelectFromChecks();
+});
+
+// chips: remove one
+$(document).on('click', '.remove-chip', function(){
+  const $chip = $(this).closest('.disease-chip');
+  const val = $chip.data('val');
+
+  if ($(this).hasClass('remove-other')) {
+    // removing Other chip -> uncheck "Other" and clear text
+    $('.disease-opt[value="Other"]').prop('checked', false);
+    $('#otherDisease').val('').addClass('d-none');
+  } else {
+    // uncheck the corresponding checkbox
+    $(`.disease-opt[value="${CSS.escape(val)}"]`).prop('checked', false);
+  }
+
+  syncSelectFromChecks();
+});
+
+// buttons
+$('#diseaseClear').on('click', function(){
+  $('.disease-opt').prop('checked', false);
+  $('#otherDisease').val('').addClass('d-none');
+  syncSelectFromChecks();
+});
+$('#diseaseDone').on('click', function(){
+  closeDiseaseMenu();
+});
+
+// close on outside click
+$(document).on('click', function(e){
+  if (!$(e.target).closest('#diseaseDropdown').length) closeDiseaseMenu();
+});
+
+// keep chips updated if user types “Other”
+$('#otherDisease').on('input', function(){
+  renderDiseaseChips();
+  updateDiseaseButtonLabel();
+});
+
 function trackSlow(jqXHR, ms = 7000, text = 'Your connection seems slow… still working') {
   const t = setTimeout(() => {
     Swal.fire({
@@ -698,24 +981,44 @@ function trackSlow(jqXHR, ms = 7000, text = 'Your connection seems slow… still
 
 $(document).ready(function () {
   // Populate breeds when species changes
-  $('#species').on('change', function() {
-    const selected = $(this).val(),
-          dropdown = $('#petBreed');
-    dropdown.empty().append('<option value="">Select breed</option>');
-    if (selected) {
-      $.get('/customer/get-pet-details', data => {
-        (data.speciesBreeds[selected] || []).forEach(b => {
-          dropdown.append(`<option value="${b}">${b}</option>`);
-        });
-      }).fail(console.error);
-    }
-  });
+// Populate breeds when species changes (hide breed if species is Other)
+$('#species').on('change', function() {
+  const selected = $(this).val();
+  const $breedGroup = $('#breedGroup');
+  const $dropdown = $('#petBreed');
 
-  // Other disease toggle
-  $('#existingDisease').on('change', () => {
-    const isOther = $('#existingDisease').val() === 'Other';
-    $('#otherDisease').toggleClass('d-none', !isOther).val('');
-  });
+  if (!selected || selected === 'Other') {
+    $dropdown.empty().append('<option value="">Select breed</option>');
+    $breedGroup.hide(); // hide when Other or empty
+    return;
+  }
+
+  $breedGroup.show();
+  $dropdown.empty().append('<option value="">Select breed</option>');
+
+  $.get('/customer/get-pet-details', data => {
+    (data.speciesBreeds[selected] || []).forEach(b => {
+      $dropdown.append(`<option value="${b}">${b}</option>`);
+    });
+  }).fail(console.error);
+});
+
+// initialize visibility on load
+$('#species').trigger('change');
+
+ // Multi-select diseases
+$('#existingDiseases').on('change', function() {
+  const values = $(this).val() || [];
+
+  // If None is chosen, it must be the only selection
+  if (values.includes('None') && values.length > 1) {
+    $(this).val(['None']);
+  }
+
+  // Show optional "Other" textbox when Other is selected
+  const hasOther = (values || []).includes('Other');
+  $('#otherDisease').toggleClass('d-none', !hasOther);
+});
 
   // Preview pet picture
   $('#petPic').on('change', function() {
@@ -734,86 +1037,104 @@ $(document).ready(function () {
   // ==========================
   // Add Pet (with spinner/slow)
   // ==========================
-  $('#addPetButton').off('click').on('click', function (e) {
-    e.preventDefault();
+// ==========================
+// Add Pet (with spinner/slow)
+// ==========================
+$('#addPetButton').off('click').on('click', function (e) {
+  e.preventDefault();
 
-    const fields = ['#petName','#species','#petBreed','#petBirthday','#existingDisease','#sex'];
-    let valid = true;
-    fields.forEach(f => {
-      if (!$(f).val().trim()) { $(f).addClass('is-invalid'); valid = false; }
-      else { $(f).removeClass('is-invalid'); }
-    });
-    if ($('#existingDisease').val() === 'Other' && !$('#otherDisease').val().trim()) {
-      $('#otherDisease').addClass('is-invalid'); valid = false;
-    }
-    if (!valid) {
-      return Swal.fire({ icon: 'error', title: 'Error', text: 'Please fill all fields.' });
-    }
-
-    const disease = $('#existingDisease').val() === 'Other'
-                  ? $('#otherDisease').val().trim()
-                  : $('#existingDisease').val();
-    const picSrc = $('#petPicPreview img').attr('src') || '';
-    const payload = {
-      petName: $('#petName').val(),
-      species: $('#species').val(),
-      breed: $('#petBreed').val(),
-      birthday: $('#petBirthday').val(),
-      existingDisease: disease,
-      sex: $('#sex').val(),
-      petPic: picSrc
-    };
-
-    const $btn = $('#addPetButton');
-    lockBtn($btn, 'Adding…');
-
-    const req = $.post('/customer/add-pet', payload);
-    trackSlow(req);
-
-    req.done(res => {
-      if (res.success) {
-        // reset form & preview
-        $('#petForm')[0].reset();
-        $('#petPicPreview').empty();
-
-        // build new row
-        const p = res.pet;
-        const picHtml = p.petPic
-          ? `<img src="${p.petPic}" class="pet-table-pic" alt="${p.petName}">`
-          : `<span class="pet-table-paw"><i class="fa-solid fa-paw"></i></span>`;
-        const newRow = $(`
-          <tr class="pet-row"
-              data-id="${p._id}"
-              data-petname="${p.petName}"
-              data-species="${p.species}"
-              data-breed="${p.breed}"
-              data-birthday="${p.birthday || ''}"
-              data-existingdisease="${p.existingDisease}"
-              data-sex="${p.sex}"
-              data-petpic="${p.petPic || ''}"
-              data-addedfromreservation="false">
-            <td><div class="pet-name-cell">${picHtml}${p.petName}</div></td>
-            <td>${p.breed || 'N/A'}</td>
-            <td>${p.species || 'N/A'}</td>
-          </tr>
-        `);
-
-        // insert into table (replace empty-state row if present)
-        const $tbody = $('.reservation-table-wrapper tbody');
-        const $empty = $tbody.find('tr.no-pets-row');
-        if ($empty.length) $empty.replaceWith(newRow);
-        else $tbody.append(newRow);
-
-        Swal.fire({ icon:'success', title:'Success', text:'Pet added!' });
-      } else {
-        Swal.fire({ icon:'error', title:'Error', text: res.message || 'Add failed.' });
-      }
-    }).fail(() => {
-      Swal.fire({ icon:'error', title:'Error', text:'Server error.' });
-    }).always(() => {
-      unlockBtn($btn);
-    });
+  // Require only Name + Species (breed/diseases optional)
+  const reqFields = ['#petName','#species'];
+  let valid = true;
+  reqFields.forEach(f => {
+    if (!$(f).val().trim()) { $(f).addClass('is-invalid'); valid = false; }
+    else { $(f).removeClass('is-invalid'); }
   });
+  if (!valid) {
+    return Swal.fire({ icon: 'error', title: 'Error', text: 'Please provide Pet Name and Species.' });
+  }
+
+  // Build diseases array from multi-select
+  let diseases = $('#existingDiseases').val() || [];
+  if (diseases.includes('None')) diseases = [];
+
+  // If “Other” selected, optionally include entered value
+  if (diseases.includes('Other')) {
+    const extra = ($('#otherDisease').val() || '').trim();
+    diseases = diseases.filter(v => v !== 'Other');
+    if (extra) diseases.push(extra);
+  }
+
+  const picSrc = $('#petPicPreview img').attr('src') || '';
+  const payload = {
+    petName: $('#petName').val().trim(),
+    species: $('#species').val(),
+    breed: $('#species').val() === 'Other' ? '' : $('#petBreed').val(),
+    birthday: $('#petBirthday').val(),
+    sex: $('#sex').val(),
+    petPic: picSrc,
+
+    // ✅ send array; server keeps legacy string in parallel
+    existingDiseases: diseases
+  };
+
+  const $btn = $('#addPetButton');
+  lockBtn($btn, 'Adding…');
+
+  const req = $.post('/customer/add-pet', payload);
+  trackSlow(req);
+
+  req.done(res => {
+    if (res.success) {
+      $('#petForm')[0].reset();
+      $('#petPicPreview').empty();
+      $('#species').trigger('change');      // re-hide breed if needed
+      $('#existingDiseases').trigger('change'); // hide other textbox if needed
+
+      const p = res.pet;
+      const bday = toDateInput(p.birthday);
+
+      const picHtml = p.petPic
+        ? `<img src="${p.petPic}" class="pet-table-pic" alt="${p.petName}">`
+        : `<span class="pet-table-paw"><i class="fa-solid fa-paw"></i></span>`;
+
+      const diseasesText =
+        (Array.isArray(p.existingDiseases) && p.existingDiseases.length)
+          ? p.existingDiseases.join(', ')
+          : (p.existingDisease || '');
+
+   const newRow = $(`
+  <tr class="pet-row"
+      data-id="${p._id}"
+      data-petname="${p.petName}"
+      data-species="${p.species}"
+      data-breed="${p.breed || ''}"
+      data-birthday="${bday}"
+      data-existingdisease="${diseasesText}"
+      data-sex="${p.sex || ''}"
+      data-petpic="${p.petPic || ''}"
+      data-addedfromreservation="false">
+          <td><div class="pet-name-cell">${picHtml}${p.petName}</div></td>
+          <td>${p.breed || 'N/A'}</td>
+          <td>${p.species || 'N/A'}</td>
+        </tr>
+      `);
+
+      const $tbody = $('.reservation-table-wrapper tbody');
+      const $empty = $tbody.find('tr.no-pets-row');
+      if ($empty.length) $empty.replaceWith(newRow);
+      else $tbody.append(newRow);
+
+      Swal.fire({ icon:'success', title:'Success', text:'Pet added!' });
+    } else {
+      Swal.fire({ icon:'error', title:'Error', text: res.message || 'Add failed.' });
+    }
+  }).fail(() => {
+    Swal.fire({ icon:'error', title:'Error', text:'Server error.' });
+  }).always(() => {
+    unlockBtn($btn);
+  });
+});
 
   // ==========================
   // OPEN MODAL: Table row click
@@ -834,7 +1155,8 @@ $(document).ready(function () {
 
     // Fill fields (read-only by default)
     $('#modalPetNameInput').val(meta.name);
-    $('#modalBirthdayInput').val(meta.birthday || '');
+   $('#modalBirthdayInput').val(toDateInput(meta.birthday));
+
     $('#modalExistingDiseaseInput').val(meta.disease || '');
     $('#modalEditContent input, #modalEditContent select').prop('readonly', true);
 
@@ -1226,64 +1548,78 @@ ${(Array.isArray(rec.medications) && rec.medications.length) ? `
   // ======================================
   // Save edits (spinner + slow toast)
   // ======================================
-  $('#savePetBtn').off('click').on('click', function (e) {
-    e.preventDefault(); e.stopPropagation();
+ $('#savePetBtn').off('click').on('click', function (e) {
+  e.preventDefault(); e.stopPropagation();
 
-    const id = String($(this).data('id') || '');
-    if (!id) return;
+  const id = String($(this).data('id') || '');
+  if (!id) return;
 
-    const payload = {
-      petName: $('#modalPetNameInput').val().trim(),
-      birthday: $('#modalBirthdayInput').val(),
-      existingDisease: $('#modalExistingDiseaseInput').val().trim()
-    };
+  const payload = {
+    petName: $('#modalPetNameInput').val().trim(),
+    birthday: $('#modalBirthdayInput').val(),              // already yyyy-mm-dd from the input
+    existingDisease: $('#modalExistingDiseaseInput').val().trim()
+  };
 
-    if (!payload.petName) {
-      return Swal.fire({ icon: 'error', title: 'Missing name', text: 'Pet name is required.' });
+  if (!payload.petName) {
+    return Swal.fire({ icon: 'error', title: 'Missing name', text: 'Pet name is required.' });
+  }
+
+  const $save = $('#savePetBtn');
+  lockBtn($save, 'Saving…');
+
+  const req = $.ajax({
+    url: '/customer/update-pet/' + encodeURIComponent(id),
+    method: 'PUT',
+    data: payload
+  });
+  trackSlow(req);
+
+  req.done(res => {
+    if (!res || !res.success || !res.pet) {
+      return Swal.fire({ icon: 'error', title: 'Error', text: (res && res.message) || 'Update failed.' });
     }
 
-    const $save = $('#savePetBtn');
-    lockBtn($save, 'Saving…');
+    const p = res.pet;
 
-    const req = $.ajax({
-      url: '/customer/update-pet/' + encodeURIComponent(id),
-      method: 'PUT',
-      data: payload
-    });
-    trackSlow(req);
+    // Normalize fields coming back from server
+    const bdayInput = toDateInput(p.birthday);
+    const diseasesText =
+      (Array.isArray(p.existingDiseases) && p.existingDiseases.length)
+        ? p.existingDiseases.join(', ')
+        : (p.existingDisease || '');
 
-    req.done(res => {
-      if (!res || !res.success || !res.pet) {
-        return Swal.fire({ icon: 'error', title: 'Error', text: (res && res.message) || 'Update failed.' });
-      }
-      const p = res.pet;
+    // Lock fields again
+    $('#modalEditContent input').prop('readonly', true);
+    $('#savePetBtn').addClass('d-none');
+    $('#updatePetBtn').removeClass('d-none');
 
-      // lock fields again
-      $('#modalEditContent input').prop('readonly', true);
-      $('#savePetBtn').addClass('d-none');
-      $('#updatePetBtn').removeClass('d-none');
+    // Update modal inputs with normalized values (so UI reflects saved data)
+    $('#modalPetNameInput').val(p.petName || '');
+    $('#modalBirthdayInput').val(bdayInput || '');
+    $('#modalExistingDiseaseInput').val(diseasesText || '');
 
-      // update row dataset
-      const $row = $(`.pet-row[data-id="${id}"]`);
-      $row
-        .attr('data-petname', p.petName || '')
-        .attr('data-birthday', p.birthday || '')
-        .attr('data-existingdisease', p.existingDisease || '');
+    // Update the table row dataset
+    const $row = $(`.pet-row[data-id="${id}"]`);
+    $row
+      .attr('data-petname', p.petName || '')
+      .attr('data-birthday', bdayInput || '')             // keep dataset in yyyy-mm-dd
+      .attr('data-existingdisease', diseasesText || '');
 
-      // update visible name (keep thumbnail)
-      const $cell = $row.find('td').eq(0).find('.pet-name-cell');
-      const thumb = $cell.find('img.pet-table-pic')[0]?.outerHTML
-                 || $cell.find('.pet-table-paw')[0]?.outerHTML
-                 || '';
-      $cell.html((thumb || '') + (p.petName || 'Unnamed'));
+    // Update visible name (keep thumbnail)
+    const $cell = $row.find('td').eq(0).find('.pet-name-cell');
+    const thumb = $cell.find('img.pet-table-pic')[0]?.outerHTML
+               || $cell.find('.pet-table-paw')[0]?.outerHTML
+               || '';
+    $cell.html((thumb || '') + (p.petName || 'Unnamed'));
 
-      Swal.fire({ icon: 'success', title: 'Saved', text: 'Pet details updated.' });
-    }).fail(xhr => {
-      Swal.fire({ icon: 'error', title: 'Server error', text: (xhr.responseJSON && xhr.responseJSON.message) || 'Update failed.' });
-    }).always(() => {
-      unlockBtn($save);
-    });
+    Swal.fire({ icon: 'success', title: 'Saved', text: 'Pet details updated.' });
+  }).fail(xhr => {
+    Swal.fire({ icon: 'error', title: 'Server error', text: (xhr.responseJSON && xhr.responseJSON.message) || 'Update failed.' });
+  }).always(() => {
+    unlockBtn($save);
   });
+});
+
 
   /// ==============================
 // Delete (spinner + slow toast)
