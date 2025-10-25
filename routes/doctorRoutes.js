@@ -14,9 +14,16 @@ const mongoose = require('mongoose');
 const PetDetailsSetting = require('../models/petDetailsSetting');
 const { broadcast, addClient, removeClient } = require('../utils/hrSse');
 const PetDetailsSettings = require('../models/petDetailsSettings');
+const AppointmentSetting = require('../models/appointmentSetting'); // for hourly limit
+// Reservation is already imported above in your file
+// const Reservation = require('../models/reservation');
+// at the top with your other models
+const User = require('../models/user'); // <-- add this if missing
+
 // ----------------- Multer Setup -----------------
 // Updated storage: files will be stored in public/consultation/
 const multer = require('multer');
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'public/consultation/'); // Ensure this folder exists in your project
@@ -27,6 +34,140 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage: storage });
+// ===== AUTO CREATE CUSTOMER RESERVATION FOR FOLLOW-UPS =====
+const roleOf = req => String(req?.user?.role || '').toLowerCase();
+const allow = (...roles) => (req, res, next) => {
+  if (!req.user) return res.status(401).send('Login required');
+  const ok = roles.map(r => String(r).toLowerCase()).includes(roleOf(req));
+  if (!ok) return res.status(403).send('Forbidden');
+  next();
+};
+
+// Time labels your customer UI uses (8am–5pm, 1 per hour)
+const TIME_SLOTS = [
+  '08:00 AM','09:00 AM','10:00 AM','11:00 AM',
+  '12:00 PM','01:00 PM','02:00 PM','03:00 PM','04:00 PM','05:00 PM'
+];
+
+function toISODateKeyUTC(d) {
+  const x = new Date(d);
+  // store/query by day (UTC), same pattern customer side uses
+  return x.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function dayBoundsUTC(iso /* YYYY-MM-DD */) {
+  return {
+    start: new Date(iso + 'T00:00:00.000Z'),
+    end  : new Date(iso + 'T23:59:59.999Z')
+  };
+}
+
+// Count how many pets are already booked for date+time (Pending/Approved)
+async function countPetsBookedForSlot(iso, timeLabel) {
+  const { start, end } = dayBoundsUTC(iso);
+  const hits = await Reservation.find({
+    date : { $gte: start, $lte: end },
+    time : timeLabel,
+    status: { $nin: ['Canceled', 'Rejected'] }
+  }).select('petRequests').lean();
+
+  let count = 0;
+  for (const r of hits) {
+    // most of your code uses petRequests length as capacity unit
+    count += Array.isArray(r.petRequests) && r.petRequests.length ? r.petRequests.length : 1;
+  }
+  return count;
+}
+
+async function getPerHourLimit() {
+  try {
+    const s = await AppointmentSetting.findOne().lean();
+    // 0 = unlimited
+    return Number(s?.limitPerHour ?? 0);
+  } catch {
+    return 0; // fail-open
+  }
+}
+
+/**
+ * Ensures a customer Reservation exists for the follow-up (idempotent).
+ * - resvDoc: Reservation (lean) of the current visit
+ * - petObj:  the specific pet subdoc (from resvDoc.pets[{...}])
+ * - dateVal: Date | string for follow-up day
+ * - details: label of follow-up service/details (string)
+ * - doctorId: ObjectId of the current doctor (preferredDoctor)
+ */
+// add "preferredTime" as a param
+async function autoCreateReservationFromFollowUp(resvDoc, petObj, dateVal, details, doctorId, preferredTime) {
+  if (!resvDoc || !petObj || !dateVal) return;
+
+  const ownerId   = resvDoc.owner || null;
+  const ownerName = resvDoc.ownerName || '';
+  const iso       = toISODateKeyUTC(dateVal);
+  const limit     = await getPerHourLimit();
+
+  // prefer the doctor-selected time first
+  const candidateOrder = (preferredTime && TIME_SLOTS.includes(preferredTime))
+    ? [preferredTime, ...TIME_SLOTS.filter(t => t !== preferredTime)]
+    : TIME_SLOTS.slice();
+
+  let chosen = null;
+  for (const t of candidateOrder) {
+    const used = await countPetsBookedForSlot(iso, t);
+    if (limit === 0 || used < limit) { chosen = t; break; }
+  }
+  if (!chosen) {
+    console.warn('[followup] All slots full for', iso, '— skipping auto reservation');
+    return;
+  }
+
+  const petId   = petObj?.petId || null;
+  const petName = petObj?.petName || (petObj?.petId?.petName) || '';
+
+  const serviceLabel =
+    (petObj?.schedule?.service?.name) ||
+    (petObj?.schedule?.scheduleDetails) ||
+    (details || '') ||
+    'Follow-up';
+
+  const idemKey = [
+    'AUTO_FOLLOWUP',
+    String(resvDoc._id),
+    String(petId || petName || 'pet'),
+    iso,
+    chosen
+  ].join('::');
+
+  await Reservation.updateOne(
+    { idemKey },
+    {
+      $setOnInsert: {
+        owner    : ownerId,
+        ownerName: ownerName,
+        date     : new Date(iso),        // day-only; time kept separately
+        time     : chosen,               // <-- reflect selected time
+        status   : 'Pending',
+        preferredDoctor: doctorId || null,
+        petRequests: [{
+          petId  : petId || undefined,
+          petName: petName,
+          service: serviceLabel
+        }],
+        pets: [{
+          petId  : petId || undefined,
+          petName: petName,
+          done   : false,
+          hasConsult: false
+        }],
+        idemKey,
+        source  : 'doctor_auto_followup',
+        createdAt: new Date()
+      }
+    },
+    { upsert: true }
+  );
+}
+
 function findServiceForPet(res, pet) {
   // Prefer per-pet requests (new flow)
   if (Array.isArray(res.petRequests) && res.petRequests.length) {
@@ -74,10 +215,48 @@ const addConsultationSchema = Joi.object({
 
 
 // Schema for adding a follow-up schedule
+// addScheduleSchema
 const addScheduleSchema = Joi.object({
   reservationId: Joi.string().required(),
   scheduleDate: Joi.date().required(),
-  scheduleDetails: Joi.string().required()
+  scheduleDetails: Joi.string().required(),
+  scheduleTime: Joi.string().optional().allow('') // 'HH:MM AM/PM'
+});
+// (A) Per-hour limit for the UI (used to label options as "Full")
+// FINAL PATH AT RUNTIME: /doctor/settings/appointmentLimit
+router.get('/settings/appointmentLimit', authMiddleware, async (req, res) => {
+  try {
+    const s = await AppointmentSetting.findOne().lean();
+    res.json({ limit: Number(s?.limitPerHour ?? 0) });
+  } catch {
+    res.json({ limit: 0 }); // 0 = unlimited
+  }
+});
+
+// (B) Count pets already booked for a specific date+time
+// FINAL PATH AT RUNTIME: /doctor/consult/appointmentCount
+router.get('/consult/appointmentCount', authMiddleware, async (req, res) => {
+  try {
+    const { date, time } = req.query;
+    if (!date || !time) return res.json({ count: 0 });
+
+    const { start, end } = dayBoundsUTC(date);
+    const hits = await Reservation.find({
+      date  : { $gte: start, $lte: end },
+      time  : time,
+      status: { $nin: ['Canceled', 'Rejected'] }
+    }).select('petRequests').lean();
+
+    let count = 0;
+    for (const r of hits) {
+      count += Array.isArray(r.petRequests) && r.petRequests.length
+        ? r.petRequests.length
+        : 1;
+    }
+    res.json({ count });
+  } catch {
+    res.json({ count: 0 });
+  }
 });
 
 // -------------------------
@@ -166,46 +345,67 @@ router.get('/stream', authMiddleware, (req, res) => {
 // GET /doctor/d-patient
 // GET /doctor/d-patient  (UPDATED: show services from Consultation in table)
 // GET /doctor/d-patient  (SHOW service from Consultation; fallback to per-pet schedule; then to requested service)
-router.get("/d-patient", authMiddleware, async (req, res) => {
+// GET /doctor/d-patient  — supports admin "view as" via ?doctorId=...
+router.get('/d-patient', authMiddleware, async (req, res) => {
   try {
+    const role    = String(req.user?.role || '').toLowerCase();
+    const isAdmin = role === 'admin';
+
+    // Decide which doctor's list to show
+    const qDoctorId = String(req.query.doctorId || '').trim();
+    let effectiveDoctorId = isAdmin
+      ? (qDoctorId || '')
+      : String(req.user?._id || req.user?.userId || '');
+
+    // Fallback for admin with no doctorId: pick the first doctor
+    if (isAdmin && !effectiveDoctorId) {
+      const firstDoc = await User.findOne({ role: /doctor/i })
+        .select('_id username')
+        .lean();
+      if (firstDoc) effectiveDoctorId = String(firstDoc._id);
+    }
+
+    // Resolve effective doctor name
+    let effectiveDoctorName = String(req.user?.username || '');
+    if (isAdmin && effectiveDoctorId) {
+      const picked = await User.findById(effectiveDoctorId).select('username').lean();
+      if (picked) effectiveDoctorName = picked.username;
+    }
+
+    // Query reservations for that doctor (support ObjectId or string) & skip canceled
+    const docObjId = mongoose.Types.ObjectId.isValid(effectiveDoctorId)
+      ? new mongoose.Types.ObjectId(effectiveDoctorId)
+      : null;
+
     const reservations = await Reservation.find({
-      doctor: req.user.userId,
-      status: { $ne: "Done" }
+      status: { $ne: 'Canceled' },
+      $or: [{ doctor: docObjId }, { doctor: String(effectiveDoctorId) }]
     })
-      .populate("pets.petId", "petName birthday")
+      .populate('pets.petId', 'petName birthday')
       .lean();
 
-    const reservationIds = reservations.map(r => r._id);
+    const resvIds = reservations.map(r => String(r._id));
 
-    // Load consultations (include services so we can display them)
+    // Consultations to mark hasConsultation & derive service names from consult
     const consults = await Consultation.find({
-      reservation: { $in: reservationIds }
+      reservation: { $in: resvIds }
     })
-      .select("reservation targetPetId targetPetName services")
+      .select('reservation targetPetId targetPetName services')
       .lean();
 
-    // Build lookup keyed by reservation+pet
-    // Keys: `${resId}::id::${petId}` or `${resId}::name::${petNameLower}`
-    const serviceByKey = new Map();
+    const serviceByKey = new Map(); // `${resId}::id::${petId}` or `...::name::${petNameLower}`
     const consultedKey = new Set();
 
-    const extractNames = (arr) => {
-      if (!Array.isArray(arr)) return [];
-      return arr
-        .map(s =>
-          (s?.serviceName ||
-           s?.name ||
-           s?.service?.name ||
-           s?.service?.serviceName ||
-           "").trim()
-        )
-        .filter(Boolean);
-    };
+    const extractNames = arr =>
+      Array.isArray(arr)
+        ? arr
+            .map(s => (s?.serviceName || s?.name || s?.service?.name || s?.service?.serviceName || '').trim())
+            .filter(Boolean)
+        : [];
 
-    for (const c of consults) {
+    for (const c of (consults || [])) {
       const resId = String(c.reservation);
-      const names = extractNames(c.services);
-      const label = [...new Set(names)].join(", ");
+      const label = [...new Set(extractNames(c.services))].join(', ');
       if (c.targetPetId) {
         const k = `${resId}::id::${String(c.targetPetId)}`;
         consultedKey.add(k);
@@ -218,107 +418,118 @@ router.get("/d-patient", authMiddleware, async (req, res) => {
       }
     }
 
+    // Build table rows
     const rows = [];
     for (const r of reservations) {
       for (const p of (r.pets || [])) {
-        if (p?.done) continue;
+        if (p?.done) continue; // skip completed pets
 
-        const petObj  = p.petId || p;
-        const pid     = petObj?._id ? String(petObj._id) : "";
-        const nameRaw = petObj?.petName || p.petName || "";
-        const nameKey = nameRaw.toLowerCase();
+        const petObj   = p.petId || p;
+        const pid      = petObj?._id ? String(petObj._id) : '';
+        const petName  = petObj?.petName || p.petName || '';
+        const nameKey  = petName.toLowerCase();
+        const keyById  = `${String(r._id)}::id::${pid}`;
+        const keyByNm  = `${String(r._id)}::name::${nameKey}`;
 
-        const keyById   = `${String(r._id)}::id::${pid}`;
-        const keyByName = `${String(r._id)}::name::${nameKey}`;
+        // 1) Service from consultation (most specific)
+        const consultedSvc =
+          serviceByKey.get(keyById) || serviceByKey.get(keyByNm) || null;
 
-        // 1) Prefer services from the consultation
-        const consultedServices =
-          serviceByKey.get(keyById) || serviceByKey.get(keyByName) || null;
+        // 2) Service from schedule (if any)
+        const scheduledSvc =
+          p?.schedule?.service?.name || p?.schedule?.scheduleDetails || '';
 
-        // 2) Then fallback to the pet's scheduled service (if any)
-        const scheduledService =
-          (p?.schedule?.service?.name) ||
-          (p?.schedule?.scheduleDetails) ||
-          "";
-
-        // 3) Finally, fallback to requested service
-        const requestedService = (function findServiceForPet(res, pet) {
-          if (Array.isArray(res.petRequests) && res.petRequests.length) {
-            const pidStr = pet?.petId ? String(pet.petId) : null;
-            let pr = null;
-            if (pidStr) pr = res.petRequests.find(x => String(x.petId) === pidStr);
-            if (!pr)    pr = res.petRequests.find(x => x.petName === pet.petName);
-            if (pr && pr.service) return pr.service;
-          }
-          return res.service || "—";
-        })(r, p);
+        // 3) Requested service as last fallback
+        let requestedSvc = r.service || '—';
+        if (Array.isArray(r.petRequests) && r.petRequests.length) {
+          const pidStr = p?.petId ? String(p.petId) : null;
+          let pr = null;
+          if (pidStr) pr = r.petRequests.find(x => String(x.petId) === pidStr);
+          if (!pr)    pr = r.petRequests.find(x => x.petName === p.petName);
+          if (pr?.service) requestedSvc = pr.service;
+        }
 
         const finalService =
-          consultedServices ||
-          scheduledService ||
-          requestedService ||
-          "—";
+          consultedSvc || scheduledSvc || requestedSvc || '—';
 
         const hasConsultation =
           p.hasConsult === true ||
           consultedKey.has(keyById) ||
-          consultedKey.has(keyByName);
+          consultedKey.has(keyByNm);
 
         rows.push({
-          reservationId: String(r._id),
-          ownerName: r.ownerName || "",
-          petId: pid,
-          petName: nameRaw || "—",
-          service: finalService,         // ✅ now resolves from consult → schedule → requested
-          petSchedule: p.schedule || null,
-          hasConsultation
+          reservationId   : String(r._id),
+          ownerName       : r.ownerName || '',
+          petId           : pid,
+          petName         : petName || '—',
+          service         : finalService,
+          petSchedule     : p.schedule || null,
+          hasConsultation,
+          resStatus       : r.status || '',
+          petDone         : !!p.done
         });
       }
     }
 
+    // Data for modals (services/diseases)
     const serviceCategories = await ServiceCategory.find({}).lean();
+    const settings = await PetDetailsSetting.findOne().lean();
 
-    // Simple services for schedule modal (from settings; fallback to distinct services)
-    const rawPetDetails = await PetDetailsSetting.findOne().lean();
     let simpleServices = [];
-    if (Array.isArray(rawPetDetails?.services) && rawPetDetails.services.length) {
-      simpleServices = rawPetDetails.services
-        .map(s => {
-          if (typeof s === "string") return s.trim();
-          if (s && typeof s === "object") {
-            return (
-              s.name || s.serviceName || s.title || s.label || s.value || ""
-            ).toString().trim();
-          }
-          return "";
-        })
+    if (Array.isArray(settings?.services) && settings.services.length) {
+      simpleServices = settings.services
+        .map(s => (typeof s === 'string'
+          ? s
+          : (s?.name || s?.serviceName || s?.title || s?.label || s?.value || '').toString()))
         .filter(Boolean)
         .sort((a, b) => a.localeCompare(b));
     } else {
-      simpleServices = (await Service.distinct("serviceName"))
+      simpleServices = (await Service.distinct('serviceName'))
         .filter(Boolean)
         .sort((a, b) => a.localeCompare(b));
     }
-    // NEW: diseases list (sorted) from settings
-const diseases = Array.isArray(rawPetDetails?.diseases)
-  ? [...rawPetDetails.diseases].filter(Boolean).sort((a,b)=>a.localeCompare(b))
-  : [];
 
-res.render("doctor/d-patient", {
-  rows,
-  serviceCategories,
-  simpleServices,
-  diseases, // NEW
-  doctor: { userId: req.user.userId, username: req.user.username }
+    const diseases = Array.isArray(settings?.diseases)
+      ? [...settings.diseases].filter(Boolean).sort((a,b)=>a.localeCompare(b))
+      : [];
+
+    // JSON mode (used by admin "Load" button)
+    if (String(req.query.format || '').toLowerCase() === 'json') {
+      return res.json({
+        success: true,
+        rows,
+        serviceCategories,
+        simpleServices,
+        diseases,
+        doctor: { userId: String(effectiveDoctorId), username: effectiveDoctorName }
+      });
+    }
+
+    // EJS mode
+    let doctors = [];
+    if (isAdmin) {
+      doctors = await User.find({ role: /doctor/i })
+        .select('_id username')
+        .sort({ username: 1 })
+        .lean();
+    }
+
+    return res.render('doctor/d-patient', {
+      rows,
+      serviceCategories,
+      simpleServices,
+      diseases,
+      doctor: { userId: String(effectiveDoctorId), username: effectiveDoctorName },
+      isAdminView   : isAdmin,
+      activeDoctorId: String(effectiveDoctorId),
+      doctors
+    });
+
+  } catch (err) {
+    console.error('Error fetching assigned patients:', err);
+    res.status(500).send('Server error');
+  }
 });
-
-} catch (error) {
-  console.error("Error fetching assigned patients:", error);
-  res.status(500).send("Server error");
-}
-});
-
-
 
 
 // Render Doctor History Page
@@ -346,6 +557,8 @@ router.get("/d-profile", authMiddleware, (req, res) => {
 // POST /doctor/mark-done
 // expects: reservationId, petId
 // POST /doctor/mark-done  (per-pet; supports petId OR petName; auto-finish reservation if all pets done)
+// POST /doctor/mark-done
+// POST /doctor/mark-done  (per-pet; supports petId OR petName; auto-creates/keeps follow-up without time flipping)
 router.post('/mark-done', authMiddleware, async (req, res) => {
   try {
     const { reservationId, petId, petName } = req.body;
@@ -356,7 +569,7 @@ router.post('/mark-done', authMiddleware, async (req, res) => {
       });
     }
 
-    // Build selector (supports ObjectId or string) – same behavior you had
+    // --- mark the specific pet as done ---
     let selector;
     if (petId) {
       const rid = mongoose.Types.ObjectId.isValid(reservationId)
@@ -370,27 +583,238 @@ router.post('/mark-done', authMiddleware, async (req, res) => {
       selector = { _id: reservationId, 'pets.petName': petName };
     }
 
-    // Mark THIS pet as done
     const result = await Reservation.updateOne(selector, { $set: { 'pets.$.done': true } });
     if ((result.matchedCount ?? result.n) === 0) {
       return res.status(404).json({ success: false, message: 'Reservation or pet not found' });
     }
 
-    // Re-fetch reservation to check if ALL pets are done
+    // --- re-fetch to compute allDone, and to access pet schedule ---
     const updated = await Reservation.findById(reservationId).lean();
     const allDone = (updated?.pets || []).every(p => !!p.done);
 
-    // 🔴 realtime: pet-level done (you already broadcast pet progress)
     broadcast({ type: 'reservation:pet-done', reservationId, petId, petName, allDone });
 
+    // ====== helpers for auto-creating the customer follow-up ======
+    const TIME_SLOTS = [
+      '08:00 AM','09:00 AM','10:00 AM','11:00 AM',
+      '12:00 PM','01:00 PM','02:00 PM','03:00 PM','04:00 PM','05:00 PM'
+    ];
+
+    // "1:00 pm" -> "01:00 PM"
+    function canonTime(label) {
+      if (!label) return null;
+      const m = String(label).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!m) return null;
+      let h = parseInt(m[1], 10);
+      if (h < 1 || h > 12) return null;
+      const mm = m[2];
+      const ap = m[3].toUpperCase();
+      return String(h).padStart(2,'0') + ':' + mm + ' ' + ap;
+    }
+
+    const toISODateKeyUTC = (d) => {
+      const z = new Date(d);
+      return isNaN(z) ? null : z.toISOString().slice(0,10);
+    };
+    const dayBoundsUTC = (isoKey) => ({
+      start: new Date(isoKey + 'T00:00:00.000Z'),
+      end  : new Date(isoKey + 'T23:59:59.999Z')
+    });
+
+    async function getPerHourLimit() {
+      try {
+        const AppointmentSetting = require('../models/appointmentSetting');
+        const s = await AppointmentSetting.findOne().lean();
+        return Number(s?.limitPerHour || 0); // 0 = unlimited
+      } catch { return 0; }
+    }
+
+    // ⬇️ UPDATED: can exclude an existing auto-follow-up doc from the count
+    async function countPetsBookedForSlot(isoKey, timeLabel, excludeId = null) {
+      const { start, end } = dayBoundsUTC(isoKey);
+      const q = {
+        date  : { $gte: start, $lte: end },
+        time  : timeLabel,
+        status: { $nin: ['Canceled', 'Rejected'] }
+      };
+      if (excludeId) q._id = { $ne: excludeId };
+
+      const hits = await Reservation.find(q).select('petRequests').lean();
+      let count = 0;
+      for (const r of hits) {
+        count += (Array.isArray(r.petRequests) && r.petRequests.length) ? r.petRequests.length : 1;
+      }
+      return count;
+    }
+
+    // Create/ensure ONE auto follow-up Reservation for this (reservation, pet, day).
+    // - Preserves previously chosen time if it already exists (prevents 8AM fallback).
+    // - EXCLUDES existing auto-follow-up doc from capacity counting.
+    async function ensureOneAutoFollowup(resvDoc, petObj, dateVal, details, doctorId, preferredTimeRaw) {
+      if (!resvDoc || !petObj || !dateVal) return { created: false, time: null };
+
+      const iso = toISODateKeyUTC(dateVal);
+      if (!iso) return { created: false, time: null };
+
+      const petIdInner   = petObj?.petId || null;
+      const petNameInner = petObj?.petName || (petObj?.petId?.petName) || '';
+
+      const serviceLabel =
+        (petObj?.schedule?.service?.name) ||
+        (petObj?.schedule?.scheduleDetails) ||
+        (details || '') ||
+        'Follow-up';
+
+      // timeless key (res + pet + day)
+      const baseKey = [
+        'AUTO_FOLLOWUP',
+        String(resvDoc._id),
+        String(petIdInner || petNameInner || 'pet'),
+        iso
+      ].join('::');
+
+      // Try to find an existing doc by timeless key…
+      let existing = await Reservation.findOne({ idemKey: baseKey }).lean();
+
+      // …otherwise fall back to any doctor_auto_followup on the same day for this pet
+      if (!existing) {
+        const { start, end } = dayBoundsUTC(iso);
+        const petMatch = petIdInner
+          ? { $or: [{ 'petRequests.petId': petIdInner }, { 'pets.petId': petIdInner }] }
+          : { $or: [{ 'petRequests.petName': petNameInner }, { 'pets.petName': petNameInner }] };
+
+        existing = await Reservation.findOne({
+          source: 'doctor_auto_followup',
+          date: { $gte: start, $lte: end },
+          status: { $nin: ['Canceled', 'Rejected'] },
+          ...petMatch
+        }).lean();
+      }
+
+      // Normalize incoming time
+      const preferredCanon = (function canonTime(label) {
+        if (!label) return null;
+        const m = String(label).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+        if (!m) return null;
+        const h = String(parseInt(m[1],10)).padStart(2,'0');
+        return `${h}:${m[2]} ${m[3].toUpperCase()}`;
+      })(preferredTimeRaw);
+
+      const carryOverCanon =
+        (existing && existing.time && TIME_SLOTS.includes(existing.time))
+          ? existing.time
+          : null;
+
+      const perHour   = await getPerHourLimit();
+      const excludeId = existing?._id || null; // ⬅️ exclude self from capacity checks
+
+      // Pick a time
+      let chosen = null;
+      if (perHour === 0) {
+        // unlimited -> keep doctor pick, else keep existing, else unset
+        chosen = preferredCanon || carryOverCanon || null;
+      } else {
+        // limited -> prefer doctor pick, else keep existing, else first available
+        const ok = async (t) => (await countPetsBookedForSlot(iso, t, excludeId)) < perHour;
+
+        if (preferredCanon && TIME_SLOTS.includes(preferredCanon) && await ok(preferredCanon)) {
+          chosen = preferredCanon;
+        } else if (carryOverCanon && await ok(carryOverCanon)) {
+          chosen = carryOverCanon;
+        } else {
+          for (const t of TIME_SLOTS) {
+            if (await ok(t)) { chosen = t; break; }
+          }
+        }
+      }
+
+      // Build the write
+      const setOnInsert = {
+        owner    : resvDoc.owner || null,
+        ownerName: resvDoc.ownerName || '',
+        date     : new Date(iso),
+        status   : 'Pending',
+        preferredDoctor: doctorId || null,
+        petRequests: [{
+          petId  : petIdInner || undefined,
+          petName: petNameInner,
+          service: serviceLabel
+        }],
+        pets: [{
+          petId  : petIdInner || undefined,
+          petName: petNameInner,
+          done   : false,
+          hasConsult: false
+        }],
+        idemKey : baseKey,
+        source  : 'doctor_auto_followup',
+        createdAt: new Date()
+      };
+
+      const set = {};
+      if (chosen) set.time = chosen; // only overwrite if we actually picked a time
+
+      // Upsert by timeless key
+      await Reservation.updateOne(
+        { idemKey: baseKey },
+        { $set: set, $setOnInsert: setOnInsert },
+        { upsert: true }
+      );
+
+      // Keep the timeless one, remove other same-day follow-ups for this pet
+      try {
+        const keeper = await Reservation.findOne({ idemKey: baseKey }).select('_id').lean();
+        const { start, end } = dayBoundsUTC(iso);
+        const petMatch = petIdInner
+          ? { $or: [{ 'petRequests.petId': petIdInner }, { 'pets.petId': petIdInner }] }
+          : { $or: [{ 'petRequests.petName': petNameInner }, { 'pets.petName': petNameInner }] };
+
+        await Reservation.deleteMany({
+          _id: { $ne: keeper?._id },
+          source: 'doctor_auto_followup',
+          date: { $gte: start, $lte: end },
+          ...petMatch
+        });
+      } catch (e) {
+        console.warn('auto-followup dedupe skipped:', e.message);
+      }
+
+      return { created: !existing, time: chosen || carryOverCanon || existing?.time || null };
+    }
+
+    // --- if this pet already has a follow-up date, ensure a single customer reservation for it ---
+    try {
+      const pet = (updated?.pets || []).find(p =>
+        (petId && String(p.petId) === String(petId)) ||
+        (!petId && petName && String((p.petName || p.petId?.petName || '')).trim().toLowerCase() === String(petName).trim().toLowerCase())
+      );
+
+      const hasFollow = pet && pet.schedule && pet.schedule.scheduleDate;
+      if (hasFollow) {
+           const actingDoctorId =
+           String(req.user?.role || '').toLowerCase() === 'admin'
+             ? updated.doctor || req.user.userId
+            : req.user.userId;
+         await ensureOneAutoFollowup(
+          updated,
+          pet,
+          pet.schedule.scheduleDate,
+          (pet.schedule.scheduleDetails ||
+            (pet.schedule.service && pet.schedule.service.name) || ''),
+            actingDoctorId,
+          pet.schedule.time // raw -> canon inside
+        );
+      }
+    } catch (e) {
+      console.error('auto follow-up booking (mark-done) failed:', e);
+    }
+
+    // --- finalize reservation status if all pets done ---
     let finalStatus = updated?.status || '';
 
-    // If ALL pets are done, decide between Done vs Canceled (empty consult)
     if (allDone) {
-      // Pull consults for this reservation
       const consults = await Consultation.find({ reservation: reservationId }).lean();
 
-      // "Meaningful" = any meds/services/diagnosis/notes/PE/follow-up exist
       const isNonEmpty = (c) => {
         const hasMeds   = Array.isArray(c.medications) && c.medications.length > 0;
         const hasSvcs   = Array.isArray(c.services)    && c.services.length > 0;
@@ -403,7 +827,6 @@ router.post('/mark-done', authMiddleware, async (req, res) => {
 
       const nonEmptyCount = consults.filter(isNonEmpty).length;
 
-      // If there is at least one real/meaningful consultation → mark as Done
       if (nonEmptyCount > 0) {
         if (updated.status !== 'Done') {
           await Reservation.updateOne({ _id: reservationId }, { $set: { status: 'Done' } });
@@ -411,16 +834,13 @@ router.post('/mark-done', authMiddleware, async (req, res) => {
           broadcast({ type: 'reservation:done', reservation: { _id: reservationId } });
         }
       } else {
-        // Otherwise treat as empty consult → mark as Canceled
-        // (don’t override Paid if it somehow already is)
         if (updated.status !== 'Paid' && updated.status !== 'Canceled') {
           await Reservation.updateOne({ _id: reservationId }, { $set: { status: 'Canceled' } });
           finalStatus = 'Canceled';
-          // Clean up empty consult docs so Payment/Details doesn’t show blanks
           await Consultation.deleteMany({ reservation: reservationId });
           broadcast({ type: 'reservation:canceled', reservation: { _id: reservationId } });
         } else {
-          finalStatus = updated.status; // keep existing Paid/Canceled if already set
+          finalStatus = updated.status;
         }
       }
     }
@@ -431,7 +851,6 @@ router.post('/mark-done', authMiddleware, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
 
 
 // Get Consultation Details for a Reservation
@@ -486,9 +905,10 @@ router.post(
       if (!reservation) {
         return res.status(404).json({ success: false, message: 'Reservation not found.' });
       }
-      if (reservation.doctor?.toString() !== req.user.userId.toString()) {
-        return res.status(403).json({ success: false, message: 'Not authorized.' });
-      }
+     const isAdmin = String(req.user?.role || '').toLowerCase() === 'admin';
+ if (!isAdmin && reservation.doctor?.toString() !== String(req.user.userId)) {
+   return res.status(403).json({ success: false, message: 'Not authorized.' });
+ }
 
       // --- Map uploaded files to serviceId ---
       let fileMap = {};
@@ -597,6 +1017,16 @@ reservation.services = services.map(srv => ({
 
 
       // --- FLAG the exact pet as having a consult + optionally write a per-pet schedule ---
+      // Helper: normalize "1:00 pm" -> "01:00 PM"
+function canonTime(label) {
+  if (!label) return null;
+  const m = String(label).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  if (h < 1 || h > 12) return null;
+  return String(h).padStart(2, '0') + ':' + m[2] + ' ' + m[3].toUpperCase();
+}
+
       let selector;
       if (finalPetId) {
         selector = { _id: reservationId, 'pets.petId': finalPetId };
@@ -606,15 +1036,18 @@ reservation.services = services.map(srv => ({
 
       if (selector) {
         const setObj = { 'pets.$.hasConsult': true };
-    if (scheduleDate) {
-  // If you also pass scheduleServiceName from that form, fall back to it:
+ if (scheduleDate) {
   const svcName = (req.body.scheduleServiceName || '').trim();
+  const tCanon  = canonTime(req.body.scheduleTime);
+
   setObj['pets.$.schedule'] = {
-    scheduleDate:   new Date(scheduleDate),
+    scheduleDate:    new Date(scheduleDate),
     scheduleDetails: (scheduleDetails && scheduleDetails.trim()) || svcName || ''
     // (Optionally attach a service object here too, like in /add-schedule)
   };
+  if (tCanon) setObj['pets.$.schedule'].time = tCanon;
 }
+
 
         await Reservation.updateOne(selector, { $set: setObj });
       }
@@ -648,8 +1081,21 @@ return res.json({ success: true, consultation: updatedConsult });
 // Make sure these are at the top of the file (if not already):
 // const mongoose = require('mongoose');
 // const Reservation = require('../models/reservation');
-
 // POST /doctor/add-schedule
+// ADD / REPLACE THIS WHOLE HANDLER
+// ADD / UPDATE FOLLOW-UP SCHEDULE (per pet)
+// - Persists per-pet schedule { scheduleDate, scheduleDetails, time?, service? }
+// - Auto-creates a customer-facing Reservation on the same day/time (if available)
+// - Honors the doctor's chosen time first; falls back to next available hour
+// ADD / UPDATE FOLLOW-UP SCHEDULE (per pet)
+// - Persists per-pet schedule { scheduleDate, scheduleDetails, time?, service? }
+// - Auto-creates a customer-facing Reservation on the same day/time (if available)
+// - Honors the doctor's chosen time first; falls back to next available hour
+// - IMPORTANT: capacity checks EXCLUDE the existing auto-follow-up doc (prevents time flipping)
+// ADD / UPDATE FOLLOW-UP SCHEDULE (per pet)
+// - Enforces per-hour limit on the EXACT picked time (409 if full)
+// - Upserts ONE customer-facing auto follow-up for that pet/day with that time
+// - Frees old day’s slot when the date changes
 router.post('/add-schedule', authMiddleware, async (req, res) => {
   try {
     const {
@@ -657,6 +1103,7 @@ router.post('/add-schedule', authMiddleware, async (req, res) => {
       petId,
       petName,
       scheduleDate,
+      scheduleTime,
       scheduleDetails,
       scheduleServiceId,
       scheduleServiceName,
@@ -672,80 +1119,222 @@ router.post('/add-schedule', authMiddleware, async (req, res) => {
     }
 
     // ---------- helpers ----------
+    const TIME_SLOTS = [
+      '08:00 AM','09:00 AM','10:00 AM','11:00 AM',
+      '12:00 PM','01:00 PM','02:00 PM','03:00 PM','04:00 PM','05:00 PM'
+    ];
+
+    function canonTime(label) {
+      if (!label) return null;
+      const m = String(label).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!m) return null;
+      const h = String(parseInt(m[1],10)).padStart(2,'0');
+      return `${h}:${m[2]} ${m[3].toUpperCase()}`;
+    }
+
     const toISODateKeyUTC = (d) => {
       const z = new Date(d);
-      if (isNaN(z)) return null;
-      return z.toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+      return isNaN(z) ? null : z.toISOString().slice(0,10);
     };
-    const dayBoundsUTC = (isoKey /* YYYY-MM-DD */) => ({
+    const dayBoundsUTC = (isoKey) => ({
       start: new Date(isoKey + 'T00:00:00.000Z'),
       end  : new Date(isoKey + 'T23:59:59.999Z')
     });
-      async function getFollowupLimit() {
+
+    async function getFollowupLimit() {
       try {
-        // Use your singleton settings doc that has followUpDailyLimit
+        const PetDetailsSettings = require('../models/petDetailsSettings');
         const s = await PetDetailsSettings.findOne().lean();
         return Number(s?.followUpDailyLimit || 0);  // 0 = no cap
-      } catch {
-        return 0;
-      }
+      } catch { return 0; }
     }
-
-    async function countPetsOnDate(isoKey) {
+    async function getPerHourLimit() {
+      try {
+        const AppointmentSetting = require('../models/appointmentSetting');
+        const s = await AppointmentSetting.findOne().lean();
+        return Number(s?.limitPerHour || 0); // 0 = unlimited
+      } catch { return 0; }
+    }
+    async function countPetsBookedForSlot(isoKey, timeLabel, excludeId = null) {
       const { start, end } = dayBoundsUTC(isoKey);
-      const agg = await Reservation.aggregate([
-        { $unwind: '$pets' },
-        {
-          $match: {
-            'pets.schedule.scheduleDate': { $gte: start, $lte: end }
+      const q = {
+        date  : { $gte: start, $lte: end },
+        time  : timeLabel,
+        status: { $nin: ['Canceled', 'Rejected'] }
+      };
+      if (excludeId) q._id = { $ne: excludeId };
+
+      const hits = await Reservation.find(q).select('petRequests').lean();
+      let count = 0;
+      for (const r of hits) {
+        count += (Array.isArray(r.petRequests) && r.petRequests.length) ? r.petRequests.length : 1;
+      }
+      return count;
+    }
+
+    // ONE auto follow-up per (resv, pet, day) — time can change on reschedule
+    async function ensureOneAutoFollowup(resvDoc, petObj, dateVal, details, doctorId, preferredTimeRaw) {
+      if (!resvDoc || !petObj || !dateVal) return { created: false, time: null };
+
+      const iso = toISODateKeyUTC(dateVal);
+      if (!iso) return { created: false, time: null };
+
+      const petIdInner   = petObj?.petId || null;
+      const petNameInner = petObj?.petName || (petObj?.petId?.petName) || '';
+
+      const serviceLabel =
+        (petObj?.schedule?.service?.name) ||
+        (petObj?.schedule?.scheduleDetails) ||
+        (details || '') ||
+        'Follow-up';
+
+      const baseKey = [
+        'AUTO_FOLLOWUP',
+        String(resvDoc._id),
+        String(petIdInner || petNameInner || 'pet'),
+        iso
+      ].join('::');
+
+      let existing = await Reservation.findOne({ idemKey: baseKey }).lean();
+
+      // Normalize incoming time
+      const preferredCanon = canonTime(preferredTimeRaw);
+      const carryOverCanon =
+        (existing && existing.time && TIME_SLOTS.includes(existing.time))
+          ? existing.time
+          : null;
+
+      const perHour   = await getPerHourLimit();
+      const excludeId = existing?._id || null;
+
+      // Pick a time
+      let chosen = null;
+      if (perHour === 0) {
+        chosen = preferredCanon || carryOverCanon || null;
+      } else {
+        const ok = async (t) => (await countPetsBookedForSlot(iso, t, excludeId)) < perHour;
+        if (preferredCanon && TIME_SLOTS.includes(preferredCanon) && await ok(preferredCanon)) {
+          chosen = preferredCanon;
+        } else if (carryOverCanon && await ok(carryOverCanon)) {
+          chosen = carryOverCanon;
+        } else {
+          for (const t of TIME_SLOTS) {
+            if (await ok(t)) { chosen = t; break; }
           }
-        },
-        { $count: 'n' }
-      ]);
-      return agg.length ? Number(agg[0].n || 0) : 0;
+        }
+      }
+
+      const setOnInsert = {
+        owner    : resvDoc.owner || null,
+        ownerName: resvDoc.ownerName || '',
+        date     : new Date(iso),
+        status   : 'Pending',
+        preferredDoctor: doctorId || null,
+        petRequests: [{
+          petId  : petIdInner || undefined,
+          petName: petNameInner,
+          service: serviceLabel
+        }],
+        pets: [{
+          petId  : petIdInner || undefined,
+          petName: petNameInner,
+          done   : false,
+          hasConsult: false
+        }],
+        idemKey : baseKey,
+        source  : 'doctor_auto_followup',
+        createdAt: new Date()
+      };
+
+      const set = {};
+      if (chosen) set.time = chosen;
+
+      await Reservation.updateOne(
+        { idemKey: baseKey },
+        { $set: set, $setOnInsert: setOnInsert },
+        { upsert: true }
+      );
+
+      // Deduplicate same-day extras
+      try {
+        const keeper = await Reservation.findOne({ idemKey: baseKey }).select('_id').lean();
+        const { start, end } = dayBoundsUTC(iso);
+        const petMatch = petIdInner
+          ? { $or: [{ 'petRequests.petId': petIdInner }, { 'pets.petId': petIdInner }] }
+          : { $or: [{ 'petRequests.petName': petNameInner }, { 'pets.petName': petNameInner }] };
+
+        await Reservation.deleteMany({
+          _id: { $ne: keeper?._id },
+          source: 'doctor_auto_followup',
+          date: { $gte: start, $lte: end },
+          ...petMatch
+        });
+      } catch { /* ignore */ }
+
+      return { created: !existing, time: chosen || carryOverCanon || existing?.time || null };
     }
 
-    // ---------- load current reservation + pet to know previous date ----------
+    // ---------- load reservation + pet ----------
     const fresh = await Reservation.findById(reservationId).lean();
-    if (!fresh) {
-      return res.status(404).json({ success: false, message: 'Reservation not found.' });
-    }
+    if (!fresh) return res.status(404).json({ success: false, message: 'Reservation not found.' });
 
-    // find the target pet within the reservation
     const pet = (fresh.pets || []).find(p =>
       (petId && String(p.petId) === String(petId)) ||
-      (!petId && petName && String(p.petName).trim() === String(petName).trim())
+      (!petId && petName && String(p.petName || '').trim().toLowerCase() === String(petName || '').trim().toLowerCase())
     );
-    if (!pet) {
-      return res.status(404).json({ success: false, message: 'Pet not found in reservation.' });
-    }
+    if (!pet) return res.status(404).json({ success: false, message: 'Pet not found in reservation.' });
 
-    const newISO   = toISODateKeyUTC(scheduleDate);
-    if (!newISO) {
-      return res.status(400).json({ success: false, message: 'Invalid scheduleDate.' });
-    }
-    const prevISO  = pet.schedule && pet.schedule.scheduleDate
-      ? toISODateKeyUTC(pet.schedule.scheduleDate)
-      : null;
+    const newISO = toISODateKeyUTC(scheduleDate);
+    if (!newISO) return res.status(400).json({ success: false, message: 'Invalid scheduleDate.' });
 
-    // ---------- enforce limit (except when keeping same date) ----------
-    const limit = await getFollowupLimit(); // 0 => unlimited
-    if (limit > 0 && newISO !== prevISO) {
-      const dayCount = await countPetsOnDate(newISO);
-      if (dayCount >= limit) {
-        return res.status(409).json({
-          success: false,
-          message: 'Selected date is full (daily limit reached).'
-        });
+    const prevISO  = pet.schedule?.scheduleDate ? toISODateKeyUTC(pet.schedule.scheduleDate) : null;
+    const prevTime = pet.schedule?.time || pet.schedule?.scheduleTime || null;
+    const tCanon   = canonTime(scheduleTime);
+
+    // ---------- daily follow-up limit (only if switching day) ----------
+    const dayLimit = await getFollowupLimit();
+    if (dayLimit > 0 && newISO !== prevISO) {
+      const { start, end } = dayBoundsUTC(newISO);
+      const agg = await Reservation.aggregate([
+        { $unwind: '$pets' },
+        { $match: { 'pets.schedule.scheduleDate': { $gte: start, $lte: end } } },
+        { $count: 'n' }
+      ]);
+      const dayCount = agg.length ? Number(agg[0].n || 0) : 0;
+      if (dayCount >= dayLimit) {
+        return res.status(409).json({ success: false, message: 'Selected date is full (daily limit reached).' });
       }
     }
 
-    // ---------- build payload to save on this pet ----------
+    // ---------- per-hour limit on EXACT picked time ----------
+    const perHour = await getPerHourLimit();
+    if (perHour > 0 && tCanon && TIME_SLOTS.includes(tCanon)) {
+      // compute baseKey to find existing auto follow-up (exclude it from the count)
+      const petIdInner   = pet?.petId || null;
+      const petNameInner = pet?.petName || (pet?.petId?.petName) || '';
+      const baseKey = [
+        'AUTO_FOLLOWUP',
+        String(fresh._id),
+        String(petIdInner || petNameInner || 'pet'),
+        newISO
+      ].join('::');
+      const existingAuto = await Reservation.findOne({ idemKey: baseKey }).select('_id').lean();
+      const used = await countPetsBookedForSlot(newISO, tCanon, existingAuto?._id || null);
+      if (used >= perHour) {
+        return res.status(409).json({ success: false, message: `Selected time (${tCanon}) is full. Pick another slot.` });
+      }
+    }
+
+    // ---------- build per-pet schedule payload ----------
     const chosenName = (scheduleServiceName || '').trim();
     const schedulePayload = {
       scheduleDate   : new Date(scheduleDate),
       scheduleDetails: (scheduleDetails && scheduleDetails.trim()) || chosenName || ''
     };
+    if (tCanon) {
+      schedulePayload.time = tCanon;
+      schedulePayload.scheduleTime = tCanon; // back-compat alias
+    }
     if (scheduleServiceId || chosenName) {
       schedulePayload.service = {
         id          : scheduleServiceId || null,
@@ -755,73 +1344,107 @@ router.post('/add-schedule', authMiddleware, async (req, res) => {
       };
     }
 
-    // ---------- update just this pet's schedule ----------
-    let selector;
-    if (petId) {
-      selector = { _id: reservationId, 'pets.petId': petId };
-    } else {
-      selector = { _id: reservationId, 'pets.petName': petName };
+    // reschedule metadata
+    const changedDate = !!(prevISO && prevISO !== newISO);
+    const changedTime = (tCanon || '') !== (prevTime || '');
+    if (changedDate || changedTime) {
+      schedulePayload.rescheduled = {
+        fromDate: pet?.schedule?.scheduleDate || null,
+        fromTime: prevTime || null,
+        toDate  : schedulePayload.scheduleDate,
+        toTime  : tCanon || null,
+        at      : new Date(),
+        by      : req.user?.userId || req.user?._id || null
+      };
     }
 
-    const update = { $set: { 'pets.$.schedule': schedulePayload } };
-    const result = await Reservation.updateOne(selector, update);
+    const selector = petId
+      ? { _id: reservationId, 'pets.petId': petId }
+      : { _id: reservationId, 'pets.petName': petName };
 
-    const matched = (result.matchedCount ?? result.n) || 0;
-    if (matched === 0) {
+    const result = await Reservation.updateOne(
+      selector,
+      { $set: { 'pets.$.schedule': schedulePayload } }
+    );
+    if ((result.matchedCount ?? result.n) === 0) {
       return res.status(404).json({ success: false, message: 'Pet not found in reservation.' });
     }
 
-    // ---------- maintain top-level reservation.schedule = earliest upcoming ----------
-    const after = await Reservation.findById(reservationId).lean();
-    const petSchedules = (after?.pets || [])
-      .map(p => p.schedule)
-      .filter(s => s && s.scheduleDate);
-
-    if (petSchedules.length) {
-      petSchedules.sort((a, b) => new Date(a.scheduleDate) - new Date(b.scheduleDate));
-      await Reservation.updateOne(
-        { _id: reservationId },
-        { $set: { schedule: petSchedules[0] } }
-      );
-    } else {
-      await Reservation.updateOne(
-        { _id: reservationId },
-        { $unset: { schedule: '' } }
-      );
+    // If date changed, free old day’s slot (remove that day’s auto follow-up)
+    if (prevISO && prevISO !== newISO) {
+      const { start: prevStart, end: prevEnd } = dayBoundsUTC(prevISO);
+      const petMatch = petId
+        ? { $or: [{ 'petRequests.petId': petId }, { 'pets.petId': petId }] }
+        : { $or: [{ 'petRequests.petName': petName }, { 'pets.petName': petName }] };
+      await Reservation.deleteMany({
+        source: 'doctor_auto_followup',
+        date: { $gte: prevStart, $lte: prevEnd },
+        status: { $nin: ['Canceled', 'Rejected'] },
+        ...petMatch
+      });
     }
 
-    // ---------- optional: broadcast SSE so admin "upcoming" updates live ----------
+    // maintain reservation.schedule (earliest per-pet)
+    const after = await Reservation.findById(reservationId).lean();
+    const petSchedules = (after?.pets || []).map(p => p.schedule).filter(s => s && s.scheduleDate);
+    if (petSchedules.length) {
+      petSchedules.sort((a, b) => new Date(a.scheduleDate) - new Date(b.scheduleDate));
+      await Reservation.updateOne({ _id: reservationId }, { $set: { schedule: petSchedules[0] } });
+    } else {
+      await Reservation.updateOne({ _id: reservationId }, { $unset: { schedule: '' } });
+    }
+
+    // Ensure ONE customer reservation for that day/time
+    let autoBooked = { date: newISO, time: null };
     try {
-      const payloadForSSE = {
+      const targetPetForAuto = (after.pets || []).find(p =>
+        (petId && String(p.petId) === String(petId)) ||
+        (!petId && petName && String((p.petName || p.petId?.petName || '')).trim().toLowerCase() === String(petName).trim().toLowerCase())
+      );
+      const actingDoctorId =
+        String(req.user?.role || '').toLowerCase() === 'admin'
+          ? after.doctor || req.user.userId
+          : req.user.userId;
+
+      const { created, time } = await ensureOneAutoFollowup(
+        after,
+        targetPetForAuto,
+        schedulePayload.scheduleDate,
+        schedulePayload.scheduleDetails || (schedulePayload.service && schedulePayload.service.name) || '',
+        actingDoctorId,
+        schedulePayload.time // raw; normalized inside
+      );
+      if (created || time) autoBooked.time = time || null;
+    } catch (e) {
+      console.error('auto follow-up booking (add-schedule) failed:', e);
+    }
+
+    // SSE: repaint doctor calendar right away
+    try {
+      const iso = newISO;
+      const payload = {
         type: 'followup:scheduled',
         payload: {
-          reservationId,
-          ownerName : fresh.ownerName || '',
-          doctor    : fresh.doctor || null, // or { username: ... } depending on your schema
-          petId     : pet.petId || null,
-          petName   : pet.petName || '',
-          status    : fresh.resStatus || '',
-          schedule  : {
-            scheduleDate: schedulePayload.scheduleDate,
-            scheduleDetails: schedulePayload.scheduleDetails,
-            service: schedulePayload.service || null
-          }
+          iso,
+          time: schedulePayload?.time || null,
+          service: (schedulePayload?.service?.name) || schedulePayload?.scheduleDetails || null
         }
       };
-      // replace this with your actual broadcaster:
-      if (global.sendAdminEvent) global.sendAdminEvent(payloadForSSE);
-      // or: adminSSE.broadcast(payloadForSSE);
+      // Broadcast to connected doctor UIs
+      try { broadcast(payload); } catch {}
+      // If you also have an admin stream, keep your existing admin event if needed:
+      if (global.sendAdminEvent) global.sendAdminEvent(payload);
     } catch (e) {
       console.warn('SSE broadcast failed (non-fatal):', e);
     }
 
-    return res.json({ success: true, saved: schedulePayload });
+    return res.json({ success: true, saved: schedulePayload, autoBooked });
+
   } catch (err) {
     console.error('add-schedule error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
 
 
 
@@ -1220,42 +1843,163 @@ router.get('/settings/diseasesBySpecies', authMiddleware, async (req, res) => {
 });
 
 // GET /doctor/followup/stats?year=YYYY&month=1..12
+// (C) Month stats for calendar (drives red "Full" days)
+// FINAL PATH AT RUNTIME: /doctor/followup/stats
+// GET /doctor/followup/stats?year=YYYY&month=1..12
+// GET /doctor/followup/stats?year=YYYY&month=1..12
 router.get('/followup/stats', authMiddleware, async (req, res) => {
   try {
     const year  = parseInt(req.query.year, 10);
     const month = parseInt(req.query.month, 10); // 1..12
-    if (!year || !month || month < 1 || month > 12) {
-      return res.status(400).json({ success:false, message:'Invalid year/month' });
-    }
+    if (!year || !month) return res.json({ limit: 0, counts: {} });
 
-    // UTC month window [start, end)
-    const start = new Date(Date.UTC(year, month - 1, 1));
-    const end   = new Date(Date.UTC(year, month, 1));
+    // Month bounds in UTC
+    const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const end   = new Date(Date.UTC(year, month,     0, 23, 59, 59, 999));
 
-    // Count pet-level schedules per day (UTC) for the month
-    const rows = await Reservation.aggregate([
+    // Doctor filter (accepts ObjectId or string stored in doc)
+    const docIdStr = String(req.user?._id || req.user?.userId || '');
+    const docObjId = mongoose.Types.ObjectId.isValid(docIdStr)
+      ? new mongoose.Types.ObjectId(docIdStr)
+      : null;
+
+    // Count each PET that has a follow-up day within the month, for THIS doctor
+    const pipeline = [
+      {
+        $match: {
+          status: { $ne: 'Canceled' },
+          $or: [{ doctor: docObjId }, { doctor: docIdStr }],
+          'pets.schedule.scheduleDate': { $gte: start, $lte: end }
+        }
+      },
       { $unwind: '$pets' },
-      { $match: { 'pets.schedule.scheduleDate': { $gte: start, $lt: end } } },
+      {
+        $match: {
+          'pets.schedule.scheduleDate': { $gte: start, $lte: end }
+        }
+      },
       {
         $group: {
           _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$pets.schedule.scheduleDate', timezone: 'UTC' }
+            $dateToString: {
+              date: '$pets.schedule.scheduleDate',
+              format: '%Y-%m-%d',
+              timezone: 'UTC'
+            }
           },
-          n: { $sum: 1 }
+          cnt: { $sum: 1 }
         }
       }
-    ]);
+    ];
 
+    const rows = await Reservation.aggregate(pipeline);
     const counts = {};
-    rows.forEach(r => { counts[r._id] = r.n; });
+    rows.forEach(r => { counts[r._id] = r.cnt; });
 
-    const settings = await PetDetailsSettings.findOne().lean();
-    const limit = Number(settings?.followUpDailyLimit || 0);
+    // Optional daily capacity (0 = unlimited).
+    // Uses AppointmentSetting.limitPerHour * TIME_SLOTS.length if you want it.
+    let limitPerHour = 0;
+    try {
+      const s = await AppointmentSetting.findOne().lean();
+      limitPerHour = Number(s?.limitPerHour ?? 0);
+    } catch { /* ignore */ }
+    const dailyLimit = limitPerHour > 0 ? limitPerHour * TIME_SLOTS.length : 0;
 
-    res.json({ success: true, limit, counts });
+    return res.json({ limit: dailyLimit, counts });
   } catch (e) {
-    console.error('GET /doctor/followup/stats error:', e);
-    res.status(500).json({ success:false, message:'Server error' });
+    console.error('followup/stats error:', e);
+    return res.json({ limit: 0, counts: {} });
+  }
+});
+
+// === Follow-up day list (table rows) ===
+// GET /doctor/followup/list?date=YYYY-MM-DD
+// === Follow-up day list (table rows) ===
+// GET /doctor/followup/list?date=YYYY-MM-DD
+router.get('/followup/list', authMiddleware, async (req, res) => {
+  try {
+    const iso = String(req.query.date || '').slice(0, 10);
+    if (!iso) return res.json({ items: [], dayCount: 0 });
+
+    // doctor filter (supports ObjectId or string id stored in doc field)
+    const docIdStr = String(req.user?._id || req.user?.userId || '');
+    const docObjId = mongoose.Types.ObjectId.isValid(docIdStr)
+      ? new mongoose.Types.ObjectId(docIdStr)
+      : null;
+
+    const dayStart = new Date(iso + 'T00:00:00.000Z');
+    const dayEnd   = new Date(iso + 'T23:59:59.999Z');
+
+    // Pull reservations assigned to this doctor with any pet scheduled on this date
+    const reservations = await Reservation.find({
+      status: { $ne: 'Canceled' },
+      $or: [{ doctor: docObjId }, { doctor: docIdStr }],
+      'pets.schedule.scheduleDate': { $gte: dayStart, $lte: dayEnd }
+    })
+      .populate('pets.petId', 'petName')   // so we can emit real petName + petId
+      .select('ownerName pets')            // only the fields we need
+      .lean();
+
+    const items = [];
+
+    for (const r of reservations || []) {
+      for (const p of (r.pets || [])) {
+        const sch = p?.schedule;
+        if (!sch?.scheduleDate) continue;
+
+        // keep only rows that land exactly on the requested UTC day
+        const schISO = new Date(sch.scheduleDate).toISOString().slice(0, 10);
+        if (schISO !== iso) continue;
+
+        const time = sch.scheduleTime || sch.time || ''; // allow empty -> '—' in UI
+        const service =
+          (sch.service && (sch.service.name || sch.service.serviceName)) ||
+          sch.scheduleDetails || '—';
+
+        items.push({
+          reservationId: String(r._id),
+          petId: p?.petId?._id ? String(p.petId._id) : null,
+          petName: (p?.petId?.petName || p?.petName || '—'),
+          ownerName: r.ownerName || '—',
+          dateISO: iso,
+          time,
+          service,
+          status: 'Scheduled'
+        });
+      }
+    }
+
+    // sort by time, empty times last
+    function toMinutes(t) {
+      if (!t) return Number.POSITIVE_INFINITY;
+      const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!m) return Number.POSITIVE_INFINITY;
+      let h = parseInt(m[1], 10);
+      const min = parseInt(m[2], 10) || 0;
+      const ap = m[3].toUpperCase();
+      if (ap === 'PM' && h !== 12) h += 12;
+      if (ap === 'AM' && h === 12) h = 0;
+      return h * 60 + min;
+    }
+    items.sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
+
+    return res.json({ items, dayCount: items.length });
+  } catch (e) {
+    console.error('followup/list error:', e);
+    return res.json({ items: [], dayCount: 0 });
+  }
+});
+
+
+// Render Doctor Upcoming Page (shell loads this partial)
+router.get("/d-upcoming", authMiddleware, async (req, res) => {
+  try {
+    res.render("doctor/d-upcoming", {
+      doctor: { userId: req.user.userId, username: req.user.username }
+    });
+  } catch (e) {
+    console.error("Error rendering d-upcoming:", e);
+    res.status(500).send("Server error");
   }
 });
 
