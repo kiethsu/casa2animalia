@@ -13,12 +13,17 @@ const Service      = require('../models/service');
 const nodemailer = require('nodemailer'); // Import Nodemailer
 const Payment = require('../models/Payment')
 const { addClient, removeClient, broadcast } = require('../utils/hrSse');
-
+const MessageTemplate = require('../models/messageTemplate');
+const customerSse = require('../utils/customerSse');
 const mongoose = require('mongoose');;
+// near other model imports (top of file)
+const Message = require('../models/message');
+
 const { isValidObjectId } = mongoose;
 // ===== SSE for HR live updates =====
-
-
+const ReservationMessage = require('../models/ReservationMessage');
+const { getPetHistory } = require('../controllers/petHistory');
+const jwt = require('jsonwebtoken');   // ← add this
 // at the top
 const PetDetailsSetting = require('../models/petDetailsSetting');
 // Helper middleware for validation
@@ -36,6 +41,29 @@ function validateRequest(schema, property = 'body') {
 const reservationIdSchema = Joi.object({
   reservationId: Joi.string().required()
 });
+// Decline reservation
+const declineReservationSchema = Joi.object({
+  reservationId:        Joi.string().required(),
+  templateId:           Joi.string().optional().allow(''),
+  message:              Joi.string().optional().allow(''),
+  alsoEmail:            Joi.boolean().truthy('true').falsy('false').default(false),
+  sendToCustomerInbox:  Joi.boolean().truthy('true').falsy('false').default(true),
+  suppressCustomerPopup:Joi.boolean().truthy('true').falsy('false').default(true)
+});
+
+// ===== Helpers for follow-up calendar =====
+const TIME_SLOTS = [
+  '08:00 AM','09:00 AM','10:00 AM','11:00 AM',
+  '12:00 PM','01:00 PM','02:00 PM','03:00 PM','04:00 PM','05:00 PM'
+];
+
+function dayBoundsUTC(iso) {
+  return {
+    start: new Date(iso + 'T00:00:00.000Z'),
+    end  : new Date(iso + 'T23:59:59.999Z')
+  };
+}
+
 // before any routes
 // REPLACE the whole walkinSchema with this:
 const walkinSchema = Joi.object({
@@ -90,6 +118,30 @@ function validateWalkin(req, res, next) {
   }
   req.walkinData = value;
   next();
+}
+function getBrevoTransport() {
+  const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = process.env.SMTP_EMAIL;
+  const pass = process.env.SMTP_PASS;
+
+  if (!user || !pass) return null;
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass }
+  });
+}
+
+function esc(s=''){
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
 }
 
 // GET /reservation route
@@ -390,41 +442,63 @@ router.post('/approve-reservation',
           date: reservation.date || reservation.createdAt
         }
       });
-
-      // 4) Notify customer (email) — non-blocking
-      try {
-      const customer = reservation.owner ? await User.findById(reservation.owner) : null;
-const toEmail = (customer && customer.email) || reservation.contactEmail;
-
-if (toEmail) {
-  const displayName = (customer && (customer.username || customer.name)) || reservation.ownerName || 'Customer';
-
-  const mailOptions = {
-    from: `"SmartVet Clinic" <dehe.marquez.au@phinmaed.com>`,
-    to: toEmail,
-    subject: "Your Consultation is Approved!",
-    text:
-`Hello ${displayName},
-
-Your consultation has been approved by our HR team.
-You can now visit the vet clinic at your earliest convenience.
-
-Thank you,
-SmartVet Clinic`
-  };
-
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) console.error("Error sending approval email:", error);
-    else console.log("Approval email sent:", info.response);
-  });
-} else {
-  console.warn("No email available for reservation:", reservation._id);
+// Tell customer pages to dismiss any pending notify popup
+try {
+  const io = req.app.get('io');
+  if (io) {
+    io.to(`reservation:${reservation._id}`).emit('reservation:dismiss-notify', {
+      reservationId: String(reservation._id),
+      reason: 'approved'
+    });
+  }
+} catch (e) {
+  console.error('dismiss-notify emit failed:', e);
 }
 
-      } catch (mailErr) {
-        console.error("Email notification failed:", mailErr);
-        // do not fail the main request on email issues
-      }
+// 4) Notify customer (email)
+try {
+  const customer = reservation.owner ? await User.findById(reservation.owner) : null;
+  const toEmail = (customer && customer.email) || reservation.contactEmail;
+
+  if (toEmail) {
+    const displayName =
+      (customer && (customer.username || customer.name)) ||
+      reservation.ownerName || 'Customer';
+
+    const when =
+      (reservation.date ? new Date(reservation.date).toLocaleDateString('en-PH') : '') +
+      (reservation.time ? ` ${reservation.time}` : '');
+
+    const subject = 'Your consultation is approved';
+    const text =
+`Hello ${displayName},
+
+Your consultation${when ? ` on ${when}` : ''} has been approved by our team.
+See you at the clinic!
+
+Thank you,
+SmartVet Clinic`;
+
+    const transport = getBrevoTransport();
+    if (transport) {
+      const fromEmail = process.env.SENDER_EMAIL || process.env.SMTP_EMAIL;
+      const fromName  = process.env.SENDER_NAME  || 'SmartVet Clinic';
+      transport.sendMail({
+        from: `${fromName} <${fromEmail}>`,
+        to: toEmail,
+        subject,
+        text,
+        html: `<p>${esc(text).replace(/\n/g,'<br>')}</p>`
+      }).catch(e => console.error('[Email] approval send error:', e));
+    } else {
+      console.warn('[Email] SMTP not configured, cannot send approval email.');
+    }
+  } else {
+    console.warn('[Email] No recipient email on reservation:', String(reservation._id));
+  }
+} catch (mailErr) {
+  console.error('[Email] notification failed:', mailErr);
+}
 
       // 5) Done
       return res.json({ success: true, reservation });
@@ -884,6 +958,7 @@ router.post('/update-petlist', authMiddleware, validateRequest(reservationIdSche
 
 
 // GET /hr/get-pet-history
+// GET /hr/get-pet-history  (PASTE/REPLACE)
 router.get('/get-pet-history', authMiddleware, async (req, res) => {
   try {
     const { petId, petName, ownerId, ownerName } = req.query;
@@ -917,7 +992,8 @@ router.get('/get-pet-history', authMiddleware, async (req, res) => {
         populate: [
           {
             path: 'reservation',
-            select: 'date doctor schedule',
+            // include disease so history can fall back to reservation.disease when needed
+            select: 'date doctor schedule disease',
             populate: { path: 'doctor', select: 'username' }
           }
         ]
@@ -927,94 +1003,96 @@ router.get('/get-pet-history', authMiddleware, async (req, res) => {
     if (!entry) {
       return res.json({ success: false, message: 'PetList entry not found.' });
     }
-// Build pet meta (name + species/breed/sex)
-// 1) If account owner, pull from Pet collection.
-// 2) If walk-in, try newest related Reservation (where you may have saved quick meta for new pets).
-let petMeta = { name: entry.petName, species: '', breed: '', sex: '' };
 
-try {
-  if (entry.owner) {
-    const petDoc = await Pet.findOne(
-      { owner: entry.owner, petName: entry.petName },
-      'species breed sex'
-    ).lean();
-    if (petDoc) {
-      petMeta.species = petDoc.species || '';
-      petMeta.breed   = petDoc.breed   || '';
-      petMeta.sex     = petDoc.sex     || '';
-    }
-  } else {
-    const latestCh = (entry.consultationHistory || [])
-      .slice()
-      .sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt))[0];
+    // ---- Pet meta (name + species/breed/sex)
+    // 1) If account owner, pull from Pet collection.
+    // 2) If walk-in, try newest related Reservation (where quick meta for new pets may be saved).
+    let petMeta = { name: entry.petName, species: '', breed: '', sex: '' };
 
-    if (latestCh && latestCh.reservation) {
-      // Pull quick meta stored on reservation for NEW pets
-      const r = await Reservation.findById(latestCh.reservation, 'species breed sex').lean();
-      if (r) {
-        petMeta.species = r.species || '';
-        petMeta.breed   = r.breed   || '';
-        petMeta.sex     = r.sex     || '';
+    try {
+      if (entry.owner) {
+        const petDoc = await Pet.findOne(
+          { owner: entry.owner, petName: entry.petName },
+          'species breed sex'
+        ).lean();
+        if (petDoc) {
+          petMeta.species = petDoc.species || '';
+          petMeta.breed   = petDoc.breed   || '';
+          petMeta.sex     = petDoc.sex     || '';
+        }
+      } else {
+        const latestCh = (entry.consultationHistory || [])
+          .slice()
+          .sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt))[0];
+
+        if (latestCh && latestCh.reservation) {
+          // Pull quick meta stored on reservation for NEW pets
+          const r = await Reservation.findById(latestCh.reservation, 'species breed sex').lean();
+          if (r) {
+            petMeta.species = r.species || '';
+            petMeta.breed   = r.breed   || '';
+            petMeta.sex     = r.sex     || '';
+          }
+        }
       }
-    }
-  }
-} catch (_) { /* best effort only */ }
+    } catch (_) { /* best effort only */ }
 
-    // map out history with nextSchedule
-const history = (entry.consultationHistory || [])
-  .map(ch => {
-    const c    = ch.consultation || {};
-    const resv = c.reservation   || {};
+    // ---- Build normalized history (newest first)
+    const history = (entry.consultationHistory || [])
+      .map(ch => {
+        const c    = ch.consultation || {};
+        const resv = c.reservation   || {};
 
-    // --- NEW: normalize diseases based on possible schema keys ---
-    const diseaseRaw =
-          Array.isArray(c.diseases)         ? c.diseases
-        : c.disease                         ? [c.disease]
-        : Array.isArray(c.existingDiseases) ? c.existingDiseases
-        : c.existingDisease                 ? [c.existingDisease]
-        : resv.disease                      ? [resv.disease]      // fallback from reservation
-        : [];
+        // normalize diseases based on possible schema keys
+        const diseaseRaw =
+              Array.isArray(c.diseases)         ? c.diseases
+            : c.disease                         ? [c.disease]
+            : Array.isArray(c.existingDiseases) ? c.existingDiseases
+            : c.existingDisease                 ? [c.existingDisease]
+            : resv.disease                      ? [resv.disease] // fallback from reservation
+            : [];
 
-    const diseases = diseaseRaw
-      .map(x => String(x || '').trim())
-      .filter(Boolean)
-      .filter((v, i, a) => a.findIndex(z => z.toLowerCase() === v.toLowerCase()) === i) // de-dupe (case-insensitive)
-      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+        const diseases = diseaseRaw
+          .map(x => String(x || '').trim())
+          .filter(Boolean)
+          .filter((v, i, a) => a.findIndex(z => z.toLowerCase() === v.toLowerCase()) === i) // de-dupe (case-insensitive)
+          .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 
-    return {
-      id:         c._id,
-      date:       c.createdAt || ch.addedAt,
-      doctor:     resv.doctor || null,
-      notes:      c.notes || c.consultationNotes || '',
-      physical:   c.physicalExam || { weight: '', temperature: '', observations: '' },
-      diagnosis:  c.diagnosis || '',
-      diseases, // <-- NEW FIELD in the payload
-      services:   (c.services || []).map(s => ({
-                    category:    s.category    || 'Uncategorized',
-                    serviceName: s.serviceName || '',
-                    details:     s.details     || '',
-                    file:        s.file        || null
-                  })),
-      medications:(c.medications || []).map(m => ({
-                    name:     m.name     || m.medicationName || '',
-                    dosage:   m.dosage   || '',
-                    remarks:  m.remarks  || '',
-                    quantity: m.quantity || 0
-                  })),
-      confinement:c.confinementStatus || [],
-      nextSchedule: resv.schedule
-        ? { date: resv.schedule.scheduleDate, details: resv.schedule.scheduleDetails }
-        : null
-    };
-  })
-  .sort((a, b) => new Date(b.date) - new Date(a.date));
+        return {
+          id:         c._id,
+          date:       c.createdAt || ch.addedAt,
+          doctor:     resv.doctor || null, // populated doctor doc (if any)
+          notes:      c.notes || c.consultationNotes || '',
+          physical:   c.physicalExam || { weight: '', temperature: '', observations: '' },
+          diagnosis:  c.diagnosis || '',
+          diseases,
+          services:   (c.services || []).map(s => ({
+                        category:    s.category    || 'Uncategorized',
+                        serviceName: s.serviceName || '',
+                        details:     s.details     || '',
+                        file:        s.file        || null
+                      })),
+          medications:(c.medications || []).map(m => ({
+                        name:     m.name     || m.medicationName || '',
+                        dosage:   m.dosage   || '',
+                        remarks:  m.remarks  || '',
+                        quantity: m.quantity || 0
+                      })),
+          confinement: c.confinementStatus || [],
+          nextSchedule: resv.schedule
+            ? { date: resv.schedule.scheduleDate, details: resv.schedule.scheduleDetails }
+            : null
+        };
+      })
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-return res.json({ success: true, pet: petMeta, history });
+    return res.json({ success: true, pet: petMeta, history });
   } catch (err) {
     console.error('get-pet-history failed:', err);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
 
 // at the bottom of hrroutes.js
 router.post('/add-consult-existing', authMiddleware, async (req, res) => {
@@ -1607,10 +1685,11 @@ router.get('/search-owners', authMiddleware, async (req, res) => {
     res.status(500).json({ items: [] });
   }
 });
-// GET /hr/history and /hr/reservation-history  – Reservation History partial
+// GET /hr/history and /hr/reservation-history
 router.get(['/history', '/reservation-history'], authMiddleware, async (req, res) => {
   try {
-    const statuses = ['Done', 'Paid', 'Not Attended'];
+    // add "Canceled"
+    const statuses = ['Done', 'Paid', 'Not Attended', 'Canceled'];
 
     const reservations = await Reservation.find({ status: { $in: statuses } })
       .populate('owner', 'username')
@@ -1625,16 +1704,21 @@ router.get(['/history', '/reservation-history'], authMiddleware, async (req, res
       const date = r.date || (r.schedule && r.schedule.scheduleDate) || r.createdAt;
       const time = r.time || (r.schedule && (r.schedule.scheduleTime || r.schedule.time)) || '';
 
+      // 👇 normalize Canceled → Declined for the UI
+      const rawStatus = (r.status || '').trim();
+      const displayStatus = rawStatus === 'Canceled' ? 'Declined' : (rawStatus || 'Done');
+
       return {
         ...r,
         ownerName: r.ownerName || (r.owner && r.owner.username) || '',
         service,
         date,
-        time
+        time,
+        status: displayStatus      // ← send the pretty label to the EJS
       };
     });
-    // Retail payments (POS)
-    const retailSales = await Payment.find({ isRetail: true })
+
+    const retailSales = await Payment.find({ isRetail: true }) // POS rows
       .sort({ createdAt: -1 })
       .lean();
 
@@ -1644,5 +1728,553 @@ router.get(['/history', '/reservation-history'], authMiddleware, async (req, res
     res.status(500).send('Server error');
   }
 });
+
+// GET /hr/message-templates?type=notif  <-- effective path after mount
+router.get('/message-templates', async (req, res) => {
+  try {
+    let type = String(req.query.type || 'notif').trim().toLowerCase();
+    if (type === 'notify') type = 'notif';
+
+    const templates = await MessageTemplate
+      .find({ type })
+      .select('_id title body isDefault')
+      .sort({ isDefault: -1, createdAt: -1 })
+      .lean();
+
+    return res.json({ success: true, templates });
+  } catch (err) {
+    console.error('message-templates failed:', err);
+    return res.status(500).json({ success: false, message: 'Failed to load message templates.' });
+  }
+});
+// POST /hr/notify-reservation
+// EXPECTS: { reservationId, templateId? , message? }
+// POST /customer/notify-reservation
+// POST /hr/notify-reservation
+router.post('/notify-reservation', async (req, res) => {
+  try {
+    // ⬇️ NEW params supported: emailMessage, interactive, reason
+    const { reservationId, templateId, message, emailMessage, interactive, reason } = req.body;
+
+    if (!reservationId || (!templateId && !message)) {
+      return res.json({ success: false, message: 'Missing inputs.' });
+    }
+
+    const reservation = await Reservation.findById(reservationId)
+      .populate('owner', '_id username email')
+      .lean();
+
+    if (!reservation) {
+      return res.json({ success: false, message: 'Reservation not found.' });
+    }
+
+    // ----- Resolve texts -----
+    // In-app text (what we show in the popup + save in ReservationMessage)
+    let inAppText = (message || '').trim();
+    if (!inAppText && templateId) {
+      const MessageTemplate = require('../models/MessageTemplate');
+      const tmpl = await MessageTemplate.findById(templateId).lean();
+      if (!tmpl) return res.json({ success: false, message: 'Template not found.' });
+      inAppText = String(tmpl.body || '').trim();
+    }
+    if (!inAppText) {
+      return res.json({ success: false, message: 'No message text.' });
+    }
+
+    // Email text (can be different from in-app)
+    const emailText = (emailMessage && String(emailMessage).trim()) || inAppText;
+
+    // Subject (slightly nicer for doctor_unavailable)
+    const subject =
+      String(reason || '').toLowerCase() === 'doctor_unavailable'
+        ? 'Doctor unavailable — quick action'
+        : 'Appointment Update';
+
+    // ----- Persist + push in-app notification -----
+    const msgDoc = await ReservationMessage.create({
+      reservation: reservation._id,
+      toOwner: reservation.owner?._id || undefined,
+      ownerName: reservation.ownerName || reservation.owner?.username || '',
+      body: inAppText,
+      templateId: templateId || undefined,
+      status: 'sent'
+    });
+
+    // Real-time push to customer pages (center popup)
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`reservation:${reservation._id}`).emit('reservation:notify', {
+        id: String(msgDoc._id),
+        reservationId: String(reservation._id),
+        text: inAppText,              // keep property name "text" to match your UI
+        interactive: !!interactive,   // optional flag if you ever need it
+        reason: reason || null
+      });
+    }
+
+    // ----- Email (using emailText) -----
+    const toEmail =
+      (reservation.owner && reservation.owner.email) ||
+      reservation.contactEmail ||
+      null;
+
+    let emailSent = false, emailError = null;
+    if (toEmail) {
+      try {
+        const transport = getBrevoTransport();
+        if (transport) {
+          const fromEmail = process.env.SENDER_EMAIL || process.env.SMTP_EMAIL;
+          const fromName  = process.env.SENDER_NAME  || 'SmartVet Clinic';
+          await transport.sendMail({
+            from: `${fromName} <${fromEmail}>`,
+            to: toEmail,
+            subject,
+            text: emailText,
+            html: `<p>${esc(emailText).replace(/\n/g,'<br>')}</p>`
+          });
+          emailSent = true;
+        } else {
+          emailError = 'SMTP not configured';
+        }
+      } catch (err) {
+        console.error('Notify email failed:', err);
+        emailError = err.message || 'sendMail failed';
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Sent.',
+      id: String(msgDoc._id),
+      email: { attempted: !!toEmail, sent: emailSent, error: emailError }
+    });
+  } catch (e) {
+    return res.json({ success: false, message: e.message || 'Failed to send.' });
+  }
+});
+
+// LAST MESSAGE STATE
+// final URL will be: GET /hr/reservation-message-state?reservationId=<id>
+// LAST MESSAGE STATE
+// GET /hr/reservation-message-state?reservationId=<id>
+router.get('/reservation-message-state', /* authMiddleware, */ async (req, res) => {
+  try {
+    const { reservationId } = req.query;
+    if (!reservationId) {
+      return res.json({ success: false, message: 'Missing reservationId' });
+    }
+
+    const last = await ReservationMessage
+      .findOne({ reservation: reservationId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!last) return res.json({ success: true, last: null });
+
+    return res.json({
+      success: true,
+      last: {
+        id: String(last._id),
+        status: last.status || 'sent',      // 'sent' | 'responded'
+        response: last.response || null,    // 'confirm' | 'resched' | null
+        body: last.body || null,            // <<<< include the actual message text
+        createdAt: last.createdAt
+      }
+    });
+  } catch (e) {
+    return res.json({ success: false, message: e.message || 'Failed to fetch message state' });
+  }
+});
+
+
+// POST /hr/reservations/:id/notify
+router.post('/reservations/:id/notify', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { body, alsoEmail } = req.body || {};
+
+    if (!body || !body.trim()) {
+      return res.status(400).json({ success: false, message: 'Message body is required.' });
+    }
+
+    const reservation = await Reservation.findById(id).lean();
+    if (!reservation) {
+      return res.status(404).json({ success: false, message: 'Reservation not found.' });
+    }
+
+    // Save message
+    const msg = await ReservationMessage.create({
+      reservation: id,
+      body: body.trim(),
+      status: 'sent',
+      createdAt: new Date()
+    });
+
+    // Realtime push to the customer (room: reservation:<id>)
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`reservation:${id}`).emit('reservation:notify', {
+        id: String(msg._id),
+        reservationId: String(id),
+        body: msg.body,
+        sentAt: msg.createdAt
+      });
+    }
+
+    // Optional email
+    let emailSent = false;
+    if (alsoEmail) {
+      const customer = await User.findById(reservation.owner).lean();
+      if (customer && customer.email) {
+        // Brevo SMTP transport (same as your server.js cron job)
+        const transporter = nodemailer.createTransport({
+          host: 'smtp-relay.brevo.com',
+          port: 587,
+          secure: false,
+          auth: { user: process.env.SMTP_EMAIL, pass: process.env.SMTP_PASS }
+        });
+
+        const mailOptions = {
+          from: `"SmartVet Clinic" <${process.env.SMTP_EMAIL}>`,
+          to: customer.email,
+          subject: 'Message from SmartVet about your reservation',
+          text: body.trim()
+        };
+
+        await transporter.sendMail(mailOptions);
+        emailSent = true;
+      }
+    }
+
+    return res.json({ success: true, emailSent });
+  } catch (err) {
+    console.error('Notify error:', err);
+    return res.status(500).json({ success: false, message: 'Server error sending notification.' });
+  }
+});
+
+// module.exports = router;  // keep your existing export
+// CUSTOMER replies from consult.ejs: 'confirm' | 'resched'
+router.post('/customer/notify-reply', async (req, res) => {
+  try {
+    const { reservationId, response } = req.body || {};
+    const ok = response === 'confirm' || response === 'resched';
+    if (!reservationId || !ok) {
+      return res.status(400).json({ success: false, message: 'Invalid inputs.' });
+    }
+
+    // Update the latest ReservationMessage for this reservation
+    const last = await ReservationMessage
+      .findOne({ reservation: reservationId })
+      .sort({ createdAt: -1 });
+
+    if (!last) {
+      return res.json({ success: false, message: 'No message to reply to.' });
+    }
+
+    last.status = 'responded';        // 'sent' | 'responded'
+    last.response = response;         // 'confirm' | 'resched'
+    await last.save();
+
+    // 1) Tell any *customer* tabs (optional)
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`reservation:${reservationId}`).emit('reservation:notify-state', {
+          reservationId: String(reservationId),
+          last: {
+            id: String(last._id),
+            status: last.status,
+            response: last.response,
+            createdAt: last.createdAt
+          }
+        });
+      }
+    } catch (_) {}
+
+    // 2) Tell all *HR* dashboards via SSE so modal + table can update
+    broadcast({
+      type: 'reservation:notify-state',
+      reservationId: String(reservationId),
+      last: {
+        id: String(last._id),
+        status: last.status,
+        response: last.response,
+        createdAt: last.createdAt
+      }
+    });
+
+    return res.json({ success: true });
+  } catch (e) {
+    console.error('notify-reply failed:', e);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// HR Upcoming page
+router.get('/upcoming', authMiddleware, async (req, res) => {
+  try {
+       // Try to reuse the caller's token if present; otherwise mint a short-lived one
+   // Reuse caller's token if present; otherwise mint one only if we have a secret.
+   const fromHeader = (req.headers.authorization || '').replace(/^Bearer\s+/, '');
+   let authToken = fromHeader;
+   if (!authToken) {
+     if (process.env.JWT_SECRET) {
+       authToken = jwt.sign(
+         { userId: req.user.userId, role: req.user.role || 'HR' },
+         process.env.JWT_SECRET,
+         { expiresIn: '2h' }
+      );
+     } else {
+       console.warn('[HR Upcoming] JWT_SECRET is not set – doctor endpoints will reject HR reschedule calls.');
+       authToken = ''; // render page; front-end will simply not set the Authorization header
+     }
+   }
+
+    res.render('hr/hrupcoming', {  user: { userId: req.user.userId, username: req.user.username },
+    authToken });
+  } catch (e) {
+    console.error('Error rendering HR upcoming:', e);
+    res.status(500).send('Server error');
+  }
+});
+// GET /hr/followup/stats?year=YYYY&month=1..12
+router.get('/followup/stats', authMiddleware, async (req, res) => {
+  try {
+    const year  = parseInt(req.query.year, 10);
+    const month = parseInt(req.query.month, 10); // 1..12
+    if (!year || !month) return res.json({ limit: 0, counts: {} });
+
+    // Month bounds in UTC
+    const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const end   = new Date(Date.UTC(year, month,     0, 23, 59, 59, 999));
+
+    // Count each PET that has a follow-up day within the month (ALL doctors)
+    const pipeline = [
+      {
+        $match: {
+          status: { $ne: 'Canceled' },
+          'pets.schedule.scheduleDate': { $gte: start, $lte: end }
+        }
+      },
+      { $unwind: '$pets' },
+      {
+        $match: { 'pets.schedule.scheduleDate': { $gte: start, $lte: end } }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              date: '$pets.schedule.scheduleDate',
+              format: '%Y-%m-%d',
+              timezone: 'UTC'
+            }
+          },
+          cnt: { $sum: 1 }
+        }
+      }
+    ];
+
+    const rows = await Reservation.aggregate(pipeline);
+    const counts = {};
+    rows.forEach(r => { counts[r._id] = r.cnt; });
+
+    // Optional daily capacity: limitPerHour * number of time slots
+    let limitPerHour = 0;
+    try {
+      const s = await AppointmentSetting.findOne().lean();
+      limitPerHour = Number(s?.limitPerHour ?? 0);
+    } catch { /* ignore */ }
+    const dailyLimit = limitPerHour > 0 ? limitPerHour * TIME_SLOTS.length : 0;
+
+    return res.json({ limit: dailyLimit, counts });
+  } catch (e) {
+    console.error('HR followup/stats error:', e);
+    return res.json({ limit: 0, counts: {} });
+  }
+});
+// GET /hr/followup/list?date=YYYY-MM-DD
+router.get('/followup/list', authMiddleware, async (req, res) => {
+  try {
+    const iso = String(req.query.date || '').slice(0, 10);
+    if (!iso) return res.json({ items: [], dayCount: 0 });
+
+    const { start, end } = dayBoundsUTC(iso);
+
+    // Pull reservations with any pet scheduled on this date (ALL doctors)
+    const reservations = await Reservation.find({
+      status: { $ne: 'Canceled' },
+      'pets.schedule.scheduleDate': { $gte: start, $lte: end }
+    })
+    .populate('doctor', 'username')
+      .populate('pets.petId', 'petName')
+      .select('ownerName pets')
+      .lean();
+
+    const items = [];
+
+    for (const r of reservations || []) {
+      for (const p of (r.pets || [])) {
+        const sch = p?.schedule;
+        if (!sch?.scheduleDate) continue;
+
+        // keep only rows that land exactly on the requested UTC day
+        const schISO = new Date(sch.scheduleDate).toISOString().slice(0, 10);
+        if (schISO !== iso) continue;
+
+        const time = sch.scheduleTime || sch.time || '';
+        const service =
+          (sch.service && (sch.service.name || sch.service.serviceName)) ||
+          sch.scheduleDetails || '—';
+
+        items.push({
+          reservationId: String(r._id),
+          petId: p?.petId?._id ? String(p.petId._id) : null,
+          petName: (p?.petId?.petName || p?.petName || '—'),
+          ownerName: r.ownerName || '—',
+          dateISO: iso,
+          time,
+          service,
+                   status: 'Scheduled',
+          doctorId:   r?.doctor?._id ? String(r.doctor._id) : null,
+          doctorName: r?.doctor?.username || '—'
+        });
+      }
+    }
+
+    // sort by time, empty times last
+    function toMinutes(t) {
+      if (!t) return Number.POSITIVE_INFINITY;
+      const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!m) return Number.POSITIVE_INFINITY;
+      let h = parseInt(m[1], 10);
+      const min = parseInt(m[2], 10) || 0;
+      const ap = m[3].toUpperCase();
+      if (ap === 'PM' && h !== 12) h += 12;
+      if (ap === 'AM' && h === 12) h = 0;
+      return h * 60 + min;
+    }
+    items.sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
+
+    return res.json({ items, dayCount: items.length });
+  } catch (e) {
+    console.error('HR followup/list error:', e);
+    return res.json({ items: [], dayCount: 0 });
+  }
+});
+// ===================== DECLINE RESERVATION =====================
+router.post('/decline-reservation',
+  authMiddleware,
+  validateRequest(declineReservationSchema),
+  async (req, res) => {
+    try {
+      const {
+        reservationId,
+        templateId,
+        message,
+        alsoEmail,
+        sendToCustomerInbox,
+        suppressCustomerPopup
+      } = req.body;
+
+      // 1) Load reservation
+      const reservation = await Reservation.findById(reservationId)
+        .populate('owner', '_id username email')
+        .lean();
+      if (!reservation) {
+        return res.status(404).json({ success: false, message: 'Reservation not found.' });
+      }
+
+      // 2) Resolve decline text
+      let finalMessageText = (message || '').trim();
+      if (!finalMessageText && templateId) {
+        const tmpl = await MessageTemplate.findById(templateId).lean();
+        if (!tmpl || tmpl.type !== 'declined') {
+          return res.status(400).json({ success: false, message: 'Invalid decline template.' });
+        }
+        finalMessageText = String(tmpl.body || '').trim();
+      }
+      if (!finalMessageText) {
+        return res.status(400).json({ success: false, message: 'Please select a decline reason or enter a message.' });
+      }
+
+      // 3) Write to customer Messages inbox (for dashboard modal)
+      if (sendToCustomerInbox && reservation.owner?._id) {
+     await Message.create({
+  user:   reservation.owner._id,
+  type:   'declined',                 // ← now valid
+  title:  'Reservation declined',
+  body:   finalMessageText,
+  isRead: false
+});
+
+      }
+
+      // 4) DO NOT show a popup in consult.ejs (default)
+      // (Only emit if you purposely want a popup)
+      if (!suppressCustomerPopup) {
+        try {
+          const io = req.app.get('io');
+          if (io) {
+            io.to(`reservation:${reservationId}`).emit('reservation:notify', {
+              reservationId: String(reservationId),
+              text: finalMessageText,
+              reason: 'declined'
+            });
+          }
+        } catch (_) {}
+      }
+
+      // 5) Optional email (no “(if an email is on file)” UI text needed; just works if present & flag on)
+      let emailSent = false, emailError = null;
+      try {
+        const toEmail = (reservation.owner && reservation.owner.email) || reservation.contactEmail || null;
+        if (alsoEmail && toEmail) {
+          const transport = getBrevoTransport();
+          if (transport) {
+            const fromEmail = process.env.SENDER_EMAIL || process.env.SMTP_EMAIL;
+            const fromName  = process.env.SENDER_NAME  || 'SmartVet Clinic';
+            await transport.sendMail({
+              from: `${fromName} <${fromEmail}>`,
+              to: toEmail,
+              subject: 'Appointment Declined',
+              text: finalMessageText,
+              html: `<p>${esc(finalMessageText).replace(/\n/g,'<br>')}</p>`
+            });
+            emailSent = true;
+          } else {
+            emailError = 'SMTP not configured';
+          }
+        }
+      } catch (err) {
+        console.error('Decline email failed:', err);
+        emailError = err.message || 'sendMail failed';
+      }
+
+      // 6) Mark reservation canceled
+      await Reservation.updateOne({ _id: reservationId }, { $set: { status: 'Canceled' } });
+
+      // 7) Dismiss any old notify popup (safe even if none showing)
+      try {
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`reservation:${reservationId}`).emit('reservation:dismiss-notify', {
+            reservationId: String(reservationId),
+            reason: 'declined'
+          });
+        }
+      } catch (e) {
+        console.error('dismiss-notify emit failed:', e);
+      }
+
+      // 8) HR dashboards update
+      broadcast({ type: 'reservation:declined', id: String(reservationId) });
+
+      return res.json({ success: true, email: { sent: emailSent, error: emailError } });
+    } catch (error) {
+      console.error('Error declining reservation:', error);
+      return res.status(500).json({ success: false, message: 'Server error' });
+    }
+  }
+);
 
 module.exports = router;
