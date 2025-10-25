@@ -7,9 +7,15 @@ const PetSchema = new mongoose.Schema({
   species: { type: String, required: true },
   breed: { type: String },
   birthday: { type: Date },
+
+  // 🔁 Legacy single-field kept for back-compat (used by older UI bits)
   existingDisease: { type: String },
+
+  // ✅ New: allow multiple diseases
+  existingDiseases: { type: [String], default: [] },
+
   sex: { type: String },
-  petPic: { type: String },// URL or path for the pet picture
+  petPic: { type: String }, // URL or path for the pet picture
   addedFromReservation: { type: Boolean, default: false }
 });
 
