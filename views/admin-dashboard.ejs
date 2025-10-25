@@ -229,12 +229,28 @@ body.modal-open #sidebarOverlay {
   <li><a href="#" class="menu-item" data-content="sales-report"><i class="fas fa-file-alt"></i> Sales Report</a></li>
 <!-- 4) Upcoming -->
 <li><a href="#" class="menu-item" data-content="upcoming"><i class="fas fa-calendar-check"></i> Upcoming</a></li>
+<!-- Staff Schedule -->
+<li>
+  <a href="#" class="menu-item" data-content="staff-schedule">
+    <i class="fas fa-user-clock"></i> Staff Schedule
+  </a>
+</li>
 
   <!-- 4) Pet List -->
   <li><a href="#" class="menu-item" data-content="petlist"><i class="fas fa-paw"></i> Pet List</a></li>
+  <!-- Reservation -->
+<li>
+  <a href="#" class="menu-item" data-content="reservation">
+    <i class="fas fa-calendar-alt"></i> Reservation
+  </a>
+</li>
+
+<li><a href="#" class="menu-item" data-content="patient"><i class="fas fa-notes-medical"></i> Patient</a></li>
 
   <!-- 5) Accounts -->
   <li><a href="#" class="menu-item" data-content="accounts"><i class="fas fa-users"></i> Accounts</a></li>
+  
+<li><a href="#" class="menu-item" data-content="notification"><i class="fas fa-bell"></i> Notification</a></li>
 
   <!-- 6) Profile -->
   <li><a href="#" class="menu-item" data-content="profile"><i class="fas fa-user"></i> Profile</a></li>
@@ -276,7 +292,8 @@ body.modal-open #sidebarOverlay {
 
   <!-- Scripts -->
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+
   <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
@@ -288,6 +305,7 @@ body.modal-open #sidebarOverlay {
 <script src="/js/appointments.js"></script>
 <!-- Sales Report module (load once globally; we will init/destroy on navigation) -->
 <script src="/js/sales-report.js"></script>
+<script src="/js/staff-schedule.js"></script>
 
 
 
@@ -395,15 +413,19 @@ body.modal-open #sidebarOverlay {
     }
 function setSubNavFor(page){
   let title =
-    page === 'dashboard'    ? 'Admin Dashboard' :
-    page === 'accounts'     ? 'Accounts' :
-    page === 'petlist'      ? 'Pet List' :
-    page === 'inventory'    ? 'Inventory' :
-    page === 'sales-report' ? 'Sales Report' :
-    page === 'upcoming'     ? 'Upcoming' :
-    page === 'services'     ? 'Services' :
-    page === 'pet-details'  ? 'Pet Details' :   // <-- added
-    page === 'profile'      ? 'Profile' : 'Settings';
+    page === 'dashboard'       ? 'Admin Dashboard' :
+    page === 'accounts'        ? 'Accounts' :
+    page === 'petlist'         ? 'Pet List' :
+       page === 'patient'         ? 'Patient' :   // <-- ADD THIS
+    page === 'inventory'       ? 'Inventory' :
+    page === 'sales-report'    ? 'Sales Report' :
+    page === 'upcoming'        ? 'Upcoming' :
+    page === 'notification'   ? 'Notification' :
+ page === 'reservation'     ? 'Reservation' :     // ← ADD THIS
+    page === 'staff-schedule'  ? 'Staff Schedule' :   // <-- add this
+    page === 'services'        ? 'Services' :
+    page === 'pet-details'     ? 'Pet Details' :
+    page === 'profile'         ? 'Profile' : 'Settings';
 
   $('#subnav-title').text(title).show();
   const topbarHeight = $('#topbar').outerHeight() || 56;
@@ -672,6 +694,38 @@ window.addEventListener('focus', refreshToken);
     _loadContent(page, basePath);
   };
 })();
+
+// ONE canonical pair only — handles Dashboard, Upcoming, Staff Schedule
+function runPageInit(page){
+  if (page === 'dashboard'){
+    window.SalesOverview && window.SalesOverview.init && window.SalesOverview.init();
+    window.InventoryOverview && window.InventoryOverview.init && window.InventoryOverview.init();
+    window.Appointments && window.Appointments.init && window.Appointments.init();
+    wireDashboardTabRefreshes();
+  } else if (page === 'upcoming'){
+    window.Upcoming && window.Upcoming.init && window.Upcoming.init();
+  } else if (page === 'staff-schedule'){
+    window.StaffSchedule && window.StaffSchedule.init && window.StaffSchedule.init();
+  } else if (page === 'reservation'){                 // ← ADD
+    window.AdminReservation && window.AdminReservation.init && window.AdminReservation.init();
+  }
+}
+
+function runPageDestroy(page){
+  if (page === 'dashboard'){
+    window.SalesOverview && window.SalesOverview.destroy && window.SalesOverview.destroy();
+    window.InventoryOverview && window.InventoryOverview.destroy && window.InventoryOverview.destroy();
+    window.Appointments && window.Appointments.destroy && window.Appointments.destroy();
+    $('#main-content').off('shown.bs.tab.dashboardTabs');
+  } else if (page === 'upcoming'){
+    window.Upcoming && window.Upcoming.destroy && window.Upcoming.destroy();
+  } else if (page === 'staff-schedule'){
+    window.StaffSchedule && window.StaffSchedule.destroy && window.StaffSchedule.destroy();
+  } else if (page === 'reservation'){                 // ← ADD
+    window.AdminReservation && window.AdminReservation.destroy && window.AdminReservation.destroy();
+  }
+}
+
 
   </script>
 </body>
