@@ -18,82 +18,48 @@
   }
 
   /* ─── User/Retention Small Cards (Updated) ───────────────────────────────── */
-.user-retention-row {
-  display: flex;
-  gap: 0.8rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-  align-items: stretch;
-  justify-content: flex-start;
-}
-.stats-metric-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(30, 34, 90, 0.06);
-  border: 1px solid #e9ecef;
-  flex: 1 1 140px;
-  max-width: 160px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  transition: box-shadow 0.18s, transform 0.18s;
-  margin-right: 0.5rem;
-  margin-bottom: 0;
-}
-.stats-metric-card:last-child {
-  margin-right: 0;
-}
-.stats-metric-card:hover {
-  box-shadow: 0 4px 12px rgba(30, 34, 90, 0.12);
-  transform: translateY(-1px);
-}
-
-.stats-label {
-  font-size: 0.85rem;
-  color: #6c757d;
-  font-weight: 500;
-  margin-bottom: 0.2rem;
-}
-.stats-main-value {
-  font-size: 1.15rem;
-  font-weight: 600;
-  color: #1c2c45;
-  margin-bottom: 4px;
-}
-.stats-change {
-  font-size: 0.9rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  margin-top: 2px;
-}
-.stats-change.up {
-  color: #28a745;
-}
-.stats-change.down {
-  color: #e74c3c;
-}
-.stats-change.neutral {
-  color: #adb5bd;
-}
-.stats-change .arrow {
-  font-size: 1.1em;
-  margin-left: 4px;
-}
-
-@media (max-width: 991.98px) {
   .user-retention-row {
-    flex-direction: column;
-    gap: 0.6rem;
+    display: flex;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    align-items: stretch;
+    justify-content: flex-start;
   }
   .stats-metric-card {
-    max-width: 100%;
-    width: 100%;
-    margin-right: 0;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(30, 34, 90, 0.06);
+    border: 1px solid #e9ecef;
+    flex: 1 1 140px;
+    max-width: 160px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    transition: box-shadow 0.18s, transform 0.18s;
+    margin-right: 0.5rem;
+    margin-bottom: 0;
   }
-}
+  .stats-metric-card:last-child { margin-right: 0; }
+  .stats-metric-card:hover {
+    box-shadow: 0 4px 12px rgba(30, 34, 90, 0.12);
+    transform: translateY(-1px);
+  }
+
+  .stats-label { font-size: 0.85rem; color: #6c757d; font-weight: 500; margin-bottom: 0.2rem; }
+  .stats-main-value { font-size: 1.15rem; font-weight: 600; color: #1c2c45; margin-bottom: 4px; }
+  .stats-change { font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; margin-top: 2px; }
+  .stats-change.up { color: #28a745; }
+  .stats-change.down { color: #e74c3c; }
+  .stats-change.neutral { color: #adb5bd; }
+  .stats-change .arrow { font-size: 1.1em; margin-left: 4px; }
+
+  @media (max-width: 991.98px) {
+    .user-retention-row { flex-direction: column; gap: 0.6rem; }
+    .stats-metric-card { max-width: 100%; width: 100%; margin-right: 0; }
+  }
 
   /* Navigation Pills (styled as tabs) */
   .sticky-nav {
@@ -105,20 +71,14 @@
     border-bottom: 1px solid #e0e0e0;
     margin-bottom: 1rem;
   }
-  .sticky-nav .nav-pills {
-    justify-content: flex-start;
-    gap: 0.5rem;
-  }
+  .sticky-nav .nav-pills { justify-content: flex-start; gap: 0.5rem; }
   .sticky-nav .nav-link {
     border-radius: 20px;
     padding: 0.5rem 1rem;
     font-weight: 500;
     color: #555;
   }
-  .sticky-nav .nav-link.active {
-    background: #007bff;
-    color: #fff;
-  }
+  .sticky-nav .nav-link.active { background: #007bff; color: #fff; }
 
   /* --- Modern Card Styling --- */
   .card-header {
@@ -140,138 +100,62 @@
     transition: box-shadow 0.15s;
     margin-bottom: 1.5rem;
   }
-  .card:hover {
-    box-shadow: 0 5px 16px rgba(30, 34, 90, 0.13);
-  }
-  .card-body {
-    background: #fff;
-    padding: 1.15rem;
-  }
-  .list-group-item {
-    border: none;
-    padding: 0.45rem 1rem;
-    font-size: 1.02rem;
-  }
-  .chart,
-  .heatmap {
-    min-height: 200px;
-    max-height: 270px;
-    margin-bottom: 1rem;
-  }
+  .card:hover { box-shadow: 0 5px 16px rgba(30, 34, 90, 0.13); }
+  .card-body { background: #fff; padding: 1.15rem; }
+  .list-group-item { border: none; padding: 0.45rem 1rem; font-size: 1.02rem; }
+  .chart, .heatmap { min-height: 200px; max-height: 270px; margin-bottom: 1rem; }
+
   @media (max-width: 991.98px) {
-    .card {
-      margin-bottom: 1rem;
-    }
-    .chart {
-      min-height: 180px;
-    }
+    .card { margin-bottom: 1rem; }
+    .chart { min-height: 180px; }
   }
-/* ─── Updated KPI Cards (with color‐coding) ───────────────────────────────── */
-.kpi-card {
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.11);
-  padding: 1.1rem 0.5rem 1rem 0.5rem;
-  min-width: 130px;
-  flex: 1 1 140px;
-  text-align: center;
-  margin-bottom: 0;
-  margin-right: 0.5rem;
-  transition: box-shadow 0.18s, transform 0.18s;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-.kpi-card:last-child {
-  margin-right: 0;
-}
-.kpi-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  transform: translateY(-2px);
-}
-.kpi-card i {
-  font-size: 1.5rem;
-  margin-bottom: 0.3rem;
-}
-.kpi-card h4 {
-  margin: 0.15rem 0;
-  font-weight: 600;
-  font-size: 1.13rem;
-  color: #1c2c45;
-}
-.kpi-card small {
-  display: block;
-  color: #1c2c45;
-  margin-bottom: 0.25rem;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-  letter-spacing: 0.5px;
-}
 
-/* Color‐code each KPI by position (now 5 cards) */
-#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(1) {
-  /* Current Year Sales → light blue */
-  background: #e3f2fd;
-}
-#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(1) i {
-  color: #007bff;
-}
+  /* ─── Updated KPI Cards (with color‐coding) ───────────────────────────────── */
+  .kpi-card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.11);
+    padding: 1.1rem 0.5rem 1rem 0.5rem;
+    min-width: 130px;
+    flex: 1 1 140px;
+    text-align: center;
+    margin-bottom: 0;
+    margin-right: 0.5rem;
+    transition: box-shadow 0.18s, transform 0.18s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .kpi-card:last-child { margin-right: 0; }
+  .kpi-card:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); transform: translateY(-2px); }
+  .kpi-card i { font-size: 1.5rem; margin-bottom: 0.3rem; }
+  .kpi-card h4 { margin: 0.15rem 0; font-weight: 600; font-size: 1.13rem; color: #1c2c45; }
+  .kpi-card small { display: block; color: #1c2c45; margin-bottom: 0.25rem; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; }
 
-#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(2) {
-  /* Current Year Total Transaction → light green */
-  background: #e8f5e9;
-}
-#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(2) i {
-  color: #28a745;
-}
+  /* Color‐code each KPI by position (now 5 cards) */
+  #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(1) { background: #e3f2fd; }
+  #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(1) i { color: #007bff; }
 
-#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(3) {
-  /* Past Year Sales → light yellow */
-  background: #fffde7;
-}
-#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(3) i {
-  color: #ffc107;
-}
+  #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(2) { background: #e8f5e9; }
+  #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(2) i { color: #28a745; }
 
-#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(4) {
-  /* Past Year Total Transaction → light purple */
-  background: #f3e5f5;
-}
-#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(4) i {
-  color: #6f42c1;
-}
+  #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(3) { background: #fffde7; }
+  #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(3) i { color: #ffc107; }
 
-#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(5) {
-  /* Sales Growth → light orange */
-  background: #fff3e0;
-}
-#salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(5) i {
-  color: #fd7e14;
-}
+  #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(4) { background: #f3e5f5; }
+  #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(4) i { color: #6f42c1; }
 
+  #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(5) { background: #fff3e0; }
+  #salesOverview .d-flex.flex-wrap.mb-4 .kpi-card:nth-child(5) i { color: #fd7e14; }
 
   /* ─── New Color‐coding for “Current” vs “Previous” KPI Headers ───────── */
-  .period-header {
-    white-space: nowrap;
-    text-align: center;
-    font-weight: 600;
-  }
-  .cur-header {
-    background-color: #008ffb;
-    color: #fff;
-  }
-  .prev-header {
-    background-color: #00e396;
-    color: #fff;
-  }
+  .period-header { white-space: nowrap; text-align: center; font-weight: 600; }
+  .cur-header { background-color: #008ffb; color: #fff; }
+  .prev-header { background-color: #00e396; color: #fff; }
 
   /* Increase min-width on Sales Trend card so the KPI table headers never wrap */
-  .sales-trend-card {
-    min-width: 380px;
-    border-radius: 14px; 
-    height: auto; /* ensures it wraps to its content */
-  }
+  .sales-trend-card { min-width: 380px; border-radius: 14px; height: auto; }
 
   /* ─── Sales Trend Card Improvements ─────────────────────────────────────── */
   .sales-trend-card {
@@ -282,9 +166,7 @@
     display: flex;
     flex-direction: column;
   }
-  .sales-trend-card:hover {
-    box-shadow: 0 5px 16px rgba(30, 34, 90, 0.13);
-  }
+  .sales-trend-card:hover { box-shadow: 0 5px 16px rgba(30, 34, 90, 0.13); }
   .sales-trend-card .card-header {
     background: #fdfdff;
     border-bottom: 1px solid #e9ecef;
@@ -293,15 +175,11 @@
     font-size: 1rem;
     display: flex;
     align-items: center;
-     border-top-left-radius: 14px;
-  border-top-right-radius: 14px;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
     justify-content: space-between;
   }
-  .sales-trend-card .card-header h6 {
-    margin: 0;
-    font-size: 1.05rem;
-    color: #333;
-  }
+  .sales-trend-card .card-header h6 { margin: 0; font-size: 1.05rem; color: #333; }
   .sales-trend-card .header-controls select,
   .sales-trend-card .header-controls input {
     font-size: 0.875rem;
@@ -314,23 +192,10 @@
     transition: border-color 0.15s ease;
   }
   .sales-trend-card .header-controls select:focus,
-  .sales-trend-card .header-controls input:focus {
-    outline: none;
-    border-color: #007bff;
-  }
-  .sales-trend-card .chart {
-    min-height: 200px;
-    max-height: 250px;
-    margin-bottom: 1rem;
-  }
-  .kpi-table-wrapper {
-    overflow-x: auto;
-  }
-  .sales-trend-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-  }
+  .sales-trend-card .header-controls input:focus { outline: none; border-color: #007bff; }
+  .sales-trend-card .chart { min-height: 200px; max-height: 250px; margin-bottom: 1rem; }
+  .kpi-table-wrapper { overflow-x: auto; }
+  .sales-trend-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .sales-trend-table thead th {
     background: #f8f9fa;
     font-weight: 600;
@@ -340,307 +205,22 @@
     font-size: 0.9rem;
     border-bottom: 1px solid #e9ecef;
   }
-  .sales-trend-table tbody td {
-    padding: 0.55rem 0.75rem;
-    font-size: 0.9rem;
-    color: #343a40;
-    vertical-align: middle;
-  }
-  .sales-trend-table tbody tr:nth-child(1) td {
-    background: rgba(0, 143, 251, 0.05);
-  }
-  .sales-trend-table tbody tr:nth-child(2) td {
-    background: rgba(254, 176, 25, 0.05);
-  }
-  .sales-trend-table tbody tr:nth-child(3) td {
-    background: rgba(40, 167, 69, 0.05);
-  }
+  .sales-trend-table tbody td { padding: 0.55rem 0.75rem; font-size: 0.9rem; color: #343a40; vertical-align: middle; }
+  .sales-trend-table tbody tr:nth-child(1) td { background: rgba(0, 143, 251, 0.05); }
+  .sales-trend-table tbody tr:nth-child(2) td { background: rgba(254, 176, 25, 0.05); }
+  .sales-trend-table tbody tr:nth-child(3) td { background: rgba(40, 167, 69, 0.05); }
   .sales-trend-table tbody td:nth-child(2),
-  .sales-trend-table tbody td:nth-child(3) {
-    font-weight: 600;
-    color: #1c2c45;
-  }
+  .sales-trend-table tbody td:nth-child(3) { font-weight: 600; color: #1c2c45; }
+
   @media (max-width: 767.98px) {
-    .sales-trend-card .chart {
-      min-height: 150px;
-    }
+    .sales-trend-card .chart { min-height: 150px; }
     .sales-trend-table thead th,
-    .sales-trend-table tbody td {
-      font-size: 0.85rem;
-      padding: 0.45rem 0.5rem;
-    }
+    .sales-trend-table tbody td { font-size: 0.85rem; padding: 0.45rem 0.5rem; }
   }
 
   /* Sales by Category & Sales by Product Styles */
-.sales-by-cat-card,
-.sales-by-prod-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 3px 12px rgba(30, 34, 90, 0.08);
-  border: 1px solid #e9ecef;
-  transition: box-shadow 0.2s ease;
-  overflow: hidden;
-  margin-bottom: 1rem;
-}
-.sales-by-cat-card:hover,
-.sales-by-prod-card:hover {
-  box-shadow: 0 5px 16px rgba(30, 34, 90, 0.13);
-}
-
-.sales-by-cat-card .card-header,
-.sales-by-prod-card .card-header {
-  background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid #f1f1f1;
-  font-weight: 600;
-  font-size: 1rem;
-}
-.sales-by-cat-card .card-header h6,
-.sales-by-prod-card .card-header h6 {
-  margin: 0;
-  font-size: 1.05rem;
-  color: #333;
-}
-
-/* Increase gap between dropdowns from 0.5rem to 0.75rem */
-.sales-by-cat-card .header-controls,
-.sales-by-prod-card .header-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-/* Ensure “Last 7 Days” never wraps/cuts off: auto width + min-width */
-.sales-by-cat-card .header-controls select,
-.sales-by-prod-card .header-controls select {
-  font-size: 0.875rem;
-  height: 34px;
-  padding: 0 0.5rem;
-  border-radius: 6px;
-  border: 1px solid #ced4da;
-  background: #fff;
-  color: #495057;
-  transition: border-color 0.15s ease;
-  width: auto;
-  min-width: 140px;
-}
-.sales-by-cat-card .header-controls select:focus,
-.sales-by-prod-card .header-controls select:focus {
-  outline: none;
-  border-color: #007bff;
-}
-
-.sales-by-cat-card .card-body,
-.sales-by-prod-card .card-body {
-  padding: 1rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  min-height: 180px;
-}
-
-/* -------- Sales by Category Body (with color‐coded KPI cards) -------- */
-.sales-by-cat-card .kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); /* raised min from 100px to 120px */
-  gap: 1.25rem; /* increased from 1rem */
-  text-align: center;
-}
-
-/* Remove generic gray background; add border-radius + padding */
-.sales-by-cat-card .kpi-item {
-  border-radius: 8px;
-  padding: 1rem; /* increased padding */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* new: assign distinct background colors per KPI */
-.sales-by-cat-card .kpi-item:nth-child(1) {
-  /* Total Sales → light blue */
-  background: #e3f2fd;
-}
-.sales-by-cat-card .kpi-item:nth-child(2) {
-  /* Profit → light green */
-  background: #e8f5e9;
-}
-.sales-by-cat-card .kpi-item:nth-child(3) {
-  /* Expired → light red */
-  background: #ffebee;
-}
-.sales-by-cat-card .kpi-item:nth-child(4) {
-  /* Sales Rate → light yellow */
-  background: #fffde7;
-}
-
-.sales-by-cat-card .kpi-item small {
-  color: #6c757d;
-  font-size: 0.8rem;
-  margin-bottom: 0.25rem;
-}
-.sales-by-cat-card .kpi-item h5 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #1c2c45;
-}
-
-/* Allow the sales-rate elements to wrap when text is long */
-.sales-by-cat-card .sales-rate {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  flex-wrap: wrap; /* allow wrap */
-}
-
-/* Shrink sparkline slightly so it doesn’t push too far */
-.sales-by-cat-card .sparkline-chart {
-  width: 40px; /* reduced from 50px */
-  height: 20px;
-}
-
-/* Slightly smaller font for large percentages */
-.sales-by-cat-card .rate-percentage {
-  font-weight: 600;
-  font-size: 0.9rem; /* reduced from 0.95rem */
-  color: #495057;
-}
-
-/* Growth line below KPIs, with additional top padding */
-.sales-by-cat-card .growth-line {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #adb5bd;
-  padding-top: 0.75rem;
-}
-.sales-by-cat-card .growth-line.up {
-  color: #28a745;
-}
-.sales-by-cat-card .growth-line.down {
-  color: #e74c3c;
-}
-.sales-by-cat-card .growth-line .arrow {
-  font-size: 1.1em;
-  margin-left: 4px;
-}
-.sales-by-cat-card .growth-line small {
-  font-weight: 400;
-  font-size: 0.75rem;
-  color: #6c757d;
-  margin-left: 0.5rem;
-}
-
-/* Center comparison text */
-.sales-by-cat-card .comparison-text {
-  font-size: 0.87rem;
-  color: #495057;
-  text-align: center;
-  margin-top: 0.5rem;
-}
-
-/* Responsive: stack KPIs in single column if very narrow */
-@media (max-width: 575.98px) {
-  .sales-by-cat-card .kpi-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-
-  /* “Sales by Product” table styling (unchanged aside from select width) */
-  #salesByProdTable {
-    width: 100%;
-    font-size: 0.95rem;
-    border-collapse: collapse;
-    margin-top: 0.5rem;
-  }
-  #salesByProdTable thead th {
-    background: #f8f9fa;
-    color: #495057;
-    font-weight: 600;
-    padding: 0.6rem 0.75rem;
-    text-align: left;
-    font-size: 0.9rem;
-    border-bottom: 1px solid #e9ecef;
-  }
-  #salesByProdTable th,
-  #salesByProdTable td {
-    padding: 0.55rem 0.75rem;
-    font-size: 0.9rem;
-    color: #343a40;
-    vertical-align: middle;
-    text-align: left;
-    border-bottom: 1px solid #e9ecef;
-  }
-  #salesByProdTable tbody tr:nth-child(odd) td {
-    background: rgba(0, 143, 251, 0.03);
-  }
-  #salesByProdTable tbody tr:nth-child(even) td {
-    background: rgba(254, 176, 25, 0.03);
-  }
-  #salesByProdTable tbody tr:nth-child(1) td {
-    background: rgba(0, 143, 251, 0.05);
-  }
-  #salesByProdTable tbody tr:nth-child(2) td {
-    background: rgba(254, 176, 25, 0.05);
-  }
-  #salesByProdTable tbody tr:nth-child(3) td {
-    background: rgba(40, 167, 69, 0.05);
-  }
-  #salesByProdTable tbody tr:hover td {
-    background: rgba(0, 0, 0, 0.03);
-  }
-  #salesByProdTable.scrollable-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  #salesByProdTable.scrollable-table thead,
-  #salesByProdTable.scrollable-table tbody tr {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
-  }
-  #salesByProdTable.scrollable-table thead {
-    background: #fff;
-    z-index: 1;
-  }
-  #salesByProdTable.scrollable-table tbody {
-    display: block;
-    max-height: calc(7 * 2.2rem);
-    overflow-y: auto;
-  }
-
-  /* Search input styling (unchanged) */
-  .prod-search-input {
-    width: 150px;
-    font-size: 0.875rem;
-    padding: 0.25rem 0.5rem;
-    border: 1px solid #ced4da;
-    border-radius: 6px;
-    background: #fff;
-    color: #495057;
-  }
-  .prod-search-input:focus {
-    outline: none;
-    border-color: #007bff;
-  }
-
-  /* Responsive adjustments */
-  @media (max-width: 575.98px) {
-    .sparkline-chart {
-      margin-left: 0.5rem;
-    }
-  }
-
-  /* Sales by Service Card Styling (unchanged) */
-  .sales-by-serv-card {
+  .sales-by-cat-card,
+  .sales-by-prod-card {
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 3px 12px rgba(30, 34, 90, 0.08);
@@ -649,10 +229,9 @@
     overflow: hidden;
     margin-bottom: 1rem;
   }
-  .sales-by-serv-card:hover {
-    box-shadow: 0 5px 16px rgba(30, 34, 90, 0.13);
-  }
-  .sales-by-serv-card .card-header {
+  .sales-by-cat-card:hover, .sales-by-prod-card:hover { box-shadow: 0 5px 16px rgba(30, 34, 90, 0.13); }
+  .sales-by-cat-card .card-header,
+  .sales-by-prod-card .card-header {
     background: #fff;
     display: flex;
     align-items: center;
@@ -662,12 +241,16 @@
     font-weight: 600;
     font-size: 1rem;
   }
-  .sales-by-serv-card .card-header h6 {
-    margin: 0;
-    font-size: 1.05rem;
-    color: #333;
-  }
-  .sales-by-serv-card .header-controls select {
+  .sales-by-cat-card .card-header h6,
+  .sales-by-prod-card .card-header h6 { margin: 0; font-size: 1.05rem; color: #333; }
+
+  /* Increase gap between dropdowns from 0.5rem to 0.75rem */
+  .sales-by-cat-card .header-controls,
+  .sales-by-prod-card .header-controls { display: flex; align-items: center; gap: 0.75rem; }
+
+  /* Ensure “Last 7 Days” never wraps/cuts off: auto width + min-width */
+  .sales-by-cat-card .header-controls select,
+  .sales-by-prod-card .header-controls select {
     font-size: 0.875rem;
     height: 34px;
     padding: 0 0.5rem;
@@ -679,311 +262,594 @@
     width: auto;
     min-width: 140px;
   }
-  .sales-by-serv-card .header-controls select:focus {
-    outline: none;
-    border-color: #007bff;
-  }
-  .sales-by-serv-card .card-body {
+  .sales-by-cat-card .header-controls select:focus,
+  .sales-by-prod-card .header-controls select:focus { outline: none; border-color: #007bff; }
+
+  .sales-by-cat-card .card-body,
+  .sales-by-prod-card .card-body {
     padding: 1rem 1.25rem;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
     min-height: 180px;
   }
-  #salesByServTable thead th {
-    background: #f8f9fa;
-    color: #495057;
-    font-weight: 600;
-    padding: 0.6rem 0.75rem;
-    text-align: left;
-    font-size: 0.9rem;
-    border-bottom: 1px solid #e9ecef;
+
+  /* -------- Sales by Category Body (with color‐coded KPI cards) -------- */
+  .sales-by-cat-card .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1.25rem;
+    text-align: center;
   }
-  #salesByServTable th,
-  #salesByServTable td {
-    padding: 0.55rem 0.75rem;
-    font-size: 0.9rem;
-    color: #343a40;
-    vertical-align: middle;
-    text-align: left;
-    border-bottom: 1px solid #e9ecef;
+  .sales-by-cat-card .kpi-item { border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; align-items: center; }
+  .sales-by-cat-card .kpi-item:nth-child(1) { background: #e3f2fd; }
+  .sales-by-cat-card .kpi-item:nth-child(2) { background: #e8f5e9; }
+  .sales-by-cat-card .kpi-item:nth-child(3) { background: #ffebee; }
+  .sales-by-cat-card .kpi-item:nth-child(4) { background: #fffde7; }
+  .sales-by-cat-card .kpi-item small { color: #6c757d; font-size: 0.8rem; margin-bottom: 0.25rem; }
+  .sales-by-cat-card .kpi-item h5 { margin: 0; font-size: 1.1rem; font-weight: 700; color: #1c2c45; }
+  .sales-by-cat-card .sales-rate { display: flex; align-items: center; justify-content: center; gap: 0.25rem; flex-wrap: wrap; }
+  .sales-by-cat-card .sparkline-chart { width: 40px; height: 20px; }
+  .sales-by-cat-card .rate-percentage { font-weight: 600; font-size: 0.9rem; color: #495057; }
+  .sales-by-cat-card .growth-line { display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 600; color: #adb5bd; padding-top: 0.75rem; }
+  .sales-by-cat-card .growth-line.up { color: #28a745; }
+  .sales-by-cat-card .growth-line.down { color: #e74c3c; }
+  .sales-by-cat-card .growth-line .arrow { font-size: 1.1em; margin-left: 4px; }
+  .sales-by-cat-card .growth-line small { font-weight: 400; font-size: 0.75rem; color: #6c757d; margin-left: 0.5rem; }
+  .sales-by-cat-card .comparison-text { font-size: 0.87rem; color: #495057; text-align: center; margin-top: 0.5rem; }
+
+  @media (max-width: 575.98px) { .sales-by-cat-card .kpi-grid { grid-template-columns: 1fr; } }
+
+  /* “Sales by Product” table styling (unchanged aside from select width) */
+  #salesByProdTable { width: 100%; font-size: 0.95rem; border-collapse: collapse; margin-top: 0.5rem; }
+  #salesByProdTable thead th {
+    background: #f8f9fa; color: #495057; font-weight: 600;
+    padding: 0.6rem 0.75rem; text-align: left; font-size: 0.9rem; border-bottom: 1px solid #e9ecef;
   }
-  #salesByServTable tbody tr:nth-child(odd) td {
-    background: rgba(0, 143, 251, 0.03);
+  #salesByProdTable th, #salesByProdTable td {
+    padding: 0.55rem 0.75rem; font-size: 0.9rem; color: #343a40; vertical-align: middle; text-align: left; border-bottom: 1px solid #e9ecef;
   }
-  #salesByServTable tbody tr:nth-child(even) td {
-    background: rgba(254, 176, 25, 0.03);
+  #salesByProdTable tbody tr:nth-child(odd) td { background: rgba(0, 143, 251, 0.03); }
+  #salesByProdTable tbody tr:nth-child(even) td { background: rgba(254, 176, 25, 0.03); }
+  #salesByProdTable tbody tr:nth-child(1) td { background: rgba(0, 143, 251, 0.05); }
+  #salesByProdTable tbody tr:nth-child(2) td { background: rgba(254, 176, 25, 0.05); }
+  #salesByProdTable tbody tr:nth-child(3) td { background: rgba(40, 167, 69, 0.05); }
+  #salesByProdTable tbody tr:hover td { background: rgba(0, 0, 0, 0.03); }
+  #salesByProdTable.scrollable-table { width: 100%; border-collapse: collapse; }
+  #salesByProdTable.scrollable-table thead, #salesByProdTable.scrollable-table tbody tr { display: table; width: 100%; table-layout: fixed; }
+  #salesByProdTable.scrollable-table thead { background: #fff; z-index: 1; }
+  #salesByProdTable.scrollable-table tbody { display: block; max-height: calc(7 * 2.2rem); overflow-y: auto; }
+
+  /* Search input styling (unchanged) */
+  .prod-search-input { width: 150px; font-size: 0.875rem; padding: 0.25rem 0.5rem; border: 1px solid #ced4da; border-radius: 6px; background: #fff; color: #495057; }
+  .prod-search-input:focus { outline: none; border-color: #007bff; }
+
+  @media (max-width: 575.98px) { .sparkline-chart { margin-left: 0.5rem; } }
+
+  /* Sales by Service Card Styling (unchanged) */
+  .sales-by-serv-card {
+    background: #fff; border-radius: 12px; box-shadow: 0 3px 12px rgba(30, 34, 90, 0.08);
+    border: 1px solid #e9ecef; transition: box-shadow 0.2s ease; overflow: hidden; margin-bottom: 1rem;
   }
-  #salesByServTable tbody tr:nth-child(1) td {
-    background: rgba(0, 143, 251, 0.05);
+  .sales-by-serv-card:hover { box-shadow: 0 5px 16px rgba(30, 34, 90, 0.13); }
+  .sales-by-serv-card .card-header {
+    background: #fff; display: flex; align-items: center; justify-content: space-between;
+    padding: 0.75rem 1.25rem; border-bottom: 1px solid #f1f1f1; font-weight: 600; font-size: 1rem;
   }
-  #salesByServTable tbody tr:nth-child(2) td {
-    background: rgba(254, 176, 25, 0.05);
+  .sales-by-serv-card .card-header h6 { margin: 0; font-size: 1.05rem; color: #333; }
+  .sales-by-serv-card .header-controls select {
+    font-size: 0.875rem; height: 34px; padding: 0 0.5rem; border-radius: 6px; border: 1px solid #ced4da; background: #fff; color: #495057;
+    transition: border-color 0.15s ease; width: auto; min-width: 140px;
   }
-  #salesByServTable tbody tr:nth-child(3) td {
-    background: rgba(40, 167, 69, 0.05);
+  .sales-by-serv-card .header-controls select:focus { outline: none; border-color: #007bff; }
+  .sales-by-serv-card .card-body { padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; min-height: 180px; }
+  #salesByServTable thead th { background: #f8f9fa; color: #495057; font-weight: 600; padding: 0.6rem 0.75rem; text-align: left; font-size: 0.9rem; border-bottom: 1px solid #e9ecef; }
+  #salesByServTable th, #salesByServTable td {
+    padding: 0.55rem 0.75rem; font-size: 0.9rem; color: #343a40; vertical-align: middle; text-align: left; border-bottom: 1px solid #e9ecef;
   }
-  #salesByServTable tbody tr:hover td {
-    background: rgba(0, 0, 0, 0.03);
-  }
-  #salesByServTable.scrollable-table {
-    width: 100%;
-    font-size: 0.95rem;
-    border-collapse: collapse;
-  }
-  #salesByServTable.scrollable-table thead,
-  #salesByServTable.scrollable-table tbody tr {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
-  }
-  #salesByServTable.scrollable-table thead {
-    background: #fff;
-    z-index: 1;
-  }
-  #salesByServTable.scrollable-table tbody {
-    display: block;
-    max-height: calc(7 * 2.2rem);
-    overflow-y: auto;
-  }
+  #salesByServTable tbody tr:nth-child(odd) td { background: rgba(0, 143, 251, 0.03); }
+  #salesByServTable tbody tr:nth-child(even) td { background: rgba(254, 176, 25, 0.03); }
+  #salesByServTable tbody tr:nth-child(1) td { background: rgba(0, 143, 251, 0.05); }
+  #salesByServTable tbody tr:nth-child(2) td { background: rgba(254, 176, 25, 0.05); }
+  #salesByServTable tbody tr:nth-child(3) td { background: rgba(40, 167, 69, 0.05); }
+  #salesByServTable tbody tr:hover td { background: rgba(0, 0, 0, 0.03); }
+  #salesByServTable.scrollable-table { width: 100%; font-size: 0.95rem; border-collapse: collapse; }
+  #salesByServTable.scrollable-table thead, #salesByServTable.scrollable-table tbody tr { display: table; width: 100%; table-layout: fixed; }
+  #salesByServTable.scrollable-table thead { background: #fff; z-index: 1; }
+  #salesByServTable.scrollable-table tbody { display: block; max-height: calc(7 * 2.2rem); overflow-y: auto; }
+
   /* make the Sales Growth % text green when positive, red when negative */
-  #kpiConv.up {
-    color: #28a745;  /* green */
-  }
-  #kpiConv.down {
-    color: #e74c3c;  /* red */
-  }
+  #kpiConv.up { color: #28a745; }
+  #kpiConv.down { color: #e74c3c; }
+
   /* spacing for sections that no longer use .card/.card-body wrapper */
-.section-pad { padding: 0.75rem 0.25rem; }
-/* --- Fix Sales Trend card rounding (top + bottom) --- */
-.sales-trend-card {
-  border-radius: 14px !important;  /* override the later 12px rule */
-  overflow: hidden;                 /* clip chart/table corners at the bottom */
-  border: 1px solid #e9ecef;        /* keep your border */
-  box-shadow: 0 3px 12px rgba(30, 34, 90, 0.08);
-}
+  .section-pad { padding: 0.75rem 0.25rem; }
 
-/* Keep header corners consistent with the 14px radius */
-.sales-trend-card .card-header {
-  border-top-left-radius: 14px;
-  border-top-right-radius: 14px;
-}
-
-/* Ensure bottom corners stay rounded even if inner elements set backgrounds */
-.sales-trend-card .card-body {
-  border-bottom-left-radius: 14px;
-  border-bottom-right-radius: 14px;
-}
+  /* --- Fix Sales Trend card rounding (top + bottom) --- */
+  .sales-trend-card {
+    border-radius: 14px !important;
+    overflow: hidden;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 3px 12px rgba(30, 34, 90, 0.08);
+  }
+  .sales-trend-card .card-header { border-top-left-radius: 14px; border-top-right-radius: 14px; }
+  .sales-trend-card .card-body { border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; }
 
   /* Reuse Sales Overview table look for Inventory tables */
-  .inventory-table {
-    width: 100%;
-    font-size: 0.95rem;
-    border-collapse: collapse;
-    margin-top: 0.5rem;
-  }
+  .inventory-table { width: 100%; font-size: 0.95rem; border-collapse: collapse; margin-top: 0.5rem; }
   .inventory-table thead th {
-    background: #f8f9fa;
-    color: #495057;
-    font-weight: 600;
-    padding: 0.6rem 0.75rem;
-    text-align: left;
-    font-size: 0.9rem;
-    border-bottom: 1px solid #e9ecef;
+    background: #f8f9fa; color: #495057; font-weight: 600;
+    padding: 0.6rem 0.75rem; text-align: left; font-size: 0.9rem; border-bottom: 1px solid #e9ecef;
   }
-  .inventory-table th,
-  .inventory-table td {
-    padding: 0.55rem 0.75rem;
-    font-size: 0.9rem;
-    color: #343a40;
-    vertical-align: middle;
-    text-align: left;
-    border-bottom: 1px solid #e9ecef;
+  .inventory-table th, .inventory-table td {
+    padding: 0.55rem 0.75rem; font-size: 0.9rem; color: #343a40; vertical-align: middle; text-align: left; border-bottom: 1px solid #e9ecef;
   }
-  .inventory-table tbody tr:nth-child(odd) td {
-    background: rgba(0, 143, 251, 0.03);
-  }
-  .inventory-table tbody tr:nth-child(even) td {
-    background: rgba(254, 176, 25, 0.03);
-  }
-  .inventory-table tbody tr:nth-child(1) td {
-    background: rgba(0, 143, 251, 0.05);
-  }
-  .inventory-table tbody tr:nth-child(2) td {
-    background: rgba(254, 176, 25, 0.05);
-  }
-  .inventory-table tbody tr:nth-child(3) td {
-    background: rgba(40, 167, 69, 0.05);
-  }
-  .inventory-table tbody tr:hover td {
-    background: rgba(0, 0, 0, 0.03);
-  }
+  .inventory-table tbody tr:nth-child(odd) td { background: rgba(0, 143, 251, 0.03); }
+  .inventory-table tbody tr:nth-child(even) td { background: rgba(254, 176, 25, 0.03); }
+  .inventory-table tbody tr:nth-child(1) td { background: rgba(0, 143, 251, 0.05); }
+  .inventory-table tbody tr:nth-child(2) td { background: rgba(254, 176, 25, 0.05); }
+  .inventory-table tbody tr:nth-child(3) td { background: rgba(40, 167, 69, 0.05); }
+  .inventory-table tbody tr:hover td { background: rgba(0, 0, 0, 0.03); }
 
-  /* Make any .inventory-table scrollable the same way as Sales tables */
-  .inventory-table.scrollable-table thead,
-  .inventory-table.scrollable-table tbody tr {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
-  }
-  .inventory-table.scrollable-table thead {
-    background: #fff;
-    z-index: 1;
-  }
-  .inventory-table.scrollable-table tbody {
-    display: block;
-    max-height: calc(7 * 2.2rem);
-    overflow-y: auto;
-  }
-  #expiredCategorySelect option.expired-has {
-  color: #e74c3c;     /* red */
-  font-weight: 600;
-}
-.tab-content { position: relative; }
+  .inventory-table.scrollable-table thead, .inventory-table.scrollable-table tbody tr { display: table; width: 100%; table-layout: fixed; }
+  .inventory-table.scrollable-table thead { background: #fff; z-index: 1; }
+  .inventory-table.scrollable-table tbody { display: block; max-height: calc(7 * 2.2rem); overflow-y: auto; }
+
+  #expiredCategorySelect option.expired-has { color: #e74c3c; font-weight: 600; }
+  .tab-content { position: relative; }
   .tab-pane { position: relative; z-index: 1; }
+
   /* Inventory Overview KPI color-coding (match Sales Overview) */
-#inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(1) {
-  /* Total Product → light blue */
-  background: #e3f2fd;
-}
-#inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(1) i {
-  color: #007bff !important;
-}
+  #inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(1) { background: #e3f2fd; }
+  #inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(1) i { color: #007bff !important; }
+  #inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(2) { background: #e8f5e9; }
+  #inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(2) i { color: #28a745 !important; }
+  #inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(3) { background: #fffde7; }
+  #inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(3) i { color: #ffc107 !important; }
+  #inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(4) { background: #fff3e0; }
+  #inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(4) i { color: #fd7e14 !important; }
 
-#inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(2) {
-  /* Low Stock → light green */
-  background: #e8f5e9;
-}
-#inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(2) i {
-  color: #28a745 !important;
-}
+  /* When expired table has 5+ rows, make the tbody scroll to 5 rows tall */
+  #expiredProductsTable.scroll-when-5.scrollable-table thead,
+  #expiredProductsTable.scroll-when-5.scrollable-table tbody tr { display: table; width: 100%; table-layout: fixed; }
+  #expiredProductsTable.scroll-when-5.scrollable-table tbody {
+    display: block; max-height: calc(5 * 2.2rem); overflow-y: auto;
+  }
 
-#inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(3) {
-  /* Expiring Soon → light yellow */
-  background: #fffde7;
-}
-#inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(3) i {
-  color: #ffc107 !important;
-}
+  /* (Optional) Top 5 table body capped to 5 rows */
+  #topSoldTable.max5.scrollable-table thead,
+  #topSoldTable.max5.scrollable-table tbody tr { display: table; width: 100%; table-layout: fixed; }
+  #topSoldTable.max5.scrollable-table tbody { display: block; max-height: calc(5 * 2.2rem); overflow-y: auto; }
 
-#inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(4) {
-  /* Expired Products → light orange */
-  background: #fff3e0;
-}
-#inventoryOverview .section-pad .d-flex.flex-wrap .kpi-card:nth-child(4) i {
-  color: #fd7e14 !important;
-}
-/* When expired table has 5+ rows, make the tbody scroll to 5 rows tall */
-#expiredProductsTable.scroll-when-5.scrollable-table thead,
-#expiredProductsTable.scroll-when-5.scrollable-table tbody tr {
-  display: table;
-  width: 100%;
-  table-layout: fixed;
-}
-#expiredProductsTable.scroll-when-5.scrollable-table tbody {
-  display: block;
-  max-height: calc(5 * 2.2rem); /* ~5 rows */
-  overflow-y: auto;
-}
+  /* Color coding like Sales Trend table */
+  #diseaseTable tbody tr:nth-child(1) td { background: rgba(0,143,251,0.05); }
+  #diseaseTable tbody tr:nth-child(2) td { background: rgba(254,176,25,0.05); }
+  #diseaseTable tbody tr:nth-child(3) td { background: rgba(40,167,69,0.05); }
+  #diseaseTable tbody tr:nth-child(odd) td { background: rgba(0,143,251,0.03); }
+  #diseaseTable tbody tr:nth-child(even) td { background: rgba(254,176,25,0.03); }
+  #diseaseTable tbody tr:hover td { background: rgba(0,0,0,0.03); }
 
-/* (Optional) If you also want the Top 5 table body capped to exactly 5-row height */
-#topSoldTable.max5.scrollable-table thead,
-#topSoldTable.max5.scrollable-table tbody tr {
-  display: table;
-  width: 100%;
-  table-layout: fixed;
-}
-#topSoldTable.max5.scrollable-table tbody {
+  /* Make the table body scroll when 5+ rows */
+  #diseaseTable.scrollable-table thead, #diseaseTable.scrollable-table tbody tr { display: table; width: 100%; table-layout: fixed; }
+  #diseaseTable.scrollable-table thead { background: #fff; z-index: 1; }
+  #diseaseTable.scrollable-table tbody { display: block; max-height: calc(5 * 2.2rem); overflow-y: auto; }
+
+  /* Hide vertical scrollbar only in Top Conditions table */
+  #diseaseTable.scrollable-table tbody{
+    -ms-overflow-style: none; scrollbar-width: none;
+  }
+  #diseaseTable.scrollable-table tbody::-webkit-scrollbar{ width: 0; height: 0; }
+  #diseaseTable tbody td.text-right { padding-right: 6px; }
+
+  /* Rank badge */
+  .rank-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 1.25rem; height: 1.25rem; border-radius: 999px;
+    font-size: 0.72rem; font-weight: 700; color: #fff; margin-right: 0.5rem;
+  }
+  .rank-1 { background:#008FFB; }
+  .rank-2 { background:#FEB019; }
+  .rank-3 { background:#28A745; }
+  .rank-n { background:#6c757d; }
+
+  /* Top Conditions card rounding */
+  .top-conditions-card { border-radius: 14px !important; overflow: hidden; border: 1px solid #e9ecef; box-shadow: 0 3px 12px rgba(30,34,90,0.08); }
+  .top-conditions-card .card-header { border-top-left-radius: 14px; border-top-right-radius: 14px; }
+  .top-conditions-card .card-body { border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; }
+
+  /* Peak Day-of-Week card rounding/clip */
+  .peak-day-card { border-radius: 14px !important; overflow: hidden; border: 1px solid #e9ecef; box-shadow: 0 3px 12px rgba(30,34,90,0.08); }
+  .peak-day-card .card-header { border-top-left-radius: 14px; border-top-right-radius: 14px; }
+  .peak-day-card .card-body { border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; }
+  #peakDayTable tbody tr:nth-child(1) td { background: rgba(0,143,251,0.05); }
+  #peakDayTable tbody tr:nth-child(2) td { background: rgba(254,176,25,0.05); }
+  #peakDayTable tbody tr:nth-child(3) td { background: rgba(40,167,69,0.05); }
+  #peakDayTable tbody tr:nth-child(odd)  td { background: rgba(0,143,251,0.03); }
+  #peakDayTable tbody tr:nth-child(even) td { background: rgba(254,176,25,0.03); }
+  #peakDayTable tbody tr:hover td { background: rgba(0,0,0,0.03); }
+
+  /* === Reusable Breakdown Card === */
+  .breakdown-card { border-radius: 14px !important; overflow: hidden; border: 1px solid #e9ecef; box-shadow: 0 3px 12px rgba(30,34,90,0.08); transition: box-shadow 0.2s ease; display: flex; flex-direction: column; }
+  .breakdown-card:hover { box-shadow: 0 5px 16px rgba(30,34,90,0.13); }
+  .breakdown-card .card-header { background:#fdfdff; border-bottom:1px solid #e9ecef; padding:0.75rem 1.25rem; font-weight:600; font-size:1rem; display:flex; align-items:center; justify-content:space-between; border-top-left-radius:14px; border-top-right-radius:14px; }
+  .breakdown-card .card-body { background:#fff; padding:1.15rem; border-bottom-left-radius:14px; border-bottom-right-radius:14px; }
+  .breakdown-card .header-controls select { font-size:0.875rem; height:34px; padding:0 0.5rem; border-radius:6px; border:1px solid #ced4da; background:#fff; color:#495057; }
+  .breakdown-card .header-controls select:focus{ outline:none; border-color:#007bff; }
+  .breakdown-card .chart{ min-height:200px; max-height:250px; margin-bottom:1rem; }
+  .breakdown-card .breakdown-table{ width:100%; border-collapse:collapse; table-layout:fixed; }
+  .breakdown-card .breakdown-table thead th{ background:#f8f9fa; font-weight:600; color:#495057; padding:0.6rem 0.75rem; text-align:left; font-size:0.9rem; border-bottom:1px solid #e9ecef; }
+  .breakdown-card .breakdown-table tbody td{ padding:0.55rem 0.75rem; font-size:0.9rem; color:#343a40; vertical-align:middle; }
+  .breakdown-card .breakdown-table tbody tr:nth-child(1) td{ background:rgba(0,143,251,0.05);}
+  .breakdown-card .breakdown-table tbody tr:nth-child(2) td{ background:rgba(254,176,25,0.05);}
+
+  /* === Mini info cards === */
+  .mini-card{ border-radius: 16px !important; overflow: hidden; border: 1px solid #e9ecef; box-shadow: 0 2px 8px rgba(30,34,90,0.08); background:#fff; }
+  .mini-card .card-body{ border-radius: inherit; padding: 0.9rem 1rem; display:flex; align-items:center; justify-content:space-between; }
+  .mini-card h6{ margin:0; font-weight:700; font-size:0.98rem; color:#1c2c45; }
+  .mini-card small{ display:block; margin-top:2px; color:#6c757d; }
+  .mini-card i{ font-size:1.25rem; opacity:0.8; }
+
+  /* Section headers (“Products”, “Services”) */
+  .sales-trend-table .section-title th{ text-align:left; background:#fff; font-weight:700; font-size:0.95rem; padding:0.6rem 0.75rem; border-top:1px solid #e9ecef; }
+  .sales-trend-table .subheader th{ background:#f8f9fa; font-weight:600; color:#495057; padding:0.6rem 0.75rem; font-size:0.9rem; border-bottom:1px solid #e9ecef; }
+  .sales-trend-table tbody td{ padding:0.55rem 0.75rem; font-size:0.9rem; color:#343a40; vertical-align:middle; }
+  .sales-trend-table .subtotal-row td{ background:rgba(0,143,251,0.03); font-weight:600; }
+  .sales-trend-table .grand-total-row td{ background:#e3f2fd; font-weight:700; }
+
+  /* --- Uniform table typography across all breakdown tables --- */
+  .sales-trend-table th, .sales-trend-table td, .breakdown-table th, .breakdown-table td { font-size: 0.9rem; line-height: 1.25rem; }
+  .breakdown-table .section-title th, .sales-trend-table .section-title th { text-align: left; background: #fff; font-weight: 700; font-size: 0.95rem; padding: 0.6rem 0.75rem; border-top: 1px solid #e9ecef; }
+  .breakdown-table .subheader th, .sales-trend-table .subheader th { font-weight: 700; color: #1c2c45; border-bottom: 1px solid #e9ecef; padding: 0.6rem 0.75rem; }
+
+  /* --- Color coding for cost tables' column headers --- */
+  #copBreakdownTable .subheader th.th-productname { background: #e3f2fd; }
+  #copBreakdownTable .subheader th.th-qty         { background: #fffde7; }
+  #copBreakdownTable .subheader th.th-purchase    { background: #f3e5f5; }
+  #copBreakdownTable .subheader th.th-total       { background: #fff3e0; }
+
+  #cosBreakdownTable .subheader th.th-service-name { background: #e3f2fd; }
+  #cosBreakdownTable .subheader th.th-purchase     { background: #f3e5f5; }
+  #cosBreakdownTable .subheader th.th-total        { background: #fff3e0; }
+
+  #opexBreakdownTable .subheader th.th-opex-type { background: #e3f2fd; }
+  #opexBreakdownTable .subheader th.th-amt       { background: #fff3e0; }
+
+  /* ── Minimal GLOBAL MONTH/YEAR FILTER (no card, auto-apply) ───────────── */
+  #globalSalesFilter{
+    display:flex; flex-wrap:wrap; align-items:center;
+    gap:6px; margin: 0 0 8px 0; /* small spacing above KPIs */
+  }
+  #globalSalesFilter .form-control-sm{
+    height:28px; padding:0 6px; font-size:.85rem; width:auto; min-width:100px;
+  }
+  #globalSalesFilter #globalMonth{ min-width:120px; }
+  #globalSalesFilter #globalYear{ min-width:100px; }
+  /* (Optional) labels if you add any later */
+  #globalSalesFilter label { font-size: 0.9rem; color:#495057; }
+
+  @media (max-width:575.98px){
+    #globalSalesFilter{ gap:4px; }
+    #globalSalesFilter .form-control-sm{ min-width:100px; font-size:.82rem; }
+  }
+  /* Sales table column header color-coding to mirror cost tables */
+#salesTrendKPITable .subheader th.th-prodname  { background: #e3f2fd; }
+#salesTrendKPITable .subheader th.th-qty       { background: #fffde7; }
+#salesTrendKPITable .subheader th.th-unit      { background: #f3e5f5; }
+#salesTrendKPITable .subheader th.th-total     { background: #fff3e0; }
+
+#salesTrendKPITable .subheader th.th-servicetype { background: #e3f2fd; }
+#salesTrendKPITable .subheader th.th-count       { background: #fffde7; }
+#salesTrendKPITable .subheader th.th-fee         { background: #f3e5f5; }
+/* th.th-total already styled above */
+/* Cap Products/Services bodies to 5 rows and scroll vertically */
+#salesProductsBody.scrollable-body,
+#salesServicesBody.scrollable-body {
   display: block;
   max-height: calc(5 * 2.2rem);
-  overflow-y: auto; /* will only show a slim scroll when needed */
-}
-/* Color coding like Sales Trend table */
-#diseaseTable tbody tr:nth-child(1) td { background: rgba(0,143,251,0.05); } /* blue */
-#diseaseTable tbody tr:nth-child(2) td { background: rgba(254,176,25,0.05); } /* yellow */
-#diseaseTable tbody tr:nth-child(3) td { background: rgba(40,167,69,0.05); }  /* green */
-#diseaseTable tbody tr:nth-child(odd) td { background: rgba(0,143,251,0.03); }
-#diseaseTable tbody tr:nth-child(even) td { background: rgba(254,176,25,0.03); }
-#diseaseTable tbody tr:hover td { background: rgba(0,0,0,0.03); }
-
-/* Make the table body scroll when 5+ rows */
-#diseaseTable.scrollable-table thead,
-#diseaseTable.scrollable-table tbody tr {
-  display: table; width: 100%; table-layout: fixed;
-}
-#diseaseTable.scrollable-table thead { background: #fff; z-index: 1; }
-#diseaseTable.scrollable-table tbody {
-  display: block;
-  max-height: calc(5 * 2.2rem); /* ~5 rows */
   overflow-y: auto;
 }
-/* Hide vertical scrollbar only in Top Conditions table */
-#diseaseTable.scrollable-table tbody{
-  /* you already set max-height; keep it */
-  -ms-overflow-style: none;   /* IE/Edge */
-  scrollbar-width: none;      /* Firefox */
+
+/* Keep columns aligned when a tbody becomes block-level */
+#salesTrendKPITable tbody tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
 }
-#diseaseTable.scrollable-table tbody::-webkit-scrollbar{
-  width: 0;
-  height: 0;                  /* Chrome/Safari */
+/* Cap COP bodies to 5 rows and scroll vertically */
+#copProductsBody.scrollable-body,
+#copExpiredBody.scrollable-body{
+  display: block;
+  max-height: calc(5 * 2.2rem);
+  overflow-y: auto;
 }
 
-/* (optional) keep right-aligned numbers from hugging the edge when scrollbar is hidden */
-#diseaseTable tbody td.text-right { padding-right: 6px; }
+/* Keep columns aligned when a tbody becomes block-level */
+#copBreakdownTable tbody tr{
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+/* === Insight (Service/Product) mini-cards — match KPI size & align horizontally === */
+#predictiveRow{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:stretch;
+  gap:8px;
+  margin:10px 0 12px;
+}
 
-/* Rank badge shown before disease name */
-.rank-badge {
-  display: inline-flex;
+/* We won't use Bootstrap column widths here; keep items content-sized */
+#predictiveRow > *{ 
+  padding:0 !important;
+  margin:0 !important;
+  flex: 0 0 auto;
+}
+
+/* Card shell: same vibe as .kpi-card */
+#predictiveRow .mini-card{
+  border-radius:8px;
+  box-shadow:0 1px 3px rgba(0,0,0,0.11);
+  border:1px solid #e9ecef;
+  background:#fff;
+  min-width:130px;     /* same min as KPI */
+  max-width:160px;     /* same max as KPI */
+  flex:1 1 140px;      /* same flex basis as KPI */
+  text-align:center;
+  padding:0;           /* body handles inner spacing */
+}
+
+/* Inner layout */
+#predictiveRow .mini-card .card-body{
+  padding: 1.1rem .5rem 1rem .5rem;  /* match KPI vertical rhythm */
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+}
+
+/* Title & subtitle to mirror KPI typography */
+#predictiveRow .mini-card h6{
+  margin:.15rem 0 0 0;
+  font-weight:600;
+  font-size:1.0rem;
+  color:#1c2c45;
+}
+#predictiveRow .mini-card small{
+  display:block;
+  color:#6c757d;
+  font-size:.78rem;
+}
+
+/* Icon on top like KPI */
+#predictiveRow .mini-card i{
+  font-size:1.5rem;
+  opacity:.9;
+  margin-bottom:.15rem;
+}
+
+/* Hover feedback like KPI */
+#predictiveRow .mini-card:hover{
+  box-shadow:0 4px 12px rgba(0,0,0,0.12);
+  transform: translateY(-1px);
+  transition: box-shadow .18s, transform .18s;
+}
+
+/* Mobile: stack nicely */
+@media (max-width: 575.98px){
+  #predictiveRow .mini-card{
+    max-width:100%;
+    flex:1 1 100%;
+  }
+}
+/* Let KPI cards also host insight content cleanly */
+.kpi-card .card-body{
+  /* override global .card-body padding */
+  background: transparent;
+  padding: 1.1rem .5rem 1rem .5rem;   /* same rhythm as .kpi-card */
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:6px;
+}
+
+/* Insight variants (match your color-coded KPI vibe) */
+#salesOverview .kpi-card.insight.service { background:#e0f7fa; }   /* teal tint */
+#salesOverview .kpi-card.insight.service i { color:#17a2b8; }
+
+#salesOverview .kpi-card.insight.product { background:#fff3e0; }   /* warm tint */
+#salesOverview .kpi-card.insight.product i { color:#fd7e14; }
+
+/* Keep text scale consistent with KPI cards */
+.kpi-card.insight h6{
+  margin:.15rem 0 0 0; font-weight:600; font-size:1.0rem; color:#1c2c45;
+}
+.kpi-card.insight small{
+  display:block; color:#6c757d; font-size:.78rem;
+}
+/* --- Insights compact band --- */
+.insights-card{
+  border-radius:14px; border:1px solid #e9ecef;
+  box-shadow:0 2px 8px rgba(30,34,90,.06);
+}
+
+.insights-grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap:.75rem;
+}
+@media (max-width: 991.98px){
+  .insights-grid{ grid-template-columns: 1fr; }
+}
+
+.insight-mini{
+  border:1px solid #e9ecef; border-radius:10px; background:#fff;
+  padding:.75rem .9rem;
+}
+.insight-mini.service{ background:#e8f7fb; }   /* subtle teal tint */
+.insight-mini.product{ background:#fff6ea; }   /* subtle warm tint */
+
+/* inner layout (JS writes into .card-body of each) */
+.insight-mini .card-body{
+  display:flex; align-items:flex-start; gap:.6rem; padding:0;
+}
+.insight-mini .card-body h6{
+  margin:0; font-weight:700; font-size:.95rem; color:#1c2c45;
+}
+.insight-mini .card-body small{
+  display:block; margin-top:2px; font-size:.85rem; color:#495057; line-height:1.25rem;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; /* clamp to 3 lines */
+}
+.insight-mini .card-body i{
+  margin-left:auto; font-size:1.1rem; opacity:.85; /* icon sits on the right */
+}
+/* ===== Refined Insights band ===== */
+.insights-card{
+  border-radius:14px; border:1px solid #e9ecef;
+  box-shadow:0 2px 12px rgba(30,34,90,.06);
+  overflow:hidden;
+}
+.insights-card .card-header{
+  background:linear-gradient(180deg,#fff,#fafbff);
+  border-bottom:1px solid #edf0f4 !important;
+}
+.insights-title{
+  font-weight:700; font-size:.95rem; color:#1c2c45;
+  display:flex; align-items:center; gap:.5rem;
+}
+.insights-title i{ font-size:1rem; }
+.insights-hint{ font-size:.8rem; color:#6c757d; }
+
+.insights-grid{
+  display:grid; gap:.85rem;
+  grid-template-columns:repeat(2,minmax(260px,1fr));
+}
+@media (max-width: 991.98px){ .insights-grid{ grid-template-columns:1fr; } }
+
+.insight-mini{
+  position:relative; overflow:hidden;
+  border-radius:12px; border:1px solid #e9ecef; background:#fff;
+  padding:.9rem 1rem;
+  box-shadow:0 2px 10px rgba(30,34,90,.06);
+  transition:transform .18s, box-shadow .18s;
+}
+.insight-mini::before{
+  content:""; position:absolute; inset:0;
+  background:radial-gradient(60% 80% at 120% -10%, rgba(0,143,251,.12), transparent 60%);
+  pointer-events:none; opacity:.8;
+}
+.insight-mini.service::before{ background:radial-gradient(60% 80% at 120% -10%, rgba(23,162,184,.14), transparent 60%); }
+.insight-mini.product::before{ background:radial-gradient(60% 80% at 120% -10%, rgba(253,126,20,.14), transparent 60%); }
+.insight-mini:hover{ transform:translateY(-2px); box-shadow:0 6px 16px rgba(30,34,90,.12); }
+
+.insight-mini .card-body{
+  display:grid; grid-template-columns:1fr auto; gap:.75rem; align-items:start;
+  padding:0; background:transparent;
+}
+.insight-mini h6{
+  margin:0; font-weight:800; letter-spacing:.2px; color:#1c2c45;
+}
+.insight-mini h6 small{ margin-left:.25rem; font-weight:600; color:#6c757d; }
+.insight-mini small{
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+  overflow:hidden; margin-top:.2rem; font-size:.9rem; color:#343a40; line-height:1.25rem;
+}
+.insight-mini:hover small{ -webkit-line-clamp:unset; } /* expand on hover */
+
+.insight-mini i{
+  width:38px; height:38px; border-radius:999px;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:1rem; background:rgba(0,0,0,.04);
+}
+.insight-mini.service i{ background:rgba(23,162,184,.12); color:#17a2b8; }
+.insight-mini.product i{ background:rgba(253,126,20,.12); color:#fd7e14; }
+/* === Make COS & OPEX bodies scroll at 5 rows (match existing Sales/COP rules) === */
+#cosServicesBody.scrollable-body,
+#opexBody.scrollable-body{
+  display: block;
+  max-height: calc(5 * 2.2rem);
+  overflow-y: auto;
+}
+
+/* Keep columns aligned when a tbody becomes block-level */
+#cosBreakdownTable tbody tr,
+#opexBreakdownTable tbody tr{
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+/* Horizontal scroll wrapper for Apex charts */
+.chart-x-scroll{
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 4px;            /* keeps the scrollbar clear of content */
+}
+.chart-x-scroll::-webkit-scrollbar{ height: 8px; }
+.chart-x-scroll::-webkit-scrollbar-thumb{
+  background: rgba(0,0,0,.2);
+  border-radius: 4px;
+}
+/* Ensure Sales Overview breakdown columns don't force equal heights */
+#salesOverview .row.align-items-start > [class^="col-"],
+#salesOverview .row.align-items-start > [class*=" col-"] {
+  display: block !important;
+}
+/* Compact inline group for Month, Year, and Download button */
+#globalSalesFilter{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:6px;                 /* tweak to 4px if you want it even tighter */
+  margin:0 0 8px 0;
+}
+
+#globalSalesFilter .filter-group{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:6px;                 /* keeps the button “really close” to the selects */
+}
+
+/* Keep your existing size tweaks */
+#globalSalesFilter .form-control-sm{
+  height:28px; padding:0 6px; font-size:.85rem; width:auto; min-width:100px;
+}
+#globalSalesFilter #kpiMonth{ min-width:130px; }
+#globalSalesFilter #kpiYear{  min-width:110px; }
+
+/* Mobile: stack, full width button */
+@media (max-width:575.98px){
+  #globalSalesFilter{ gap:4px; }
+  #globalSalesFilter .filter-group{ width:100%; }
+  #btnDownloadReport{ width:100%; }
+}
+
+.download-btn:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(0,123,255,.24);
+}
+
+/* Make both selects and the button fully rounded */
+#globalSalesFilter .form-control-sm.pill { border-radius: 999px; }
+
+/* Button matches filter height + curve */
+#globalSalesFilter #btnDownloadReport.download-btn {
+  height: 28px;                 /* same as your .form-control-sm */
+  padding: 0 12px;              /* vertical = 0 to keep exact height */
+  border-radius: 999px;         /* same pill curve */
+  display: inline-flex;         /* perfect vertical alignment */
   align-items: center;
-  justify-content: center;
-  min-width: 1.25rem; height: 1.25rem;
-  border-radius: 999px;
-  font-size: 0.72rem; font-weight: 700; color: #fff;
-  margin-right: 0.5rem;
+  gap: 6px;                     /* space between spinner/icon/text */
+  font-weight: 600;
+  box-shadow: 0 6px 14px rgba(0,123,255,.18);
+  transition: transform .15s ease, box-shadow .15s ease;
+  white-space: nowrap;
 }
-.rank-1 { background:#008FFB; } /* blue */
-.rank-2 { background:#FEB019; } /* yellow */
-.rank-3 { background:#28A745; } /* green */
-.rank-n { background:#6c757d; } /* gray for the rest */
-/* Top Conditions card rounding like Sales Trend */
-.top-conditions-card{
-  border-radius: 14px !important;
-  overflow: hidden;                 /* clip chart/table corners */
-  border: 1px solid #e9ecef;
-  box-shadow: 0 3px 12px rgba(30,34,90,0.08);
+#globalSalesFilter #btnDownloadReport.download-btn:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(0,123,255,.24);
 }
-.top-conditions-card .card-header{
-  border-top-left-radius: 14px;
-  border-top-right-radius: 14px;
-}
-.top-conditions-card .card-body{
-  border-bottom-left-radius: 14px;
-  border-bottom-right-radius: 14px;
-}
-/* Peak Day-of-Week card rounding/clip */
-.peak-day-card{
-  border-radius: 14px !important;
-  overflow: hidden;                 /* clip canvas/table corners */
-  border: 1px solid #e9ecef;
-  box-shadow: 0 3px 12px rgba(30,34,90,0.08);
-}
-.peak-day-card .card-header{
-  border-top-left-radius: 14px;
-  border-top-right-radius: 14px;
-}
-.peak-day-card .card-body{
-  border-bottom-left-radius: 14px;
-  border-bottom-right-radius: 14px;
-}
-/* Peak Day table uses the same rank color coding as Top Conditions */
-#peakDayTable tbody tr:nth-child(1) td { background: rgba(0,143,251,0.05); } /* blue */
-#peakDayTable tbody tr:nth-child(2) td { background: rgba(254,176,25,0.05); } /* yellow */
-#peakDayTable tbody tr:nth-child(3) td { background: rgba(40,167,69,0.05); }  /* green */
-#peakDayTable tbody tr:nth-child(odd)  td { background: rgba(0,143,251,0.03); }
-#peakDayTable tbody tr:nth-child(even) td { background: rgba(254,176,25,0.03); }
-#peakDayTable tbody tr:hover td { background: rgba(0,0,0,0.03); }
 
-</style>
+/* Optional: tighter spacing between filters and button */
+#globalSalesFilter .filter-group { gap: 6px; }
 
 </style>
 
@@ -991,477 +857,600 @@
 </head>
 
 <body>
-  <div class="container-fluid">
-    <!-- Top Header -->
+<div class="container-fluid">
+  <!-- Navigation Pills (as Tabs) -->
+  <nav class="sticky-nav">
+    <ul class="nav nav-pills" role="tablist">
+      <li class="nav-item">
+        <a
+          class="nav-link active"
+          data-toggle="tab"
+          href="#salesOverview"
+          role="tab"
+          aria-controls="salesOverview"
+          aria-selected="true"
+        >
+          Sales Overview
+        </a>
+      </li>
+      <li class="nav-item">
+        <a
+          class="nav-link"
+          data-toggle="tab"
+          href="#inventoryOverview"
+          role="tab"
+          aria-controls="inventoryOverview"
+          aria-selected="false"
+        >
+          Inventory Overview
+        </a>
+      </li>
+      <li class="nav-item">
+        <a
+          class="nav-link"
+          data-toggle="tab"
+          href="#appointmentTrends"
+          role="tab"
+          aria-controls="appointmentTrends"
+          aria-selected="false"
+        >
+          Clinic Analytics
+        </a>
+      </li>
+    </ul>
+  </nav>
 
-    <!-- Navigation Pills (as Tabs) -->
-    <nav class="sticky-nav">
-      <ul class="nav nav-pills" role="tablist">
-        <li class="nav-item">
-          <a
-            class="nav-link active"
-            data-toggle="tab"
-            href="#salesOverview"
-            role="tab"
-            aria-controls="salesOverview"
-            aria-selected="true"
-          >
-            Sales Overview
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link"
-            data-toggle="tab"
-            href="#inventoryOverview"
-            role="tab"
-            aria-controls="inventoryOverview"
-            aria-selected="false"
-          >
-            Inventory Overview
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link"
-            data-toggle="tab"
-            href="#appointmentTrends"
-            role="tab"
-            aria-controls="appointmentTrends"
-            aria-selected="false"
-          >
-             Clinic Analytics
-          </a>
-        </li>
-      </ul>
-    </nav>
+  <!-- Tab Content -->
+  <div class="tab-content">
+    <!-- 1) Sales Overview (pane) -->
+    <div
+      class="tab-pane fade show active"
+      id="salesOverview"
+      role="tabpanel"
+      aria-labelledby="salesOverview-tab"
+    >
+      <section class="section-pad">
+<!-- GLOBAL MONTH FILTER (drives ALL KPI + breakdown cards) -->
+<!-- GLOBAL MONTH/YEAR FILTER + DOWNLOAD -->
+<!-- GLOBAL MONTH/YEAR FILTER + DOWNLOAD -->
+<div id="globalSalesFilter" class="d-flex align-items-center mb-2 w-100">
+  <div class="filter-group">
+    <select id="kpiMonth" class="form-control form-control-sm pill" style="min-width:130px;"></select>
+    <select id="kpiYear"  class="form-control form-control-sm pill" style="min-width:110px;"></select>
 
-    <!-- Tab Content -->
-    <div class="tab-content">
-      <!-- 1) Sales Overview (pane) -->
-      <div
-        class="tab-pane fade show active"
-        id="salesOverview"
-        role="tabpanel"
-        aria-labelledby="salesOverview-tab"
-      >
-        <section class="section-pad">
-          <!-- KPI Row -->
-       <div class="d-flex flex-wrap mb-4">
-  <!-- 1) Current Year Sales -->
+   <button id="btnDownloadReport" type="button"
+  class="btn btn-sm btn-primary download-btn pill">
+  <span id="dlSpin" class="spinner-border spinner-border-sm mr-2 d-none" role="status" aria-hidden="true"></span>
+  <i id="dlIcon" class="fas fa-download mr-1"></i>
+  Download report
+</button>
+
+  </div>
+</div>
+
+
+<!-- KPI Row (clean – no Insights inside) -->
+<div class="d-flex flex-wrap mb-4">
   <div class="kpi-card mr-3 mb-3">
     <i class="fas fa-chart-line"></i>
-    <h4 id="kpiRevenue">₱0</h4>
-    <small>Current Year Sales</small>
+    <h4 id="kpiSales">₱0</h4>
+    <small>Sales</small>
   </div>
-
-  <!-- 2) Current Year Total Transaction (renamed label only) -->
   <div class="kpi-card mr-3 mb-3">
-    <i class="fas fa-receipt"></i>
-    <h4 id="kpiTxns">0</h4>
-    <small>Current Year Total Transaction</small>
+    <i class="fas fa-box"></i>
+    <h4 id="kpiProdCost">₱0</h4>
+    <small>Cost of Products Sold</small>
   </div>
-
-  <!-- 3) Past Year Sales -->
   <div class="kpi-card mr-3 mb-3">
-    <i class="fas fa-calendar-alt"></i>
-    <h4 id="kpiAov">₱0</h4>
-    <small>Past Year Sales</small>
+    <i class="fas fa-stethoscope"></i>
+    <h4 id="kpiServCost">₱0</h4>
+    <small>Cost of Services</small>
   </div>
-
-  <!-- 4) NEW: Past Year Total Transaction -->
   <div class="kpi-card mr-3 mb-3">
-    <i class="fas fa-receipt"></i>
-    <h4 id="kpiTxnsPrev">0</h4>
-    <small>Past Year Total Transaction</small>
+    <i class="fas fa-file-invoice-dollar"></i>
+    <h4 id="kpiOpex">₱0</h4>
+    <small>Operating Expenses</small>
   </div>
+  <div class="kpi-card mr-3 mb-3">
+    <i class="fas fa-calculator"></i>
+    <h4 id="kpiOpIncome">₱0</h4>
+    <small>Operating Income</small>
+  </div>
+</div>
+<!-- INSIGHTS (refined band, no hint) -->
+<div class="card insights-card mb-3">
+  <div class="card-header d-flex align-items-center py-2">
+    <span class="insights-title">
+      <i class="fas fa-lightbulb"></i> Insights
+    </span>
+  </div>
+  <div class="card-body">
+    <div class="insights-grid">
+      <article id="predictiveServiceCard" class="insight-mini service">
+        <div class="card-body p-0"></div>
+      </article>
 
-  <!-- 5) Sales Growth -->
-  <div class="kpi-card mb-3">
-    <i id="growthIcon" class="fas fa-percentage"></i>
-    <h4 id="kpiConv">0.0% <span class="arrow">&#8594;</span></h4>
-    <small>Sales Growth</small>
+      <article id="predictiveProductCard" class="insight-mini product">
+        <div class="card-body p-0"></div>
+      </article>
+    </div>
   </div>
 </div>
 
 
-          <div class="row">
-            <!-- Left column: Sales Trend + Sales by Service -->
-            <div class="col-lg-6 mb-4 d-flex flex-column">
-              <!-- Sales Trend -->
-              <div class="card sales-trend-card mb-4">
-             <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
-  <h6 class="mb-0">Sales Trend</h6>
-  <div class="header-controls d-flex align-items-center">
-    <!-- Presets (kept) -->
-    <select id="salesTrendPreset" class="form-control form-control-sm mr-2">
-      <option value="today">Today</option>
-      <option value="7d" selected>Last 7 Days</option>
-      <option value="30d">Last 30 Days</option>
-      <option value="monthpick">By Month</option>
-    </select>
+<!-- BREAKDOWN GRID -->
+<div class="row align-items-start">
 
-    <!-- NEW: Month + Year pickers (hidden until 'By Month' is chosen) -->
-    <select id="trendMonth" class="form-control form-control-sm mr-2" style="display:none; min-width: 130px;"></select>
-    <select id="trendYear"  class="form-control form-control-sm mr-2" style="display:none; min-width: 110px;"></select>
-
-    <!-- (Optional) YoY whole-year toggle still supported -->
-    <select id="salesTrendYOY" class="form-control form-control-sm" style="min-width: 120px;">
-      <!-- JS populates -->
-    </select>
-  </div>
+  <!-- 1) Sales Breakdown -->
+<div class="col-lg-6 mb-4">
+    <div class="card sales-trend-card w-100">
+      <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Breakdown of Sales </h6>
+      <div class="header-controls d-flex align-items-center">
+  <select id="salesTrendPreset" class="form-control form-control-sm mr-2">
+    <option value="today">Today</option>
+    <option value="7d" selected>Last 7 Days</option>
+    <option value="30d">Last 30 Days</option>
+    <option value="monthpick">By Month</option>
+  </select>
+  <select id="trendMonth" class="form-control form-control-sm mr-2" style="display:none; min-width:130px;"></select>
+  <select id="trendYear"  class="form-control form-control-sm"      style="display:none; min-width:110px;"></select>
 </div>
 
-                <div class="card-body p-3 d-flex flex-column">
-                  <div id="salesTrendChart" class="chart flex-grow-1 mb-3"></div>
-                  <div class="kpi-table-wrapper">
-                    <table class="table sales-trend-table" id="salesTrendKPITable" style="display: none;">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th id="stCurLabel"></th>
-                          <th id="stPrevLabel"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td>Total Sales</td>
-                          <td id="stCurSales">₱0</td>
-                          <td id="stPrevSales">₱0</td>
-                        </tr>
-                        <tr>
-                          <td>Total Transactions</td>
-                          <td id="stCurTxns">0</td>
-                          <td id="stPrevTxns">0</td>
-                        </tr>
-                        <tr>
-                          <td>Profit</td>
-                          <td id="stCurProfit">₱0</td>
-                          <td id="stPrevProfit">₱0</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Sales by Service -->
-              <div class="card sales-by-serv-card">
-                <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
-                  <h6 class="mb-0">Sales by Service</h6>
-                  <div class="header-controls d-flex align-items-center">
-                    <select id="servRangeSelect" class="form-control form-control-sm ml-2" style="width: 100px;">
-                      <option value="day" selected>Today</option>
-                      <option value="week">Last 7 Days</option>
-                      <option value="month">This Month</option>
-                      <option value="year">This Year</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="card-body p-3">
-                  <table id="salesByServTable" class="scrollable-table">
-                    <thead>
-                      <tr>
-                        <th>Service</th>
-                        <th class="text-right">Counts</th>
-                        <th class="text-right">Sales</th>
-                      </tr>
-                    </thead>
-                    <tbody></tbody>
-                  </table>
-                  <div id="servNoData" class="text-center text-muted mt-3" style="display: none;">
-                    No services found for the selected filter.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Right column: Sales by Category + Sales by Product -->
-            <div class="col-lg-6 mb-4 d-flex flex-column">
-              <!-- Sales by Category -->
-              <div class="card sales-by-cat-card mb-4">
-                <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
-                  <h6 class="mb-0">Sales by Category</h6>
-                  <div class="header-controls d-flex align-items-center">
-                    <select id="categorySelect" class="form-control form-control-sm" style="width: auto;">
-                      <option value="" disabled selected>Select Category</option>
-                    </select>
-                    <select id="categoryRangeSelect" class="form-control form-control-sm ml-2" style="width: 100px;">
-                      <option value="day">Today</option>
-                      <option value="week" selected>Last 7 Days</option>
-                      <option value="month">This Month</option>
-                      <option value="year">This Year</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="card-body p-3" style="min-height: 180px;">
-                  <div class="kpi-grid mb-2">
-                    <div class="kpi-item">
-                      <small>Total Sales</small>
-                      <h5 id="catSales">₱0</h5>
-                    </div>
-                    <div class="kpi-item">
-                      <small>Profit</small>
-                      <h5 id="catProfit">₱0</h5>
-                    </div>
-                    <div class="kpi-item">
-                      <small>Expired</small>
-                      <h5 id="catLoss">₱0</h5>
-                    </div>
-                    <div class="kpi-item">
-                      <small>Sales Rate</small>
-                      <div class="sales-rate d-flex align-items-center">
-                        <span id="catRate" class="rate-percentage">0%</span>
-                        <div id="catSparkline" class="sparkline-chart ml-1"></div>
-                      </div>
-                    </div>
-                  </div>
-                  <div id="catGrowth" class="growth-line neutral">
-                    <span>+0%</span>
-                    <span class="arrow">&#8594;</span>
-                    <small class="ml-2 text-muted">vs. previous period</small>
-                  </div>
-                  <div id="catComparisonText" class="comparison-text mt-2"></div>
-                </div>
-              </div>
-
-              <!-- Sales by Product -->
-              <div class="card sales-by-prod-card">
-                <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
-                  <h6 class="mb-0">Sales by Product</h6>
-                  <div class="header-controls d-flex align-items-center">
-                    <select id="prodCategorySelect" class="form-control form-control-sm" style="width: auto;">
-                      <option value="" disabled selected>All Categories</option>
-                    </select>
-                    <select id="prodRangeSelect" class="form-control form-control-sm ml-2" style="width: 100px;">
-                      <option value="day" selected>Today</option>
-                      <option value="week">Last 7 Days</option>
-                      <option value="month">This Month</option>
-                      <option value="year">This Year</option>
-                    </select>
-                    <input
-                      type="text"
-                      id="prodSearchInput"
-                      class="prod-search-input ml-2 form-control form-control-sm"
-                      placeholder="Search Product"
-                    />
-                  </div>
-                </div>
-                <div class="card-body p-3">
-                  <table id="salesByProdTable" class="scrollable-table">
-                    <thead>
-                      <tr>
-                        <th>Product</th>
-                        <th class="text-right">Units Sold</th>
-                        <th class="text-right">Sales</th>
-                      </tr>
-                    </thead>
-                    <tbody></tbody>
-                  </table>
-                  <div id="prodNoData" class="text-center text-muted mt-3" style="display: none;">
-                    No products found for the selected filters.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div> <!-- /.row -->
-        </section>
-      </div> <!-- /#salesOverview -->
-<!-- 2) Inventory Overview -->
-<div
-  class="tab-pane fade"
-  id="inventoryOverview"
-  role="tabpanel"
-  aria-labelledby="inventoryOverview-tab"
->
-  <!-- KPI Row -->
-  <section class="section-pad">
-    <div class="d-flex flex-wrap justify-content-between align-items-stretch" style="gap: 1rem;">
-      <div class="kpi-card flex-fill text-center">
-        <i class="fas fa-boxes"></i>
-        <h4 id="invTotalSKUs">0</h4>
-        <small>Total Product</small>
       </div>
-      <div class="kpi-card flex-fill text-center">
-        <i class="fas fa-exclamation-triangle text-danger"></i>
-        <h4 id="invLowStockCount">0</h4>
-        <small>Low Stock (≤10)</small>
-      </div>
-      <div class="kpi-card flex-fill text-center">
-        <i class="fas fa-clock text-warning"></i>
-        <h4 id="invExpiringCount">0</h4>
-        <small>Expiring Soon</small>
-      </div>
-     
-      <div class="kpi-card flex-fill text-center">
-        <i class="fas fa-ban text-secondary"></i>
-        <h4 id="invExpiredCount">0</h4>
-        <small>Expired Products</small>
+
+      <div class="card-body p-3 d-flex flex-column">
+       <div class="chart-x-scroll">
+  <div id="salesTrendChart" class="chart flex-grow-1 mb-3" style="width:100%"></div>
+</div>
+
+
+        <div class="kpi-table-wrapper">
+          <!-- Structured table (mirrors COP format) -->
+          <!-- NOTE: removed style="display:none;" so it's always visible -->
+          <table class="table sales-trend-table" id="salesTrendKPITable">
+            <!-- PRODUCTS -->
+            <tbody id="salesProductsSection">
+              <tr class="section-title">
+                <th colspan="4" class="text-left">Products</th>
+              </tr>
+              <tr class="subheader">
+                <th class="text-left th-prodname">Product Name</th>
+                <th class="text-right th-qty">Qty</th>
+                <th class="text-right th-unit">Unit Price</th>
+                <th class="text-right th-total">Total Amount</th>
+              </tr>
+            </tbody>
+
+            <!-- Product rows injected here -->
+            <tbody id="salesProductsBody">
+              <!-- Fallback row (visible even without JS) -->
+              <tr class="empty-row">
+                <td colspan="4" class="text-center text-muted">No product sales to display.</td>
+              </tr>
+            </tbody>
+
+            <!-- Products subtotal -->
+            <tbody>
+              <tr class="subtotal-row">
+                <td colspan="3" class="text-right">Subtotal – Products</td>
+                <td id="salesProductsSubtotal" class="text-right">₱0</td>
+              </tr>
+            </tbody>
+
+            <!-- SERVICES -->
+            <tbody id="salesServicesSection">
+              <tr class="section-title">
+                <th colspan="4" class="text-left">Services</th>
+              </tr>
+              <tr class="subheader">
+                <th class="text-left th-servicetype">Service Type</th>
+                <th class="text-right th-count">Service Count</th>
+                <th class="text-right th-fee">Service Fee</th>
+                <th class="text-right th-total">Total Amount</th>
+              </tr>
+            </tbody>
+
+            <!-- Service rows injected here -->
+            <tbody id="salesServicesBody">
+              <!-- Fallback row (visible even without JS) -->
+              <tr class="empty-row">
+                <td colspan="4" class="text-center text-muted">No service sales to display.</td>
+              </tr>
+            </tbody>
+
+            <!-- Services subtotal + Grand total -->
+            <tbody>
+              <tr class="subtotal-row">
+                <td colspan="3" class="text-right">Subtotal – Services</td>
+                <td id="salesServicesSubtotal" class="text-right">₱0</td>
+              </tr>
+              <tr class="grand-total-row">
+                <td colspan="3" class="text-right font-weight-bold">Total Sales</td>
+                <td id="salesGrandTotal" class="text-right font-weight-bold">₱0</td>
+              </tr>
+            </tbody>
+          </table>
+          <!-- /Structured table -->
+        </div>
       </div>
     </div>
-  </section>
+  </div>
 
-<!-- Cards Row (side-by-side) -->
-<div class="row">
-  <!-- Top 5 Best-Sellers -->
-  <div class="col-lg-6 col-md-6 mb-4 d-flex">
-    <div class="card sales-by-cat-card h-100 w-100">
+  <!-- 2) Cost of Product Sold Breakdown -->
+<div class="col-lg-6 mb-4">
+    <div class="card breakdown-card w-100">
       <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
-        <h6 class="mb-0">Top 5 Best-Sellers</h6>
+        <h6 class="mb-0">Breakdown of Cost of Product Sold </h6>
         <div class="header-controls d-flex align-items-center">
-          <select id="topSoldCategorySelect" class="form-control form-control-sm" style="width:auto; min-width:140px;">
-            <option value="">All Categories</option>
-            <!-- JS populates more options -->
-          </select>
-          <select id="topSoldRangeSelect" class="form-control form-control-sm ml-2" style="width:auto; min-width:140px;">
-            <option value="day">Today</option>
-            <option value="week" selected>Last 7 Days</option>
+          <select id="copPreset" class="form-control form-control-sm">
+            <option value="today">Today</option>
+            <option value="7d" selected>Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
             <option value="month">This Month</option>
             <option value="year">This Year</option>
           </select>
         </div>
       </div>
-      <div class="card-body">
-        <table class="inventory-table scrollable-table" id="topSoldTable">
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th class="text-right">Units Sold</th>
-            </tr>
-          </thead>
-          <tbody id="topSoldTbody"></tbody>
-        </table>
-        <div id="topSoldEmpty" class="text-center text-muted" style="display:none;">
-          No top sellers to display.
+
+      <div class="card-body p-3 d-flex flex-column">
+<div class="chart-x-scroll">
+  <div id="copBreakdownChart" class="chart flex-grow-1 mb-3" style="width:100%"></div>
+</div>
+
+
+        <div class="kpi-table-wrapper">
+          <table class="table breakdown-table" id="copBreakdownTable">
+            <!-- PRODUCTS -->
+            <tbody id="copProductsSection">
+              <tr class="section-title">
+                <th colspan="4" class="text-left">Products</th>
+              </tr>
+              <tr class="subheader">
+                <th class="text-left th-productname">Product Name</th>
+                <th class="text-right th-qty">Qty</th>
+                <th class="text-right th-purchase">Purchase Price</th>
+                <th class="text-right th-total">Total Amount</th>
+              </tr>
+            </tbody>
+
+            <!-- dynamic product rows go here -->
+            <tbody id="copProductsBody"></tbody>
+
+            <!-- products subtotal -->
+            <tbody>
+              <tr class="subtotal-row">
+                <td colspan="3" class="text-right">Subtotal – Products</td>
+                <td id="copProductsSubtotal" class="text-right">₱0</td>
+              </tr>
+            </tbody>
+
+            <!-- EXPIRED PRODUCTS -->
+            <tbody id="copExpiredSection">
+              <tr class="section-title">
+                <th colspan="4" class="text-left">Expired Products</th>
+              </tr>
+              <tr class="subheader">
+                <th class="text-left th-productname">Product Name</th>
+                <th class="text-right th-qty">Qty</th>
+                <th class="text-right th-purchase">Purchase Price</th>
+                <th class="text-right th-total">Total Amount</th>
+              </tr>
+            </tbody>
+
+            <!-- dynamic expired rows go here -->
+            <tbody id="copExpiredBody"></tbody>
+
+            <!-- expired subtotal + grand total -->
+            <tbody>
+              <tr class="subtotal-row">
+                <td colspan="3" class="text-right">Subtotal – Expired</td>
+                <td id="copExpiredSubtotal" class="text-right">₱0</td>
+              </tr>
+              <tr class="grand-total-row">
+                <td colspan="3" class="text-right font-weight-bold">Total Cost of Products Sold</td>
+                <td id="copGrandTotal" class="text-right font-weight-bold">₱0</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Expired Products -->
-  <div class="col-lg-6 col-md-6 mb-4 d-flex">
-    <div class="card sales-by-cat-card h-100 w-100">
+  <!-- 3) Cost of Service Breakdown -->
+<div class="col-lg-6 mb-4">
+    <div class="card breakdown-card w-100">
       <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
-        <h6 class="mb-0">Expired Products</h6>
+        <h6 class="mb-0">Breakdown of Cost of Service </h6>
         <div class="header-controls d-flex align-items-center">
-          <select id="expiredCategorySelect" class="form-control form-control-sm" style="width:auto; min-width:140px;">
-            <option value="">All Categories</option>
-            <!-- JS will populate the rest -->
+          <select id="cosPreset" class="form-control form-control-sm">
+            <option value="today">Today</option>
+            <option value="7d" selected>Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="month">This Month</option>
+            <option value="year">This Year</option>
           </select>
         </div>
       </div>
-      <div class="card-body">
-        <table class="inventory-table scrollable-table" id="expiredProductsTable">
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th class="text-right">Expired Count</th>
-              <th class="text-right">Last Expired</th>
-            </tr>
-          </thead>
-          <tbody id="expiredProductsTbody"></tbody>
-        </table>
-        <div id="expiredProductsEmpty" class="text-center text-muted" style="display:none;">
-          No expired products.
+
+      <div class="card-body p-3 d-flex flex-column">
+        <div class="chart-x-scroll">
+  <div id="cosBreakdownChart" class="chart flex-grow-1 mb-3" style="width:100%"></div>
+</div>
+
+
+        <div class="kpi-table-wrapper">
+          <table class="table breakdown-table" id="cosBreakdownTable">
+            <!-- SERVICES SECTION TITLE + HEADER -->
+            <tbody id="cosServicesSection">
+              <tr class="section-title">
+                <th colspan="3" class="text-left">Services</th>
+              </tr>
+              <tr class="subheader">
+                <th class="text-left th-service-name">Service Name</th>
+                <th class="text-right th-purchase">Purchase Price</th>
+                <th class="text-right th-total">Total Amount</th>
+              </tr>
+            </tbody>
+
+            <!-- dynamic service rows go here -->
+            <tbody id="cosServicesBody"></tbody>
+
+            <!-- GRAND TOTAL -->
+            <tbody>
+              <tr class="grand-total-row">
+                <td colspan="2" class="text-right font-weight-bold">Total Cost of Services</td>
+                <td id="cosServicesTotal" class="text-right font-weight-bold">₱0</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-
-
- 
-</div> <!-- /#inventoryOverview -->
-
-<!-- 3) Appointment Trends (this must be a sibling, not nested) -->
-<div
-  class="tab-pane fade"
-  id="appointmentTrends"
-  role="tabpanel"
-  aria-labelledby="appointmentTrends-tab"
->
-  <section class="section-pad">
-    <div class="row">
-  <!-- Peak Day-of-Week (kept, just widened to col-6) -->
-<div class="col-lg-6 col-md-6 mb-4">
-  <div class="card peak-day-card h-100 shadow-sm">
-    <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
-        <h6 class="mb-0">Peak Day-of-Week</h6>
-        <select id="peakDayRange" class="form-control form-control-sm" style="width: auto;">
-          <option value="7d">Last 7 Days</option>
-          <option value="30d" selected>Last 30 Days</option>
-          <option value="month">Month</option>
-          <option value="year">Year</option>
-        </select>
+  <!-- 4) Operating Expenses Breakdown -->
+<div class="col-lg-6 mb-4">
+    <div class="card breakdown-card w-100">
+      <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Breakdown of Operating Expenses </h6>
+        <div class="header-controls d-flex align-items-center">
+          <select id="opexPreset" class="form-control form-control-sm">
+            <option value="today">Today</option>
+            <option value="7d" selected>Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="month">This Month</option>
+            <option value="year">This Year</option>
+          </select>
+        </div>
       </div>
-      <div class="card-body p-2">
-     <div id="peakDayChartWrapper" style="width: 100%; height: 200px; margin-bottom: 12px;">
-  <div id="peakDayChart"></div>
+
+      <div class="card-body p-3 d-flex flex-column">
+      <div class="chart-x-scroll">
+  <div id="opexBreakdownChart" class="chart flex-grow-1 mb-3" style="width:100%"></div>
 </div>
 
-        <table class="table table-sm table-borderless mb-0" id="peakDayTable" style="font-size: 0.7rem;">
-          <thead>
-            <tr>
-              <th>Day</th>
-              <th class="text-right">Appointments</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+
+        <div class="kpi-table-wrapper">
+          <table class="table breakdown-table" id="opexBreakdownTable">
+            <!-- OPEX SECTION TITLE + HEADER -->
+            <tbody id="opexHeader">
+              <tr class="section-title">
+                <th colspan="2" class="text-left">OPEX</th>
+              </tr>
+              <tr class="subheader">
+                <th class="text-left th-opex-type">Type of Expenses</th>
+                <th class="text-right th-amt">Amount</th>
+              </tr>
+            </tbody>
+
+            <!-- dynamic OPEX rows go here -->
+            <tbody id="opexBody"></tbody>
+
+            <!-- GRAND TOTAL -->
+            <tbody>
+              <tr class="grand-total-row">
+                <td class="text-right font-weight-bold">Total OPEX</td>
+                <td id="opexTotal" class="text-right font-weight-bold">₱0</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
+</div> <!-- /.row (breakdown grid) -->
+</section>
+</div> <!-- /#salesOverview (CLOSED) -->
 
-<!-- NEW: Top Conditions (Most Common Diseases) -->
-<div class="col-lg-6 col-md-6 mb-4">
-  <div class="card top-conditions-card h-100 shadow-sm">
-    <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
-      <h6 class="mb-0">Top Conditions</h6>
-      <div class="header-controls d-flex align-items-center">
-        <select id="diseaseRange" class="form-control form-control-sm" style="width:auto; min-width:140px;">
-          <option value="day">Today</option>
-          <option value="week">Last 7 Days</option>
-          <option value="month" selected>This Month</option>
-          <option value="year">This Year</option>
-        </select>
 
-        <!-- NEW: Year + Month (populated and toggled by JS) -->
-        <select id="diseaseYear"
-                class="form-control form-control-sm ml-2"
-                style="width:auto; min-width:110px;"></select>
-        <select id="diseaseMonth"
-                class="form-control form-control-sm ml-2"
-                style="width:auto; min-width:130px;"></select>
+    <!-- 2) Inventory Overview -->
+    <div
+      class="tab-pane fade"
+      id="inventoryOverview"
+      role="tabpanel"
+      aria-labelledby="inventoryOverview-tab"
+    >
+      <!-- KPI Row -->
+      <section class="section-pad">
+        <div class="d-flex flex-wrap justify-content-between align-items-stretch" style="gap: 1rem;">
+          <div class="kpi-card flex-fill text-center">
+            <i class="fas fa-boxes"></i>
+            <h4 id="invTotalSKUs">0</h4>
+            <small>Total Product</small>
+          </div>
+          <div class="kpi-card flex-fill text-center">
+            <i class="fas fa-exclamation-triangle text-danger"></i>
+            <h4 id="invLowStockCount">0</h4>
+            <small>Low Stock (≤10)</small>
+          </div>
+          <div class="kpi-card flex-fill text-center">
+            <i class="fas fa-clock text-warning"></i>
+            <h4 id="invExpiringCount">0</h4>
+            <small>Expiring Soon</small>
+          </div>
+          <div class="kpi-card flex-fill text-center">
+            <i class="fas fa-ban text-secondary"></i>
+            <h4 id="invExpiredCount">0</h4>
+            <small>Expired Products</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cards Row (side-by-side) -->
+      <div class="row">
+        <!-- Top 5 Best-Sellers -->
+        <div class="col-lg-6 col-md-6 mb-4 d-flex">
+          <div class="card sales-by-cat-card h-100 w-100">
+            <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+              <h6 class="mb-0">Top 5 Best-Sellers</h6>
+              <div class="header-controls d-flex align-items-center">
+                <select id="topSoldCategorySelect" class="form-control form-control-sm" style="width:auto; min-width:140px;">
+                  <option value="">All Categories</option>
+                  <!-- JS populates more options -->
+                </select>
+                <select id="topSoldRangeSelect" class="form-control form-control-sm ml-2" style="width:auto; min-width:140px;">
+                  <option value="day">Today</option>
+                  <option value="week" selected>Last 7 Days</option>
+                  <option value="month">This Month</option>
+                  <option value="year">This Year</option>
+                </select>
+              </div>
+            </div>
+            <div class="card-body">
+              <table class="inventory-table scrollable-table" id="topSoldTable">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th class="text-right">Units Sold</th>
+                  </tr>
+                </thead>
+                <tbody id="topSoldTbody"></tbody>
+              </table>
+              <div id="topSoldEmpty" class="text-center text-muted" style="display:none;">
+                No top sellers to display.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Expired Products -->
+        <div class="col-lg-6 col-md-6 mb-4 d-flex">
+          <div class="card sales-by-cat-card h-100 w-100">
+            <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+              <h6 class="mb-0">Expired Products</h6>
+              <div class="header-controls d-flex align-items-center">
+                <select id="expiredCategorySelect" class="form-control form-control-sm" style="width:auto; min-width:140px;">
+                  <option value="">All Categories</option>
+                  <!-- JS will populate the rest -->
+                </select>
+              </div>
+            </div>
+            <div class="card-body">
+              <table class="inventory-table scrollable-table" id="expiredProductsTable">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th class="text-right">Expired Count</th>
+                    <th class="text-right">Last Expired</th>
+                  </tr>
+                </thead>
+                <tbody id="expiredProductsTbody"></tbody>
+              </table>
+              <div id="expiredProductsEmpty" class="text-center text-muted" style="display:none;">
+                No expired products.
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </div> <!-- /#inventoryOverview -->
 
-    <div class="card-body p-2">
-      <div style="width: 100%; height: 220px; margin-bottom: 12px;">
-        <div id="diseaseChart"></div>
-      </div>
+    <!-- 3) Appointment Trends (sibling tab) -->
+    <div
+      class="tab-pane fade"
+      id="appointmentTrends"
+      role="tabpanel"
+      aria-labelledby="appointmentTrends-tab"
+    >
+      <section class="section-pad">
+        <div class="row">
+          <!-- Peak Day-of-Week -->
+          <div class="col-lg-6 col-md-6 mb-4">
+            <div class="card peak-day-card h-100 shadow-sm">
+              <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Peak Day-of-Week</h6>
+                <select id="peakDayRange" class="form-control form-control-sm" style="width: auto;">
+                  <option value="7d">Last 7 Days</option>
+                  <option value="30d" selected>Last 30 Days</option>
+                  <option value="month">Month</option>
+                  <option value="year">Year</option>
+                </select>
+              </div>
+              <div class="card-body p-2">
+                <div id="peakDayChartWrapper" style="width: 100%; height: 200px; margin-bottom: 12px;">
+                  <div id="peakDayChart"></div>
+                </div>
 
-      <table class="table table-sm table-borderless mb-0 scrollable-table max5"
-             id="diseaseTable" style="font-size: 0.8rem;">
-        <thead>
-          <tr>
-            <th>Condition</th>
-            <th class="text-right">Cases</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+                <table class="table table-sm table-borderless mb-0" id="peakDayTable" style="font-size: 0.7rem;">
+                  <thead>
+                    <tr>
+                      <th>Day</th>
+                      <th class="text-right">Appointments</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
 
-      <div id="diseaseEmpty" class="text-center text-muted" style="display:none;">
-        No diagnoses found for the selected period.
-      </div>
-    </div>
-  </div>
+          <!-- Top Conditions -->
+          <div class="col-lg-6 col-md-6 mb-4">
+            <div class="card top-conditions-card h-100 shadow-sm">
+              <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Top Conditions</h6>
+                <div class="header-controls d-flex align-items-center">
+                  <select id="diseaseRange" class="form-control form-control-sm" style="width:auto; min-width:140px;">
+                    <option value="day">Today</option>
+                    <option value="week">Last 7 Days</option>
+                    <option value="month" selected>This Month</option>
+                    <option value="year">This Year</option>
+                  </select>
+
+                  <!-- Year + Month (populated/toggled by JS) -->
+                  <select id="diseaseYear" class="form-control form-control-sm ml-2" style="width:auto; min-width:110px;"></select>
+                  <select id="diseaseMonth" class="form-control form-control-sm ml-2" style="width:auto; min-width:130px;"></select>
+                </div>
+              </div>
+
+              <div class="card-body p-2">
+                <div style="width: 100%; height: 220px; margin-bottom: 12px;">
+                  <div id="diseaseChart"></div>
+                </div>
+
+                <table class="table table-sm table-borderless mb-0 scrollable-table max5" id="diseaseTable" style="font-size: 0.8rem;">
+                  <thead>
+                    <tr>
+                      <th>Condition</th>
+                      <th class="text-right">Cases</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+
+                <div id="diseaseEmpty" class="text-center text-muted" style="display:none;">
+                  No diagnoses found for the selected period.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div> <!-- /.row -->
+      </section>
+    </div> <!-- /#appointmentTrends -->
+  </div> <!-- /.tab-content -->
 </div>
-
-    </div> <!-- /.row -->
-  </section>
-</div> <!-- /#appointmentTrends -->
 
 
   <!-- JS includes -->
@@ -1478,8 +1467,7 @@
   ></script>
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- instead of inline JS, load the unified dashboard.js -->
-  <!-- Shared helpers (must load first) -->
+<script src="/js/sales-kpis.js"></script>
 
 </body>
 </html>
