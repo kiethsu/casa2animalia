@@ -1,3 +1,8 @@
+<%
+  // Safe fallbacks for name/pic
+  const __pic = (typeof profilePic !== 'undefined' && profilePic) ? profilePic : '/images/default_profile_icon.png';
+  const __customerName = (typeof username !== 'undefined' && username) ? username : 'Customer';
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,54 +18,68 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <!-- SweetAlert2 CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
-<style>
+
+  <style>
   :root {
-    --primary: #1E88E5;
-    --primary-dark: #0D47A1;
-    --accent: #FFB400;
-    --white: #ffffff;
-    --text: #333;
-    --bg-dark: #0D1B2A;
-    --card-bg: #ffffff;
-    --border-color: rgba(0,0,0,0.08);
+    --primary:#1E88E5; --primary-dark:#0D47A1; --accent:#FFB400; --white:#fff;
+    --text:#333; --bg-dark:#0D1B2A; --card-bg:#fff; --border-color:rgba(0,0,0,.08);
   }
 
   /* —— Top bar —— */
-  #topbar {
-    position: fixed; top: 0; left: 0; right: 0;
-    height: 56px; background: var(--bg-dark);
-    display: flex; align-items: center;
-    padding: 0 16px; z-index: 3000;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.25);
-    gap: 12px;
+  #topbar{
+    position:fixed; inset:0 auto auto 0; right:0; height:56px; background:var(--bg-dark);
+    display:flex; align-items:center; padding:0 16px; z-index:3000; gap:12px;
+    box-shadow:0 2px 4px rgba(0,0,0,.25);
   }
-  #topbar .menu-toggle { color:#fff; font-size:1.5em; margin-right:16px; cursor:pointer; display:none; }
-  #topbar .topbar-paw { color:#fff; font-size:1.3em; margin-right:8px; }
-  #topbar .topbar-title { color:#fff; font-size:1.1em; font-weight:500; flex-grow:1; }
-  .topbar-actions { margin-left:auto; display:flex; align-items:center; gap:16px; }
-  .message-icon { position:relative; cursor:pointer; color:#fff; font-size:1.2em; }
-  .message-icon .badge {
+  #topbar .menu-toggle{ color:#fff; font-size:1.5em; margin-right:16px; cursor:pointer; display:none; }
+  #topbar .topbar-paw{ color:#fff; font-size:1.3em; margin-right:8px; }
+  #topbar .topbar-title{ color:#fff; font-size:1.1em; font-weight:500; flex-grow:1; white-space:nowrap; }
+  .topbar-actions{ margin-left:auto; display:flex; align-items:center; gap:16px; }
+
+  /* Messages icon */
+  .message-icon{ position:relative; cursor:pointer; color:#fff; font-size:1.2em; }
+  .message-icon .badge{
     position:absolute; top:-4px; right:-6px; background:#ff4d4f; color:#fff;
     font-size:.55em; padding:2px 5px; border-radius:999px; line-height:1; min-width:16px; text-align:center; display:none;
   }
-  @media (max-width: 991.98px){
-    #topbar .topbar-title{ display:none; }
-    #topbar .menu-toggle{ display:inline-block; }
+  .message-icon.has-unread .badge{ animation:pulseBadge 1.2s ease-in-out infinite; display:inline-block; }
+  @keyframes pulseBadge{ 0%{transform:scale(1); box-shadow:0 0 0 0 rgba(255,77,79,.6);} 70%{transform:scale(1.07); box-shadow:0 0 0 8px rgba(255,77,79,0);} 100%{transform:scale(1); box-shadow:0 0 0 0 rgba(255,77,79,0);} }
+
+  /* Top-right customer pill */
+  .topbar-user{
+    display:flex; align-items:center; gap:10px;
+    background:rgba(255,255,255,.08);
+    padding:6px 10px; border-radius:999px;
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 1px 2px rgba(0,0,0,.12);
+  }
+  #topbarCustomerName{
+    color:#fff; font-weight:600; max-width:180px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  #topbarCustomerPic{
+    width:34px; height:34px; border-radius:50%;
+    object-fit:cover; background:#fff; border:2px solid var(--accent);
   }
 
-  body { font-family:'Roboto',sans-serif; background:#f7f7f7; margin:0; padding:0; overflow-x:hidden; }
-  .wrapper { display:flex; position:relative; min-height:100vh; padding-top:calc(56px + 44px); width:100%; }
+  @media (max-width:991.98px){ #topbar .topbar-title{ display:none; } #topbar .menu-toggle{ display:inline-block; } }
+  @media (max-width:575.98px){ #topbarCustomerName{ display:none; } }
+
+  body{ font-family:'Roboto',sans-serif; background:#f7f7f7; margin:0; padding:0; overflow-x:hidden; }
+  .wrapper{ display:flex; position:relative; min-height:100vh; padding-top:calc(56px + 44px); width:100%; }
 
   /* —— Sidebar —— */
-  #sidebar {
-    position: fixed; top:56px; left:0; width:250px; height:calc(100vh - 56px);
-    background: linear-gradient(180deg,var(--primary-dark),var(--bg-dark));
+  #sidebar{
+    position:fixed; top:56px; left:0; width:250px; height:calc(100vh - 56px);
+    background:linear-gradient(180deg,var(--primary-dark),var(--bg-dark));
     color:var(--white); display:flex; flex-direction:column; transition:left .3s ease;
-    box-shadow: 2px 0 6px rgba(0,0,0,.15); z-index:2000;
+    box-shadow:2px 0 6px rgba(0,0,0,.15); z-index:2000;
+    overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; scrollbar-gutter:stable;
   }
   .sidebar-header{ padding:24px; display:flex; align-items:center; gap:12px; }
   .sidebar-logo{ font-size:1.8rem; color:var(--accent); }
   .sidebar-title{ font-size:1.2rem; font-weight:700; letter-spacing:.5px; }
+
   .sidebar-menu{ flex-grow:1; padding:0; margin:0; list-style:none; }
   .sidebar-menu li{ margin:4px 0; }
   .sidebar-menu a{
@@ -70,22 +89,15 @@
   .sidebar-menu a i{ width:24px; text-align:center; margin-right:12px; }
   .sidebar-menu a:hover, .sidebar-menu a:focus{ text-decoration:none; background:rgba(255,255,255,.1); }
   .sidebar-menu a.active{ background:var(--accent); color:var(--primary-dark); }
-  .sidebar-menu a.active::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--accent); border-top-right-radius:4px; border-bottom-right-radius:4px; }
-
-  .sidebar-bottom-profile{
-    padding:16px; background:rgba(255,255,255,.05); margin:16px; border-radius:12px;
-    display:flex; align-items:center; gap:12px; overflow:hidden;
+  .sidebar-menu a.active::before{
+    content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--accent); border-top-right-radius:4px; border-bottom-right-radius:4px;
   }
-  .sidebar-bottom-profile img{ display:block; width:40px; height:40px; aspect-ratio:1/1; border-radius:50%; object-fit:cover; object-position:center; border:2px solid var(--accent); }
-  .sidebar-bottom-profile .fw-bold{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .sidebar-bottom-profile .info{ flex:1 1 auto; min-width:0; }
-  #sidebarUserName{ display:block; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
   /* —— Sub-nav —— */
-  #sub-nav {
+  #sub-nav{
     position:fixed; top:56px; left:250px; right:0; background:#f1f5fa; height:44px; padding:6px 16px;
     z-index:2500; box-shadow:0 2px 6px rgba(0,0,0,.08); border-bottom:1px solid rgba(0,0,0,.04);
-    display:flex; align-items:center; font-size:.9rem; transition:height .2s;
+    display:flex; align-items:center; font-size:.9rem; transition:height .2s, left .3s;
   }
   #subnav-title{ font-weight:600; font-size:1rem; color:var(--text); margin:0; }
 
@@ -96,262 +108,99 @@
   }
   .collapsed-content{ margin-left:0 !important; width:100% !important; }
 
+  /* Mobile drawer overlay */
+  #sidebarOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.35); backdrop-filter:blur(1px);
+    z-index:1500; display:none;
+  }
+  #sidebarOverlay.show{ display:block; }
+
   /* —— Responsive —— */
-  @media (max-width: 991.98px){
+  @media (max-width:991.98px){
     #sidebar{ width:220px; left:-220px; }
     #sidebar.active{ left:0; }
     #content{ margin-left:0; width:100%; padding:12px; }
-    #sidebarOverlay.show{ display:block; }
     #sub-nav{ left:0; z-index:1800; }
     body.sidebar-open #sub-nav{ display:none; }
   }
-  @media (max-width: 450px){
+  @media (max-width:450px){
     #sidebar{ width:70vw; left:-70vw; }
     #sidebar.active{ left:0; }
   }
 
-  /* ===== SweetAlert2 Messages popup ===== */
-  .swal2-popup.custom-msg-popup{
-    width:900px !important;
-    max-width:96vw;
-    padding:0 !important;
-    overflow:hidden;
-    border-radius:18px !important;
-    box-shadow:0 22px 65px rgba(13,71,161,.25), 0 10px 30px rgba(32,39,55,.18);
-    background:#f8fafc;
-    border:1px solid rgba(13,71,161,.06);
-  }
-  /* flush inner container so rows hit edges, and allow vertical layout */
-  .swal2-popup.custom-msg-popup .swal2-html-container{
-    padding:0 !important;
-    margin:0 !important;
-    display:flex;
-    flex-direction:column;
-    height:100%;
-  }
-  .swal2-popup.custom-msg-popup .swal2-header,
-  .swal2-popup.custom-msg-popup .swal2-title,
-  .swal2-popup.custom-msg-popup .swal2-actions,
-  .swal2-popup.custom-msg-popup .swal2-footer{
-    margin:0 !important; padding:0 !important; border:0 !important;
+  /* ====== COMPACT Messages Modal (smaller + above nav) ====== */
+  /* force SweetAlert above top/sub nav */
+  .swal2-container{ z-index:7000 !important; }
+
+  /* popup sizing */
+  .swal2-popup.svmini{
+    width:min(460px, 92vw) !important;
+    max-height:78vh; padding:0 !important; border-radius:12px !important; overflow:hidden;
+    box-shadow:0 18px 40px rgba(13,71,161,.28), 0 6px 18px rgba(32,39,55,.18);
+    background:#fff; border:1px solid #e9eef6;
   }
 
-  /* Header */
-  .msg-header{
+  /* header */
+  .svm-head{
     display:flex; align-items:center; justify-content:space-between;
-    padding:16px 20px;
-    background:linear-gradient(135deg,var(--primary-dark) 0%, var(--primary) 100%);
+    padding:10px 12px; background:linear-gradient(135deg, var(--primary-dark), var(--primary));
     color:#fff;
   }
-  .custom-msg-popup .msg-header{ position:sticky; top:0; z-index:5; width:100%; box-sizing:border-box; }
-  .msg-header .title{ display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.2px; }
-  .msg-header .title i{ font-size:1.05rem; }
-  .swal2-close{ display:none !important; }
-  .msg-close{
-    border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.10); color:#fff;
-    width:38px; height:38px; display:flex; align-items:center; justify-content:center;
-    border-radius:12px; cursor:pointer; transition:all .15s ease;
+  .svm-head .ttl{ display:flex; align-items:center; gap:8px; font-weight:800; font-size:.95rem; }
+  .svm-x{
+    width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:8px; border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; cursor:pointer;
   }
-  .msg-close:hover{ background:rgba(255,255,255,.18); transform:translateY(-1px); }
 
-  /* Controls */
-  .msg-controls{
+  /* controls */
+  .svm-ctrl{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:8px 10px; background:#fafcff; border-bottom:1px solid #eef2f7;
+  }
+  .svm-seg{
+    display:inline-flex; border:1px solid #dbe5f5; border-radius:999px; overflow:hidden;
+  }
+  .svm-seg button{
+    padding:6px 10px; font-size:.85rem; font-weight:700; border:0; background:transparent; color:#0D47A1; cursor:pointer;
+  }
+  .svm-seg button.active{ background:#FFB400; color:#1b2a4a; }
+  .svm-ctrl .svm-mark{ border:1px solid #dbe5f5; background:#fff; border-radius:8px; padding:6px 10px; font-weight:700; font-size:.85rem; cursor:pointer; }
+
+  /* list */
+  .svm-list{ padding:10px; max-height:55vh; overflow:auto; -webkit-overflow-scrolling:touch; }
+  .svm-empty{ display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px;
+              padding:24px 10px; color:#587199; border:1px dashed #e3ecfb; border-radius:10px; background:#fff; font-size:.9rem; }
+
+  .svm-item{
+    display:flex; gap:10px; align-items:flex-start; width:100%; text-align:left;
+    background:#fff; border:1px solid #e6edf7; border-radius:10px; padding:10px; cursor:pointer;
+  }
+  .svm-item + .svm-item{ margin-top:8px; }
+  .svm-item.unread{ background:#fbfdff; border-color:#cfe1ff; }
+  .svm-av{ width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
+           background:#eef4ff; color:#0D47A1; font-weight:800; font-size:.8rem; border:1px solid #d9e7ff; flex:0 0 auto; }
+  .svm-main{ flex:1 1 auto; min-width:0; }
+  .svm-title{ font-weight:800; color:#1f2937; font-size:.95rem; line-height:1.15; }
+  .svm-snippet{ margin-top:2px; color:#6b7280; font-size:.86rem; line-height:1.25rem;
+                display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .svm-meta{ margin-top:6px; color:#94a3b8; font-size:.75rem; }
+  .svm-dot{ width:8px; height:8px; border-radius:50%; background:#1E88E5; margin-left:auto; margin-top:6px; }
+
+  /* footer */
+  .svm-foot{
     display:flex; align-items:center; justify-content:space-between;
-    gap:12px; padding:12px 16px; background:#fff; border-bottom:1px solid #e9eef7;
+    padding:8px 10px; background:#fff; border-top:1px solid #eef2f7; font-size:.86rem;
   }
-  .custom-msg-popup .msg-controls{ padding-left:16px; padding-right:16px; box-sizing:border-box; }
-  .msg-tabs{ display:flex; gap:8px; }
-  .msg-tab{
-    border:1px solid #d9e7ff; background:#eef4ff; color:#0D47A1;
-    padding:8px 12px; border-radius:12px; font-weight:700; font-size:.85rem; cursor:pointer; transition:all .15s ease;
+  .svm-close{ border:1px solid #dbe5f5; background:#1E88E5; color:#fff; border-radius:8px; padding:6px 12px; font-weight:700; cursor:pointer; }
+
+  /* mobile tweaks */
+  @media (max-width:480px){
+    .swal2-popup.svmini{ width:min(94vw, 460px) !important; max-height:74vh; }
+    .svm-list{ max-height:48vh; }
+    .svm-title{ font-size:.92rem; }
+    .svm-snippet{ font-size:.84rem; }
   }
-  .msg-tab:hover{ filter:brightness(.97); }
-  .msg-tab.active{ background:var(--accent); border-color:var(--accent); color:#1b2a4a; }
-  .msg-unread-pill{
-    display:inline-flex; align-items:center; justify-content:center;
-    min-width:20px; height:20px; padding:0 6px; margin-left:6px;
-    border-radius:999px; font-size:.72rem; font-weight:800; color:#fff; background:#ff4d4f;
-  }
-
-  .msg-tools{ display:flex; align-items:center; gap:10px; }
-  .msg-sort{
-    background:#f3f6fb; border:1px solid #e5eefb; border-radius:12px; padding:6px 10px; color:#35527a; font-weight:600;
-  }
-
-  /* List area */
-  .msg-list{
-    flex:1 1 auto;
-    max-height:520px;
-    overflow:auto;
-    padding:14px 16px 18px;
-    background:#f8fafc;
-    -webkit-overflow-scrolling:touch;
-  }
-
-  /* Message card */
-  .msg-item{
-    position:relative;
-    display:grid; grid-template-columns:48px 1fr auto; gap:14px;
-    width:100%; padding:14px 16px;
-    border:1px solid #e6edf7; border-radius:16px; background:#fff;
-    box-shadow:0 6px 18px rgba(17,40,90,.06);
-    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
-  }
-  .msg-item + .msg-item{ margin-top:12px; }
-  .msg-item:hover{ transform:translateY(-1px); box-shadow:0 12px 26px rgba(17,40,90,.10); }
-  .msg-item.unread{ border-color:#cfe1ff; background:#fbfdff; }
-  .msg-item.unread::before{
-    content:''; position:absolute; left:8px; top:16px; bottom:16px; width:4px; background:#1E88E5; border-radius:8px;
-  }
-
-  .msg-avatar{
-    width:48px; height:48px; border-radius:50%;
-    background:linear-gradient(135deg,#e8f1fb,#f1f8ff);
-    color:#0D47A1; font-weight:800; font-size:.98rem; display:flex; align-items:center; justify-content:center;
-    border:1px solid #cfe1ff;
-  }
-
-  .msg-main{ min-width:0; }
-  .msg-head{ display:flex; align-items:baseline; gap:10px; margin-bottom:6px; flex-wrap:wrap; }
-  .msg-title-text{
-    font-weight:900; color:#213a63; line-height:1.2;
-    white-space:normal; overflow:visible;
-  }
-  .msg-badge{
-    background:#eef4ff; color:#0D47A1; border:1px solid #d9e7ff; padding:4px 10px; border-radius:999px; font-size:.75rem; font-weight:800; white-space:nowrap;
-  }
-  .msg-body{ color:#475569; white-space:normal; overflow:visible; word-break:break-word; }
-  .msg-meta{ display:flex; align-items:center; gap:10px; margin-top:8px; font-size:.82rem; color:#8a96ab; }
-
-  .msg-actions{ display:flex; align-items:center; gap:8px; }
-  .msg-read-btn{
-    border:1px solid #e2eaf7; background:#f5f9ff; color:#0D47A1;
-    width:36px; height:36px; border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .15s ease;
-  }
-  .msg-read-btn:hover{ background:#eaf2ff; transform:translateY(-1px); }
-
-  /* Footer */
-  .msg-footer{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:#fff; border-top:1px solid #e9eef7; }
-  .custom-msg-popup .msg-footer{ padding-left:16px; padding-right:16px; box-sizing:border-box; }
-  .msg-footer .chipbtn{
-    border:1px solid #d9e7ff; background:#eef4ff; color:#0D47A1; font-weight:800; font-size:.85rem;
-    padding:8px 12px; border-radius:12px; cursor:pointer; display:flex; align-items:center; gap:8px; transition:all .15s ease;
-  }
-  .msg-footer .chipbtn:hover{ filter:brightness(.98); }
-
-  /* Empty & skeleton */
-  .msg-empty{
-    display:flex; align-items:center; justify-content:center; flex-direction:column;
-    color:#557199; gap:8px; padding:40px 10px; border:2px dashed #e3ecfb; border-radius:16px; background:#fff;
-  }
-  .msg-empty .emoji{ font-size:1.6rem; }
-  .msg-skel{ display:grid; grid-template-columns:48px 1fr; gap:14px; padding:14px 16px; background:#fff; border-radius:16px; border:1px solid #eef3fb; }
-  .skel-av{ width:48px; height:48px; border-radius:50%; background:linear-gradient(90deg,#eef3fb,#f6f9ff,#eef3fb); animation:sh 1.1s infinite; }
-  .skel-line{ height:12px; width:100%; border-radius:6px; background:linear-gradient(90deg,#eef3fb,#f6f9ff,#eef3fb); animation:sh 1.1s infinite; }
-  .skel-25{ width:25%; } .skel-40{ width:40%; } .skel-60{ width:60%; } .skel-80{ width:80%; }
-  @keyframes sh{ 0%{background-position:-200px 0} 100%{background-position:200px 0} }
-
-  /* Badge pulse on topbar */
-  .message-icon.has-unread .badge{ animation:pulseBadge 1.2s ease-in-out infinite; display:inline-block; }
-  @keyframes pulseBadge{
-    0%{ transform:scale(1); box-shadow:0 0 0 0 rgba(255,77,79,.6); }
-    70%{ transform:scale(1.07); box-shadow:0 0 0 8px rgba(255,77,79,0); }
-    100%{ transform:scale(1); box-shadow:0 0 0 0 rgba(255,77,79,0); }
-  }
-
-  /* ===== Mobile compact modal ===== */
-  @media (max-width: 768px){
-    /* side gutters around popup */
-    .swal2-container{ padding:16px !important; }
-
-    /* smaller, centered modal */
-    .swal2-popup.custom-msg-popup{
-      width:min(92vw, 520px) !important;
-      max-width:92vw;
-      height:auto;
-      max-height:58vh;            /* shorter overall */
-      border-radius:14px !important;
-      overflow:hidden;
-    }
-
-    .swal2-popup.custom-msg-popup .swal2-html-container{
-      height:auto;
-      max-height:calc(58vh - 0px);
-    }
-
-    .custom-msg-popup .msg-header{ padding:10px 12px; }
-    .msg-header .title{ font-size:.98rem; }
-    .msg-close{ width:32px; height:32px; border-radius:10px; }
-
-    .custom-msg-popup .msg-controls{
-      padding:8px 10px; gap:8px; flex-wrap:wrap;
-    }
-    .custom-msg-popup .msg-tabs .msg-tab{
-      padding:6px 10px; border-radius:10px; font-size:.8rem;
-    }
-    .custom-msg-popup .msg-unread-pill{
-      min-width:18px; height:18px; font-size:.7rem; padding:0 6px;
-    }
-    .custom-msg-popup .msg-tools{ margin-left:auto; }
-    .custom-msg-popup .msg-sort{ padding:5px 8px; min-width:120px; font-size:.85rem; }
-
-    /* tighter list slot so modal stays small */
-    .custom-msg-popup .msg-list{
-      flex:0 1 auto;
-      max-height:28vh;
-      overflow:auto;
-      padding:10px 10px 12px;
-    }
-
-    /* compact cards */
-    .custom-msg-popup .msg-item{
-      grid-template-columns:36px 1fr;
-      gap:10px;
-      padding:10px 12px;
-      border-radius:12px;
-      box-shadow:0 4px 12px rgba(17,40,90,.06);
-    }
-    .custom-msg-popup .msg-item + .msg-item{ margin-top:8px; }
-    .custom-msg-popup .msg-avatar{ width:36px; height:36px; font-size:.85rem; }
-
-    .custom-msg-popup .msg-title-text{
-      font-size:.95rem; font-weight:800;
-      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
-    }
-    .custom-msg-popup .msg-badge{
-      padding:3px 8px; font-size:.7rem; border-radius:999px;
-    }
-    .custom-msg-popup .msg-body{
-      font-size:.9rem; line-height:1.25rem;
-      display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
-    }
-    .custom-msg-popup .msg-meta{ font-size:.76rem; margin-top:6px; }
-
-    .custom-msg-popup .msg-actions{ grid-column:2; justify-content:flex-end; }
-    .custom-msg-popup .msg-read-btn{ width:30px; height:30px; border-radius:8px; }
-
-    .custom-msg-popup .msg-footer{
-      padding:8px 10px;
-    }
-    .custom-msg-popup .msg-footer .chipbtn{
-      padding:6px 10px; font-size:.8rem; border-radius:10px;
-    }
-  }
-
-  @media (max-width: 380px){
-    .swal2-popup.custom-msg-popup{ width:94vw !important; max-height:54vh; }
-    .custom-msg-popup .msg-list{ max-height:24vh; }
-    .custom-msg-popup .msg-title-text{ font-size:.92rem; -webkit-line-clamp:2; }
-    .custom-msg-popup .msg-body{ font-size:.86rem; -webkit-line-clamp:3; }
-    .custom-msg-popup .msg-tabs .msg-tab{ padding:5px 8px; font-size:.76rem; }
-    .custom-msg-popup .msg-sort{ min-width:108px; font-size:.78rem; }
-    .custom-msg-popup .msg-item{ grid-template-columns:1fr; }
-    .custom-msg-popup .msg-avatar{ display:none; }
-    .custom-msg-popup .msg-actions{ grid-column:1; margin-top:6px; }
-  }
-</style>
-
-
+  </style>
 </head>
 <body>
   <!-- fixed top bar -->
@@ -363,6 +212,11 @@
       <div class="message-icon" id="messageButton" title="Messages">
         <i class="fas fa-envelope"></i>
         <div class="badge" id="messageBadge"></div>
+      </div>
+      <!-- Customer pill -->
+      <div class="topbar-user" title="Account">
+        <span id="topbarCustomerName"><%= __customerName %></span>
+        <img id="topbarCustomerPic" src="<%= __pic %>" alt="Profile" />
       </div>
     </div>
   </header>
@@ -388,19 +242,12 @@
       <ul class="sidebar-menu nav flex-column">
         <li><a href="#" class="menu-item active" data-content="dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
         <li><a href="#" class="menu-item" data-content="mypet"><i class="fas fa-paw"></i> My Pet</a></li>
-        <li><a href="#" class="menu-item" data-content="consult"><i class="fas fa-stethoscope"></i> Consult</a></li>
+        <li><a href="#" class="menu-item" data-content="consult"><i class="fas fa-stethoscope"></i> Appointment</a></li>
         <li><a href="#" class="menu-item" data-content="profileDetails"><i class="fas fa-user-cog"></i> Profile Setting</a></li>
         <li class="logout mt-3"><a href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
       </ul>
-<div class="sidebar-bottom-profile mt-auto">
-  <img id="sidebarProfilePic"
-       src="<%= profilePic ? profilePic : '/images/default_profile_icon.png' %>"
-       alt="Profile" />
-  <div class="info">
-    <div id="sidebarUserName" class="fw-bold text-truncate"><%= username %></div>
-  </div>
-</div>
-
+ 
+      <!-- no sidebar-bottom-profile -->
     </nav>
 
     <div id="content" class="container-fluid" role="main">
@@ -415,7 +262,6 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <script>
-    
     /* ===== Global AJAX ===== */
     $.ajaxSetup({ cache: false });
 
@@ -440,277 +286,170 @@
       $('.wrapper').css('padding-top', (topbarHeight + subnavHeight) + 'px');
     }
 
-   /* ===== Messages helpers ===== */
-function esc(s){
-  return String(s ?? '')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-    .replace(/'/g,'&#039;');
-}
-function initials(name){
-  const n = String(name || 'SV').trim();
-  const parts = n.split(/\s+/).slice(0,2);
-  return parts.map(p => (p[0] || '').toUpperCase()).join('') || 'SV';
-}
-function timeAgo(iso){
-  const d = new Date(iso), now = new Date();
-  const s = Math.max(1, Math.floor((now - d)/1000));
-  if (s < 60) return s + 's';
-  const m = Math.floor(s/60); if (m < 60) return m + 'm';
-  const h = Math.floor(m/60); if (h < 24) return h + 'h';
-  const days = Math.floor(h/24); if (days < 7) return days + 'd';
-  return d.toLocaleDateString();
-}
-/* Fetch list — hit the real endpoint, plus a root fallback */
-/* Mark read (single or all) — server expects { ids } or { all:true } */
-function markMessagesRead(ids, done){
-  if (ids && ids.length){
-    $.ajax({
-      url:'/customer/messages/mark-read',
-      method:'POST',
-      contentType:'application/json',
-      data: JSON.stringify({ ids })   // (was messageIds)
-    }).always(function(){ done && done(); });
-    return;
-  }
-  $.ajax({
-    url:'/customer/messages/mark-read',
-    method:'POST',
-    contentType:'application/json',
-    data: JSON.stringify({ all: true })
-  }).always(function(){ done && done(); });
-}
+    /* ===== Messages helpers (endpoints unchanged) ===== */
+    function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+    function initials(name){ const n = String(name || 'SV').trim(); const parts = n.split(/\s+/).slice(0,2); return parts.map(p => (p[0]||'').toUpperCase()).join('') || 'SV'; }
+    function timeAgo(iso){
+      const d = new Date(iso), now = new Date();
+      const s = Math.max(1, Math.floor((now - d)/1000));
+      if (s < 60) return s + 's';
+      const m = Math.floor(s/60); if (m < 60) return m + 'm';
+      const h = Math.floor(m/60); if (h < 24) return h + 'h';
+      const days = Math.floor(h/24); if (days < 7) return days + 'd';
+      return d.toLocaleDateString();
+    }
+    function markMessagesRead(ids, done){
+      if (ids && ids.length){
+        $.ajax({ url:'/customer/messages/mark-read', method:'POST', contentType:'application/json', data: JSON.stringify({ ids }) })
+         .always(function(){ done && done(); });
+        return;
+      }
+      $.ajax({ url:'/customer/messages/mark-read', method:'POST', contentType:'application/json', data: JSON.stringify({ all:true }) })
+       .always(function(){ done && done(); });
+    }
+    function fetchMessagesList(cb){
+      $.getJSON('/customer/messages', function(r){ cb(true, Array.isArray(r?.messages) ? r.messages : []); })
+       .fail(function(){ $.getJSON('/messages', function(r){ cb(true, Array.isArray(r?.messages) ? r.messages : []); })
+       .fail(function(xhr){ console.error('messages fetch failed:', xhr?.status, xhr?.responseText); cb(false, []); }); });
+    }
+    function refreshMessageBadge(){
+      const $badge = $('#messageBadge'); const $icon = $('.message-icon');
+      function applyCount(n){ n = Number(n || 0); if (n>0){ $badge.text(n>99?'99+':n).show(); $icon.addClass('has-unread'); } else { $badge.hide().text(''); $icon.removeClass('has-unread'); } }
+      $.getJSON('/customer/messages/unread-count', function(r){ applyCount(r?.count ?? r?.unread ?? 0); })
+       .fail(function(xhr){ console.error('unread-count failed:', xhr?.status, xhr?.responseText); });
+    }
+    window.refreshMessageBadge = refreshMessageBadge;
 
-function fetchMessagesList(cb){
-  $.getJSON('/customer/messages', function(r){
-    const arr = Array.isArray(r?.messages) ? r.messages : [];
-    cb(true, arr);
-  }).fail(function(){
-    // fallback if the router isn’t mounted at /customer
-    $.getJSON('/messages', function(r){
-      const arr = Array.isArray(r?.messages) ? r.messages : [];
-      cb(true, arr);
-    }).fail(function(xhr){
-      console.error('messages fetch failed:', xhr?.status, xhr?.responseText);
-      cb(false, []);
-    });
-  });
-}
-
-/* Badge (counts) */
-/* Badge (counts) — call the real route directly */
-function refreshMessageBadge(){
-  const $badge = $('#messageBadge');
-  const $icon  = $('.message-icon');
-  function applyCount(n){
-    n = Number(n || 0);
-    if (n > 0){ $badge.text(n > 99 ? '99+' : n).show(); $icon.addClass('has-unread'); }
-    else      { $badge.hide().text(''); $icon.removeClass('has-unread'); }
-  }
-  $.getJSON('/customer/messages/unread-count', function(r){
-    applyCount(r?.count ?? r?.unread ?? 0);
-  }).fail(function(xhr){
-    console.error('unread-count failed:', xhr?.status, xhr?.responseText);
-  });
-}
-
-window.refreshMessageBadge = refreshMessageBadge;
-
-/* One message card (full-width, wraps) */
-/* Renders one message card with a quick "mark read" button */
-function renderMessageItem(m){
-  const isRead = !!(m.read || m.isRead);
-const typeLabel =
-  m.meta?.code === 'declined' ? 'Declined' :
-  m.type === 'suspension'     ? 'Suspension' :
-  m.type === 'warning'        ? 'Warning' :
-  (m.type ? (String(m.type)[0].toUpperCase()+String(m.type).slice(1)) : 'Info');
-
-
-  const idSafe = esc(m._id || m.id || '');
-
-  return `
-    <div class="msg-item ${isRead ? 'read' : 'unread'}" data-id="${idSafe}">
-      <div class="msg-avatar">${esc(initials(m.fromName || 'SmartVet'))}</div>
-      <div class="msg-main">
-        <div class="msg-head">
-          <div class="msg-title-text">${esc(m.title || m.subject || 'Message')}</div>
-          <span class="msg-badge">${esc(typeLabel)}</span>
+    /* ===== Compact modal renderer ===== */
+    function renderMiniItem(m){
+      const read = !!(m.read || m.isRead);
+      const id = esc(m._id || m.id || '');
+      const title = m.title || m.subject || (m.type ? (String(m.type)[0].toUpperCase()+String(m.type).slice(1)) : 'Message');
+      return `
+        <div class="svm-item ${read ? '' : 'unread'}" data-id="${id}">
+          <span class="svm-av">${esc(initials(m.fromName || 'SV'))}</span>
+          <span class="svm-main">
+            <span class="svm-title">${esc(title)}</span>
+            <span class="svm-snippet">${esc(m.body || m.text || m.preview || '')}</span>
+            <span class="svm-meta"><i class="far fa-clock"></i> ${esc(timeAgo(m.createdAt || m.timestamp || Date.now()))}</span>
+          </span>
+          ${read ? '' : '<span class="svm-dot" aria-hidden="true"></span>'}
         </div>
-        <div class="msg-body">${esc(m.body || m.text || m.preview || '')}</div>
-        <div class="msg-meta"><i class="far fa-clock"></i> ${esc(timeAgo(m.createdAt || m.timestamp || Date.now()))}</div>
-      </div>
-      <div class="msg-actions">
-        ${isRead ? '' : `<button class="msg-read-btn" title="Mark as read" aria-label="Mark as read" data-id="${idSafe}">
-          <i class="fas fa-check"></i>
-        </button>`}
-      </div>
-    </div>
-  `;
-}
+      `;
+    }
 
-/* Fancy popup with tabs, search, sort, skeleton loader, sticky footer */
-function openMessagesPopup(){
-  Swal.fire({
-    title: '',
-    html: `
-      <div class="msg-header">
-        <div class="title"><i class="fas fa-inbox"></i><span>Messages</span></div>
-        <button class="msg-close" id="msgCloseBtn" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-
-      <div class="msg-controls">
-        <div class="msg-tabs" role="tablist" aria-label="Message filters">
-          <button class="msg-tab active" data-tab="all"    role="tab" aria-selected="true">All</button>
-          <button class="msg-tab"         data-tab="unread" role="tab" aria-selected="false">
-            Unread <span class="msg-unread-pill" id="msgUnreadPill">0</span>
-          </button>
-        </div>
-        <div class="msg-tools">
-          <select id="msgSort" class="msg-sort" aria-label="Sort">
-            <option value="newest" selected>Newest</option>
-            <option value="oldest">Oldest</option>
-          </select>
-        </div>
-      </div>
-
-      <div id="msgList" class="msg-list">
-        ${Array.from({length:4}).map(()=>`
-          <div class="msg-skel">
-            <div class="skel-av"></div>
-            <div>
-              <div class="skel-line skel-40" style="margin-bottom:10px;"></div>
-              <div class="skel-line skel-80" style="margin-bottom:6px;"></div>
-              <div class="skel-line skel-60"></div>
+    function openMessagesPopup(){
+      Swal.fire({
+        title: '',
+        html: `
+          <div class="svm">
+            <div class="svm-head">
+              <div class="ttl"><i class="fas fa-inbox"></i><span>Messages</span></div>
+              <button class="svm-x" id="svmClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="svm-ctrl">
+              <div class="svm-seg" role="tablist">
+                <button class="active" data-tab="all" role="tab" aria-selected="true">All</button>
+                <button data-tab="unread" role="tab" aria-selected="false">Unread</button>
+              </div>
+              <button class="svm-ctrl svm-mark" id="svmMarkAll"><i class="fas fa-check-double"></i> Mark all</button>
+            </div>
+            <div id="svmList" class="svm-list">
+              <div class="svm-empty"><span style="font-size:1.3rem">⌛</span>Loading…</div>
+            </div>
+            <div class="svm-foot">
+              <span id="svmCounter">0 unread</span>
+              <button class="svm-close" id="svmCloseBottom">Close</button>
             </div>
           </div>
-        `).join('')}
-      </div>
+        `,
+        customClass: { popup: 'svmini' },
+        showConfirmButton: false,
+        showCloseButton: false,
+        heightAuto: false,
+        scrollbarPadding: false,
 
-      <div class="msg-footer">
-        <button class="chipbtn" id="msgMarkAll"><i class="fas fa-check-double"></i> Mark all read</button>
-        <button class="msg-close" id="msgCloseBtnBottom" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-    `,
-    customClass: { popup: 'custom-msg-popup' },
-    showConfirmButton: false,
-    showCloseButton: false,
-      heightAuto: false,
-  scrollbarPadding: false,
-    willOpen: function(){
-      $(document).on('click', '#msgCloseBtn, #msgCloseBtnBottom', () => Swal.close());
-    },
-    didOpen: function(){
-      const $list = $('#msgList');
-      const $tabs = $('.msg-tab');
-      const $sort = $('#msgSort');
-      const $pill = $('#msgUnreadPill');
+        willOpen: function(){
+          $(document).on('click', '#svmClose, #svmCloseBottom', () => Swal.close());
+        },
 
-      // state
-      let ALL = [];
-      let TAB = 'all';
-      let SORT = 'newest';
+        didOpen: function(){
+          const $list = $('#svmList');
+          const $tabs = $('.svm-seg button');
+          const $counter = $('#svmCounter');
 
-      function unreadCount(arr){
-        return arr.filter(m => !(m.read || m.isRead)).length;
-      }
+          let ALL = [];
+          let TAB = 'all';
 
-      function htmlEmpty(icon='💬', text='No messages found'){
-        return `<div class="msg-empty"><span class="emoji">${icon}</span>${esc(text)}</div>`;
-      }
+          const unreadCount = arr => arr.filter(m => !(m.read || m.isRead)).length;
+          const setCounter = () => {
+            const n = unreadCount(ALL);
+            $counter.text(n === 1 ? '1 unread' : `${n} unread`);
+          };
 
-      function render(){
-        const list = (TAB === 'unread') ? ALL.filter(m => !(m.read || m.isRead)) : ALL.slice();
-        list.sort((a,b)=>{
-          const ta = new Date(a.createdAt || a.timestamp || 0).getTime();
-          const tb = new Date(b.createdAt || b.timestamp || 0).getTime();
-          return SORT === 'newest' ? (tb - ta) : (ta - tb);
-        });
-
-        $pill.text(unreadCount(ALL));
-        if (!list.length){
-          $list.html(htmlEmpty(TAB==='unread' ? '🎉' : '💬', TAB==='unread' ? 'All caught up!' : 'No messages.'));
-          return;
-        }
-        $list.html(list.map(renderMessageItem).join(''));
-      }
-
-      function setTab(tab){
-        TAB = tab;
-        $tabs.removeClass('active').attr('aria-selected','false');
-        $tabs.filter(`[data-tab="${tab}"]`).addClass('active').attr('aria-selected','true');
-        render();
-      }
-
-      // fetch
-      fetchMessagesList(function(ok, messages){
-        if (!ok){
-          $list.html(htmlEmpty('⚠️','Couldn’t load messages.'));
-          return;
-        }
-        ALL = (messages || []).map(m => ({...m}));
-        render();
-
-        // card click → mark read
-        $list.off('click', '.msg-item').on('click', '.msg-item', function(e){
-          if ($(e.target).closest('.msg-read-btn').length) return;
-          const $row = $(this);
-          if ($row.hasClass('unread')){
-            const id = $row.data('id');
-            markMessagesRead([id], function(){
-              const idx = ALL.findIndex(x => (x._id||x.id) === id);
-              if (idx >= 0){ ALL[idx].read = true; ALL[idx].isRead = true; }
-              $row.removeClass('unread').addClass('read').find('.msg-dot').remove();
-              refreshMessageBadge();
-              render();
+          function render(){
+            const arr = (TAB === 'unread') ? ALL.filter(m => !(m.read || m.isRead)) : ALL.slice();
+            if (!arr.length){
+              $list.html(`<div class="svm-empty"><span style="font-size:1.3rem">${TAB==='unread'?'🎉':'💬'}</span>${TAB==='unread'?'All caught up!':'No messages.'}</div>`);
+              return;
+            }
+            arr.sort((a,b)=>{
+              const ta = new Date(a.createdAt || a.timestamp || 0).getTime();
+              const tb = new Date(b.createdAt || b.timestamp || 0).getTime();
+              return tb - ta;
             });
+            $list.html(arr.map(renderMiniItem).join(''));
           }
-        });
 
-        // quick "mark read" button
-        $list.off('click', '.msg-read-btn').on('click', '.msg-read-btn', function(e){
-          e.stopPropagation();
-          const id = $(this).data('id');
-          markMessagesRead([id], function(){
-            const idx = ALL.findIndex(x => (x._id||x.id) === id);
-            if (idx >= 0){ ALL[idx].read = true; ALL[idx].isRead = true; }
-            refreshMessageBadge();
-            render();
+          // Fetch
+          fetchMessagesList(function(ok, messages){
+            if (!ok){ $list.html(`<div class="svm-empty"><span style="font-size:1.3rem">⚠️</span>Couldn’t load messages.</div>`); return; }
+            ALL = (messages || []).map(m => ({...m}));
+            setCounter(); render();
+
+            // click item → mark read
+            $list.off('click', '.svm-item').on('click', '.svm-item', function(){
+              const id = $(this).data('id');
+              const idx = ALL.findIndex(x => (x._id||x.id) === id);
+              if (idx < 0 || (ALL[idx].read || ALL[idx].isRead)) return;
+              markMessagesRead([id], function(){
+                ALL[idx].read = true; ALL[idx].isRead = true;
+                refreshMessageBadge(); setCounter(); render();
+              });
+            });
           });
-        });
 
-        // mark all read
-        $(document).off('click', '#msgMarkAll').on('click', '#msgMarkAll', function(){
-          const ids = ALL.filter(m => !(m.read || m.isRead)).map(m => m._id || m.id).filter(Boolean);
-          if (!ids.length){
-            Swal.fire({ toast:true, icon:'success', title:'All messages are already read', position:'top-end', timer:1200, showConfirmButton:false });
-            return;
-          }
-          markMessagesRead(ids, function(){
-            ALL = ALL.map(m => ({...m, read:true, isRead:true}));
-            refreshMessageBadge();
-            render();
-            Swal.fire({ toast:true, icon:'success', title:'Marked all as read', position:'top-end', timer:1400, showConfirmButton:false });
+          // tabs
+          $(document).off('click', '.svm-seg button').on('click', '.svm-seg button', function(){
+            $tabs.removeClass('active').attr('aria-selected', 'false');
+            $(this).addClass('active').attr('aria-selected', 'true');
+            TAB = $(this).data('tab'); render();
           });
-        });
 
-        // tabs / sort
-        $(document).off('click', '.msg-tab').on('click', '.msg-tab', function(){
-          setTab($(this).data('tab'));
-        });
-        $sort.on('change', function(){ SORT = this.value; render(); });
+          // mark all
+          $(document).off('click', '#svmMarkAll').on('click', '#svmMarkAll', function(){
+            const ids = ALL.filter(m => !(m.read || m.isRead)).map(m => m._id || m.id).filter(Boolean);
+            if (!ids.length){
+              Swal.fire({ toast:true, icon:'success', title:'All messages already read', position:'top-end', timer:1100, showConfirmButton:false });
+              return;
+            }
+            markMessagesRead(ids, function(){
+              ALL = ALL.map(m => ({...m, read:true, isRead:true}));
+              refreshMessageBadge(); setCounter(); render();
+              Swal.fire({ toast:true, icon:'success', title:'Marked all as read', position:'top-end', timer:1100, showConfirmButton:false });
+            });
+          });
+        },
+
+        willClose: function(){
+          $(document).off('click', '#svmMarkAll');
+          $(document).off('click', '#svmClose');
+          $(document).off('click', '#svmCloseBottom');
+          $(document).off('click', '.svm-seg button');
+          $('#svmList').off('click', '.svm-item');
+        }
       });
-    },
-    willClose: function(){
-      $(document).off('click', '#msgMarkAll');
-      $(document).off('click', '#msgCloseBtn');
-      $(document).off('click', '#msgCloseBtnBottom');
-      $('#msgList').off('click', '.msg-item');
-      $('#msgList').off('click', '.msg-read-btn');
-      $(document).off('click', '.msg-tab');
     }
-  });
-}
 
     /* ===== Page wiring ===== */
     $(document).ready(function(){
@@ -739,36 +478,28 @@ function openMessagesPopup(){
         setSubNavFor($('.menu-item.active').data('content') || 'dashboard');
       });
     });
-    (function () {
-  async function ensureSession() {
-    try {
-      let r = await fetch('/customer/session', { credentials: 'include' });
-      if (r.status === 401) {
-        await fetch('/refresh-token', { method: 'POST', credentials: 'include' });
-        r = await fetch('/customer/session', { credentials: 'include' });
-      }
-      if (!r.ok) location.replace('/');
-    } catch (e) {
-      location.replace('/');
-    }
-  }
-  // When returning to this page via back/forward cache
-  window.addEventListener('pageshow', ensureSession);
-})();
-// Central place to update the sidebar when profile changes
-window.applyUserToShell = function (user = {}) {
-  if (user.username) {
-    $('#sidebarUserName').text(user.username);
-  }
-  if (user.profilePic) {
-    $('#sidebarProfilePic').attr('src', user.profilePic + '?v=' + Date.now());
-  }
-};
 
-// Listen for updates fired from inner pages (e.g., profiledetails.ejs)
-$(document).on('user:updated', function (_e, user) {
-  window.applyUserToShell(user || {});
-});
+    // Session ensure (unchanged)
+    (function () {
+      async function ensureSession() {
+        try {
+          let r = await fetch('/customer/session', { credentials: 'include' });
+          if (r.status === 401) {
+            await fetch('/refresh-token', { method:'POST', credentials:'include' });
+            r = await fetch('/customer/session', { credentials:'include' });
+          }
+          if (!r.ok) location.replace('/');
+        } catch (e) { location.replace('/'); }
+      }
+      window.addEventListener('pageshow', ensureSession);
+    })();
+
+    // Update TOPBAR pill when profile changes
+    window.applyUserToShell = function (user = {}) {
+      if (user.username) $('#topbarCustomerName').text(user.username);
+      if (user.profilePic) $('#topbarCustomerPic').attr('src', user.profilePic + '?v=' + Date.now());
+    };
+    $(document).on('user:updated', function (_e, user) { window.applyUserToShell(user || {}); });
   </script>
 </body>
 </html>
