@@ -35,6 +35,7 @@ const Reservation     = require("./models/reservation");
 const ReservationMessage = require("./models/ReservationMessage"); // used by socket responder
 const viewAsHr = require("./middleware/viewAsHr");
 const salesOverviewRoutes = require("./routes/salesOverviewRoutes");
+const adminActivityRoutes = require('./routes/adminActivityRoutes');
 const app = express();
 
 /* =========================
@@ -234,6 +235,7 @@ app.use("/admin", adminRoutes);
 app.use("/admin", doctorRoutes);
 app.use("/admin", adminReservationRoutes);
 app.use("/admin", adminUpcomingRoutes);
+app.use("/admin", adminActivityRoutes);
 
 // rest as-is
 app.use("/doctor", doctorRoutes);
