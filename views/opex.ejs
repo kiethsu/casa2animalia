@@ -1,0 +1,499 @@
+<% /* views/opex.ejs — OPEX with Month/Year filter + per-receipt download + SweetAlert2 */ %>
+
+<!-- SweetAlert2 (centered modal style) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+  /* —— Pills / inputs ——————————————————————————————————————— */
+  .pill {
+    border-radius: 999px !important;
+    padding: 0.375rem 0.75rem !important;
+    border: 1px solid #dee2e6 !important;
+    background: #fff !important;
+  }
+  .filter-strip {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 14px;
+    padding: 10px 12px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .filter-group { display:flex; gap:8px; align-items:center; flex-wrap: wrap; }
+  .filter-group label { margin: 0 4px 0 0; font-weight: 500; color:#495057; }
+
+  /* —— Receipts ——————————————————————————————————————————————— */
+  .receipt-list { display:flex; flex-wrap:wrap; gap:8px; }
+  .receipt-thumb-wrap {
+    position: relative;
+    width:40px; height:40px;
+    border-radius:6px; overflow:hidden;
+    border:1px solid #e9ecef;
+    background:#f8f9fa;
+  }
+  .receipt-thumb {
+    width:100%; height:100%; object-fit:cover; display:block;
+  }
+  .receipt-dl {
+    position:absolute; right:2px; bottom:2px;
+    width:16px; height:16px; border-radius:4px;
+    display:flex; align-items:center; justify-content:center;
+    background:#ffffffD9; border:1px solid #e9ecef; text-decoration:none;
+  }
+  .receipt-dl i { font-size:10px; line-height:1; color:#343a40; }
+  .receipt-pill {
+    display:inline-flex; align-items:center; gap:6px; padding:2px 8px;
+    border:1px solid #e9ecef; border-radius:12px; font-size:12px;
+    text-decoration:none; color:#212529; background:#fff;
+  }
+/* Make the outline-secondary button look like your pill inputs */
+.btn.pill { border-radius: 999px; }
+.btn-outline-secondary.pill {
+  border-color: #dee2e6; color:#495057; background:#fff;
+}
+.btn-outline-secondary.pill:hover {
+  background:#f8f9fa; color:#343a40; border-color:#ced4da;
+}
+
+  /* —— Tables / cards ——————————————————————————————————————— */
+  .swal2-styled.swal2-confirm { background-color:#1E88E5 !important; }
+  .swal2-styled.swal2-cancel  { background-color:#adb5bd !important; }
+</style>
+
+<div class="container-fluid" id="opexPage" style="padding:8px;">
+  <div class="row">
+    <!-- LEFT: Add Expense -->
+    <div class="col-12 col-lg-4">
+      <div class="card" style="border-radius:14px; border:1px solid #e9ecef;">
+        <div class="card-body">
+          <h5 class="mb-3">Add Expense</h5>
+
+          <div class="form-group">
+            <label for="opexType">Type of Expense</label>
+            <input type="text" id="opexType" class="form-control" placeholder="e.g., Utilities, Rent, Supplies"/>
+          </div>
+
+          <div class="form-group">
+            <label for="opexAmount">Amount (PHP)</label>
+            <input type="number" id="opexAmount" class="form-control" min="0" step="0.01" placeholder="0.00"/>
+          </div>
+
+          <div class="form-group">
+            <label for="opexReceipts">Receipts (images or PDF)</label>
+            <input
+              type="file"
+              id="opexReceipts"
+              class="form-control"
+              multiple
+              accept="image/*,application/pdf"
+            />
+            <small class="form-text text-muted">
+              You can select multiple files. Max size per file depends on server limits.
+            </small>
+          </div>
+
+          <button id="opexAddBtn" type="button" class="btn btn-primary">Add</button>
+
+          <div id="opexFormMsg" class="mt-2 small text-muted"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Filter + Expenses -->
+    <div class="col-12 col-lg-8">
+      <!-- Filter strip (ABOVE the expenses card) -->
+    <div class="filter-strip">
+  <div class="filter-group">
+    <label for="opexMonth" class="mb-0">Filter:</label>
+    <select id="opexMonth" class="form-control form-control-sm pill"></select>
+    <select id="opexYear" class="form-control form-control-sm pill"></select>
+
+    <!-- NEW: Download receipts button (by current filter) -->
+    <button id="dlByFilterBtn"
+            type="button"
+            class="btn btn-outline-secondary btn-sm pill"
+            title="Download all receipts for the selected month/year">
+      <i class="fa-solid fa-download"></i>&nbsp;Download receipts
+    </button>
+  </div>
+
+  <div class="text-right">
+    <div class="small text-muted">Total (<span id="opexFilterLabel">—</span>)</div>
+    <div id="opexMonthTotal" class="h5 mb-0">₱0.00</div>
+  </div>
+</div>
+
+
+      <div class="card" style="border-radius:14px; border:1px solid #e9ecef;">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h5 class="mb-0">Expenses</h5>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm table-striped mb-0" id="opexTable">
+              <thead class="thead-light">
+                <tr>
+                  <th style="width: 24%;">Type</th>
+                  <th style="width: 16%;">Amount</th>
+                  <th style="width: 16%;">Date</th>
+                  <th style="width: 28%;">Receipts</th>
+                  <th style="width: 16%;">Actions</th>
+                </tr>
+              </thead>
+              <tbody><!-- rows injected --></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---------- Helpers ----------
+  const hasSwal = () => !!window.Swal;
+  const Toast = hasSwal()
+    ? Swal.mixin({ toast:true, position:'top-end', showConfirmButton:false, timer:1400, timerProgressBar:true })
+    : { fire: ({title}) => console.log(title || 'ok') };
+
+  async function askConfirm(opts){
+    if (hasSwal()) {
+      return await Swal.fire(opts);
+    }
+    // Simple fallback if Swal isn't ready yet
+    const msg = (opts.title || 'Confirm') + '\n\n' + (opts.text || '');
+    return { isConfirmed: window.confirm(msg) };
+  }
+
+  const fmtPhp = (n) => {
+    try { return Number(n).toLocaleString('en-PH',{ style:'currency', currency:'PHP' }); }
+    catch(_) { return '₱' + (Number(n)||0).toFixed(2); }
+  };
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const ymd = (d) => {
+    const x = new Date(d); if (isNaN(x)) return '';
+    const m = String(x.getMonth()+1).padStart(2,'0');
+    const dd= String(x.getDate()).padStart(2,'0');
+    return `${x.getFullYear()}-${m}-${dd}`;
+  };
+  const sameMonthYear = (d, m, y) => {
+    const x = new Date(d); if (isNaN(x)) return false;
+    return (x.getMonth()+1) === m && x.getFullYear() === y;
+  };
+
+  let _$page = null;
+  let _allRows = [];
+  let _bound = false;
+
+  function bind(){
+    if (_bound) return;
+    _$page = $('#opexPage');
+    // namespaced event bindings
+    _$page.on('click.opex',  '#opexAddBtn', addExpense);
+    _$page.on('click.opex',  '.btn-opex-edit', onEdit);
+    _$page.on('click.opex',  '.btn-opex-del',  onDelete);
+    _$page.on('change.opex', '#opexMonth, #opexYear', applyFilterAndRender);
+      // NEW: download-by-filter
+  _$page.on('click.opex', '#dlByFilterBtn', onDownloadByFilter);
+    _bound = true;
+  }
+  function unbind(){
+    if (!_$page) return;
+    _$page.off('.opex');
+    _bound = false;
+    _$page = null;
+  }
+
+  function currentMY(){
+    const now = new Date();
+    return { m: now.getMonth()+1, y: now.getFullYear() };
+  }
+
+  function fillMonthYearSelectors(){
+    const $m = $('#opexMonth'), $y = $('#opexYear');
+    $m.empty(); $y.empty();
+
+    MONTHS.forEach((name, idx) => $m.append(`<option value="${idx+1}">${name}</option>`));
+
+    const { y:cy } = currentMY();
+    for (let y = cy; y >= cy-6; y--) $y.append(`<option value="${y}">${y}</option>`);
+
+    const { m, y } = currentMY();
+    $m.val(String(m));
+    $y.val(String(y));
+    updateFilterLabel();
+  }
+
+  function updateFilterLabel(){
+    const m = Number($('#opexMonth').val());
+    const y = Number($('#opexYear').val());
+    $('#opexFilterLabel').text(`${MONTHS[m-1]} ${y}`);
+  }
+
+  function loadList(){
+    const m = Number($('#opexMonth').val());
+    const y = Number($('#opexYear').val());
+
+    return $.getJSON('/admin/opex/list', { month: m, year: y })
+      .then(({success, list})=>{
+        if (!success) throw new Error('failed');
+        _allRows = Array.isArray(list) ? list : [];
+        applyFilterAndRender();
+      })
+      .catch(e => {
+        console.error(e);
+        $('#opexTable tbody').html('<tr><td colspan="5" class="text-danger">Failed to load OPEX.</td></tr>');
+        $('#opexMonthTotal').text('₱0.00');
+      });
+  }
+function onDownloadByFilter(){
+  const m = Number($('#opexMonth').val());
+  const y = Number($('#opexYear').val());
+  if (!m || !y) return;
+
+  const url = `/admin/opex/download?month=${m}&year=${y}`;
+  // open in a new tab so the page doesn’t navigate away
+  window.open(url, '_blank', 'noopener');
+}
+
+  function applyFilterAndRender(){
+    const m = Number($('#opexMonth').val());
+    const y = Number($('#opexYear').val());
+    updateFilterLabel();
+
+    const filtered = _allRows.filter(r => {
+      const d = r.createdAt || r.updatedAt || Date.now();
+      return sameMonthYear(d, m, y);
+    });
+
+    renderTable(filtered);
+    renderFilteredTotal(filtered);
+  }
+
+  function renderTable(rows){
+    const tb = $('#opexTable tbody'); tb.empty();
+    if (!rows.length){
+      tb.append('<tr><td colspan="5" class="text-center text-muted">No expenses for the selected month.</td></tr>');
+      return;
+    }
+    for (const r of rows){
+      const receipts = Array.isArray(r.receipts) ? r.receipts : [];
+      tb.append(`
+        <tr data-id="${r._id}">
+          <td class="align-middle"><span class="opex-type">${(r.type||'').toString()}</span></td>
+          <td class="align-middle"><span class="opex-amount" data-raw="${Number(r.amount)||0}">${fmtPhp(r.amount)}</span></td>
+          <td class="align-middle">${ymd(r.createdAt || Date.now())}</td>
+          <td class="align-middle"><div class="receipt-list">${renderReceipts(receipts)}</div></td>
+          <td class="align-middle">
+            <div class="btn-group btn-group-sm" role="group">
+              <button class="btn btn-outline-primary btn-opex-edit" type="button">Edit</button>
+              <button class="btn btn-outline-danger btn-opex-del"  type="button">Delete</button>
+            </div>
+          </td>
+        </tr>
+      `);
+    }
+  }
+
+  function safeFileName(name, fallback){
+    const base = (name || fallback || 'receipt').toString().split('/').pop();
+    return base.replace(/[^\w.-]+/g,'_');
+  }
+
+  function renderReceipts(files){
+    if (!files.length) return '<span class="text-muted">—</span>';
+    return files.map(f => {
+      const url = f.url || ('/receipts/' + (f.filename || ''));
+      const mt  = (f.mimeType||'').toLowerCase();
+      const orig = f.originalName || f.filename || 'receipt';
+      const dlName = safeFileName(orig, 'receipt');
+
+      if (mt.startsWith('image/')) {
+        return `
+          <div class="receipt-thumb-wrap" title="${orig}">
+            <a href="${url}" target="_blank" rel="noopener">
+              <img src="${url}" alt="receipt" class="receipt-thumb"/>
+            </a>
+            <a class="receipt-dl" href="${url}" download="${dlName}">
+              <i class="fa-solid fa-download"></i>
+            </a>
+          </div>`;
+      }
+      return `
+        <a class="receipt-pill" href="${url}" target="_blank" rel="noopener" download="${dlName}">
+          <i class="fa-regular fa-file-pdf"></i> ${dlName}
+        </a>`;
+    }).join('');
+  }
+
+  function renderFilteredTotal(rows){
+    const total = rows.reduce((a,b)=> a + (Number(b.amount)||0), 0);
+    $('#opexMonthTotal').text(fmtPhp(total));
+  }
+
+  async function addExpense(){
+    const $btn = $('#opexAddBtn');
+    try {
+      const type = String($('#opexType').val() || '').trim();
+      const amount = Number($('#opexAmount').val());
+      const files = ($('#opexReceipts')[0]?.files || []);
+
+      if (!type){
+        if (hasSwal()) await Swal.fire({icon:'warning', title:'Missing type', text:'Please enter type of expense.'});
+        else alert('Please enter type of expense.');
+        return;
+      }
+      if (!Number.isFinite(amount) || amount < 0){
+        if (hasSwal()) await Swal.fire({icon:'warning', title:'Invalid amount', text:'Please enter a valid amount (>= 0).'});
+        else alert('Please enter a valid amount (>= 0).');
+        return;
+      }
+
+      const { isConfirmed } = await askConfirm({
+        title: 'Add this expense?',
+        html: `<div class="text-left">
+                 <div><b>Type:</b> ${$('<div>').text(type).html()}</div>
+                 <div><b>Amount:</b> ${fmtPhp(amount)}</div>
+                 <div><b>Receipts selected:</b> ${files.length}</div>
+               </div>`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Save',
+        cancelButtonText: 'Cancel',
+        reverseButtons: true,
+        width: 480
+      });
+      if (!isConfirmed) return;
+
+      const fd = new FormData();
+      fd.append('type', type);
+      fd.append('amount', String(amount));
+      for (const f of files) fd.append('receipts', f); // allow zero files
+
+      $btn.prop('disabled', true);
+
+      $.ajax({
+        url: '/admin/opex/add',
+        method: 'POST',
+        data: fd,
+        processData: false,
+        contentType: false
+      })
+      .done(() => {
+        $('#opexType').val('');
+        $('#opexAmount').val('');
+        $('#opexReceipts').val(null);
+        loadList().then(()=> Toast.fire({ icon:'success', title:'Expense added' }));
+      })
+      .fail(xhr => {
+        const msg = xhr?.responseJSON?.message || 'Server error';
+        if (hasSwal()) Swal.fire({ icon:'error', title:'Failed to add', text: msg });
+        else alert('Failed to add: ' + msg);
+      })
+      .always(() => $btn.prop('disabled', false));
+    } catch (err){
+      console.error(err);
+      $btn.prop('disabled', false);
+    }
+  }
+
+  async function onEdit(){
+    const $tr = $(this).closest('tr');
+    const id  = $tr.data('id');
+    const curType = $tr.find('.opex-type').text().trim();
+    const curAmt  = Number($tr.find('.opex-amount').data('raw') || 0);
+
+    if (!hasSwal()){
+      // simple fallback edit
+      const t = prompt('Type of expense:', curType);
+      if (t == null || !t.trim()) return;
+      const a = Number(prompt('Amount (PHP):', curAmt));
+      if (!Number.isFinite(a) || a < 0) return alert('Invalid amount');
+      return $.post('/admin/opex/edit', { id, type: t.trim(), amount: a })
+        .done(() => { loadList(); Toast.fire({ icon:'success', title:'Expense updated' }); })
+        .fail(xhr => alert('Update failed: ' + (xhr?.responseJSON?.message || 'Server error')));
+    }
+
+    const { value: formValues } = await Swal.fire({
+      title: 'Edit expense',
+      html: `
+        <div class="text-left">
+          <label class="mb-1">Type of expense</label>
+          <input id="sw-type" class="swal2-input" placeholder="e.g., Utilities" value="${$('<div>').text(curType).html()}">
+          <label class="mb-1">Amount (PHP)</label>
+          <input id="sw-amount" class="swal2-input" type="number" min="0" step="0.01" value="${curAmt}">
+        </div>`,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Update',
+      preConfirm: () => {
+        const type = (document.getElementById('sw-type').value || '').trim();
+        const amount = Number(document.getElementById('sw-amount').value);
+        if (!type) { Swal.showValidationMessage('Type is required'); return false; }
+        if (!Number.isFinite(amount) || amount < 0) { Swal.showValidationMessage('Enter a valid amount (>= 0)'); return false; }
+        return { type, amount };
+      },
+      width: 520
+    });
+    if (!formValues) return;
+
+    const $btn = $(this).prop('disabled', true);
+    $.post('/admin/opex/edit', { id, type: formValues.type, amount: formValues.amount })
+      .done(() => { loadList(); Toast.fire({ icon:'success', title:'Expense updated' }); })
+      .fail(xhr => hasSwal()
+        ? Swal.fire({ icon:'error', title:'Update failed', text:(xhr?.responseJSON?.message || 'Server error') })
+        : alert('Update failed: ' + (xhr?.responseJSON?.message || 'Server error')))
+      .always(() => $btn.prop('disabled', false));
+  }
+
+  async function onDelete(){
+    const $tr = $(this).closest('tr');
+    const id  = $tr.data('id');
+    if (!id) return;
+
+    const { isConfirmed } = await askConfirm({
+      title: 'Delete this expense?',
+      text: 'This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, delete',
+      cancelButtonText: 'Cancel',
+      reverseButtons: true,
+      width: 460
+    });
+    if (!isConfirmed) return;
+
+    const $btn = $(this).prop('disabled', true);
+    $.post('/admin/opex/delete', { id })
+      .done(() => {
+        $tr.remove();
+        if (!$('#opexTable tbody tr').length){
+          $('#opexTable tbody').html('<tr><td colspan="5" class="text-center text-muted">No expenses yet.</td></tr>');
+        }
+        loadList();
+        Toast.fire({ icon:'success', title:'Expense deleted' });
+      })
+      .fail(xhr => hasSwal()
+        ? Swal.fire({ icon:'error', title:'Delete failed', text:(xhr?.responseJSON?.message || 'Server error') })
+        : alert('Delete failed: ' + (xhr?.responseJSON?.message || 'Server error')))
+      .always(() => $btn.prop('disabled', false));
+  }
+
+  // expose to shell
+  window.Opex = {
+    init(){
+      bind();
+      fillMonthYearSelectors();
+      loadList();
+    },
+    destroy(){ unbind(); }
+  };
+})();
+</script>
+
