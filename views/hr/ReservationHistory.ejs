@@ -32,10 +32,28 @@ function formatTime12(hhmm){
   var h12 = h%12===0 ? 12 : h%12;
   return h12 + ':' + m + ' ' + suffix;
 }
-function resolveDate(res){
-  if(!res) return null;
-  return res.date || (res.schedule && res.schedule.scheduleDate) || res.createdAt;
+
+/* Prefer per-pet follow-up schedule if present (so reschedules surface here) */
+function pickDateTime(r){
+  // 1) Prefer per-pet schedule if any
+  if (r && Array.isArray(r.pets)) {
+    for (var i=0;i<r.pets.length;i++){
+      var sch = r.pets[i] && r.pets[i].schedule;
+      if (sch && sch.scheduleDate){
+        return {
+          date: sch.scheduleDate,
+          time: sch.scheduleTime || sch.time || r.time || ''
+        };
+      }
+    }
+  }
+  // 2) Prefer reservation-level schedule over original booked date
+  return {
+    date: r ? ((r.schedule && r.schedule.scheduleDate) || r.date || r.createdAt) : null,
+    time: r ? ((r.schedule && (r.schedule.scheduleTime || r.schedule.time)) || r.time || '') : ''
+  };
 }
+
 
 /* ---------- Build unified rows (reservations + retail) ---------- */
 const _reservations = Array.isArray(historyReservations) ? historyReservations : [];
@@ -43,16 +61,25 @@ const _retail       = Array.isArray(retailSales) ? retailSales : [];
 
 // Reservations (no amount)
 const resRows = _reservations.map(r => {
-  const dateISO = formatLocalDate(resolveDate(r)) || '';
-  const time24  = safeTimeHHmm(r.time);
+  const dt = pickDateTime(r);
+  const dateISO = formatLocalDate(dt.date) || '';
+  const time24  = safeTimeHHmm(dt.time);
   const time12  = formatTime12(time24);
-  const status  = (r.status || '').trim() || 'Done';
+
+  // Normalize status (Canceled→Declined; Approved/Scheduled→Scheduled when follow-up exists)
+  var rawStatus = (r.status || '').trim();
+  var hasFollowup = !!dt.date;
+  var displayStatus =
+    rawStatus === 'Canceled' ? 'Declined' :
+    ((rawStatus === 'Approved' || rawStatus === 'Scheduled') && hasFollowup) ? 'Scheduled' :
+    (rawStatus || 'Done');
+
   return {
     kind: 'Reservation',
     dateISO, time24, time12,
     owner: r.ownerName || '—',
     service: r.service || '—',
-    status
+    status: displayStatus
   };
 });
 
@@ -159,6 +186,7 @@ const list = [...resRows, ...retailRows].sort((a,b) => {
         <option value="Done">Done</option>
         <option value="Paid">Paid</option>
         <option value="Not Attended">Not Attended</option>
+        <option value="Scheduled">Scheduled</option><!-- NEW -->
         <option value="Retail">Retail</option>
       </select>
     </div>
@@ -210,6 +238,8 @@ const list = [...resRows, ...retailRows].sort((a,b) => {
                       <span class="badge badge-primary">Paid</span>
                     <% } else if (row.status === 'Retail') { %>
                       <span class="badge badge-info">Retail</span>
+                    <% } else if (row.status === 'Scheduled') { %>
+                      <span class="badge badge-info">Scheduled</span>
                     <% } else { %>
                       <span class="badge badge-success"><%= row.status %></span>
                     <% } %>
@@ -228,9 +258,31 @@ const list = [...resRows, ...retailRows].sort((a,b) => {
     </div>
   </div>
 </div>
-
 <script>
-  (function(){
+  /* ===========================================================
+   * ReservationHistory.ejs — client script (updated)
+   * - Injects Authorization header (uses authToken passed from server)
+   * - Local filtering (search, status, date range) + sticky scroller
+   * - SSE auto-refresh when reservations change elsewhere
+   * =========================================================== */
+
+  /* ---------- 0) Auth header for all jQuery AJAX calls ---------- */
+  (function () {
+    // Make sure your route sent: res.render('hr/ReservationHistory', { ..., authToken })
+    // and you have jQuery on the page.
+    window.AUTH_TOKEN = '<%= typeof authToken !== "undefined" ? authToken : "" %>';
+
+    if (window.jQuery && window.AUTH_TOKEN) {
+      $.ajaxSetup({
+        beforeSend: function (xhr) {
+          try { xhr.setRequestHeader('Authorization', 'Bearer ' + window.AUTH_TOKEN); } catch (_) {}
+        }
+      });
+    }
+  })();
+
+  /* ---------- 1) Table filtering + virtual scroller ---------- */
+  (function () {
     const $q    = $('#historySearch');
     const $stat = $('#statusFilter');
     const $from = $('#fromDate');
@@ -239,15 +291,16 @@ const list = [...resRows, ...retailRows].sort((a,b) => {
     const $scroller = $('#historyScroller');
     const $table = $('#historyTable');
 
-    function withinRange(dateStr, fromStr, toStr){
+    function withinRange(dateStr, fromStr, toStr) {
+      // expects YYYY-MM-DD in data-date
       if (!dateStr) return false;
       if (fromStr && dateStr < fromStr) return false;
       if (toStr   && dateStr > toStr)   return false;
       return true;
     }
 
-    // Set scroller height so only 10 visible rows (plus sticky header) are shown
-    function setScrollByRows(targetRows){
+    // Set scroller height so only N visible rows (plus sticky header) are shown
+    function setScrollByRows(targetRows) {
       const $rows = $body.find('tr:visible').not('._empty');
       const count = $rows.length;
 
@@ -256,29 +309,28 @@ const list = [...resRows, ...retailRows].sort((a,b) => {
         return;
       }
 
-      // Measure header + first N row heights
       const theadH = $table.find('thead').outerHeight() || 44;
       let rowsH = 0;
-      $rows.slice(0, targetRows).each(function(){ rowsH += $(this).outerHeight(); });
+      $rows.slice(0, targetRows).each(function () { rowsH += $(this).outerHeight(); });
 
-      // Add 2px buffer for borders
+      // Add a small buffer for borders/shadows
       const total = theadH + rowsH + 2;
       $scroller.css('height', total + 'px');
     }
 
-    function applyFilters(){
-      const q = ($q.val() || '').toLowerCase().trim();
-      const s = ($stat.val() || '').trim();
+    function applyFilters() {
+      const q = String($q.val() || '').toLowerCase().trim();
+      const s = String($stat.val() || '').trim();
       const f = $from.val() || '';
       const t = $to.val()   || '';
 
       let shown = 0;
-      $body.find('tr').not('._empty').each(function(){
+      $body.find('tr').not('._empty').each(function () {
         const $r = $(this);
-        const owner = ($r.data('owner') || '');
-        const svc   = ($r.data('service') || '');
-        const date  = ($r.data('date') || '').trim();
-        const st    = ($r.data('status') || '').trim();
+        const owner = String($r.data('owner') || '').toLowerCase();
+        const svc   = String($r.data('service') || '').toLowerCase();
+        const date  = String($r.data('date') || '').trim();    // YYYY-MM-DD expected
+        const st    = String($r.data('status') || '').trim();
 
         const searchOk = !q || owner.includes(q) || svc.includes(q);
         const statusOk = !s || st === s;
@@ -300,26 +352,70 @@ const list = [...resRows, ...retailRows].sort((a,b) => {
       setScrollByRows(10);
     }
 
+    // Wire up controls
     $q.on('input', applyFilters);
     $stat.on('change', applyFilters);
-    $from.on('change', function(){
+    $from.on('change', function () {
       if ($to.val() && $from.val() > $to.val()) $to.val($from.val());
       applyFilters();
     });
-    $to.on('change', function(){
+    $to.on('change', function () {
       if ($from.val() && $to.val() < $from.val()) $from.val($to.val());
       applyFilters();
     });
-    $('#clearFilters').on('click', function(){
+    $('#clearFilters').on('click', function () {
       $q.val(''); $stat.val(''); $from.val(''); $to.val(''); applyFilters();
     });
 
-    // Initial sizing after render + on resize
-    $(window).on('resize', function(){ setScrollByRows(10); });
+    // Debounced resize to avoid thrashing
+    let _rsTimer = null;
+    $(window).on('resize', function () {
+      clearTimeout(_rsTimer);
+      _rsTimer = setTimeout(function () { setScrollByRows(10); }, 100);
+    });
 
     // Kick once on load
-    setTimeout(function(){
-      applyFilters(); // also sets scroll height
-    }, 0);
+    setTimeout(function () { applyFilters(); }, 0);
+
+    // External refresh hook (other scripts can request a repaint)
+    window.addEventListener('app:refreshHistory', function () {
+      try { applyFilters(); } catch (_) {}
+    });
+  })();
+
+  /* ---------- 2) Live updates via SSE ---------- */
+  (function () {
+    var es = null;
+    try {
+      es = new EventSource('/hr/stream');
+
+      // Any of these events can change what History shows
+      var TRIGGER_TYPES = new Set([
+        'followup:scheduled',
+        'reservation:approved',
+        'reservation:declined',
+        'reservation:done',
+        'reservation:walkin',
+        'reservation:notify-state' // if you reflect messaging status
+      ]);
+
+      es.onmessage = function (ev) {
+        var msg; try { msg = JSON.parse(ev.data); } catch (_) { return; }
+        if (msg && TRIGGER_TYPES.has(msg.type)) {
+          // Let filters recalc (in case you render dynamic rows client-side),
+          // then do a light reload to get fresh data.
+          try { window.dispatchEvent(new CustomEvent('app:refreshHistory')); } catch (_) {}
+          setTimeout(function () { window.location.reload(); }, 250);
+        }
+      };
+    } catch (e) {
+      // SSE not critical; page still works without it
+    }
+
+    // Clean up when navigating away
+    window.addEventListener('app:beforeNavigate', function () {
+      try { es && es.close(); } catch (_) {}
+      es = null;
+    });
   })();
 </script>
