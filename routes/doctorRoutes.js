@@ -19,6 +19,10 @@ const AppointmentSetting = require('../models/appointmentSetting'); // for hourl
 // const Reservation = require('../models/reservation');
 // at the top with your other models
 const User = require('../models/user'); // <-- add this if missing
+const nodemailer = require('nodemailer');           // email
+const MessageTemplate = require('../models/messageTemplate');
+const ReservationMessage = require('../models/ReservationMessage');
+
 
 // ----------------- Multer Setup -----------------
 // Updated storage: files will be stored in public/consultation/
@@ -48,6 +52,30 @@ const TIME_SLOTS = [
   '08:00 AM','09:00 AM','10:00 AM','11:00 AM',
   '12:00 PM','01:00 PM','02:00 PM','03:00 PM','04:00 PM','05:00 PM'
 ];
+function getBrevoTransport() {
+  const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = process.env.SMTP_EMAIL;
+  const pass = process.env.SMTP_PASS;
+
+  if (!user || !pass) return null;
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass }
+  });
+}
+
+function esc(s=''){
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
 
 function toISODateKeyUTC(d) {
   const x = new Date(d);
@@ -2002,5 +2030,110 @@ router.get("/d-upcoming", authMiddleware, async (req, res) => {
     res.status(500).send("Server error");
   }
 });
+// POST /doctor/notify-reservation
+// EXPECTS: { reservationId, templateId?, message?, emailMessage?, interactive?, reason? }
+router.post('/notify-reservation', authMiddleware, async (req, res) => {
+  try {
+    const { reservationId, templateId, message, emailMessage, interactive, reason, emailOnly } = req.body;
+
+    if (!reservationId || (!templateId && !message)) {
+      return res.json({ success: false, message: 'Missing inputs.' });
+    }
+
+    const reservation = await Reservation.findById(reservationId)
+      .populate('owner', '_id username email')
+      .lean();
+    if (!reservation) {
+      return res.json({ success: false, message: 'Reservation not found.' });
+    }
+
+    let inAppText = (message || '').trim();
+    if (!inAppText && templateId) {
+      const tmpl = await MessageTemplate.findById(templateId).lean();
+      if (!tmpl) return res.json({ success: false, message: 'Template not found.' });
+      inAppText = String(tmpl.body || '').trim();
+    }
+    if (!inAppText) {
+      return res.json({ success: false, message: 'No message text.' });
+    }
+
+    const emailText = (emailMessage && String(emailMessage).trim()) || inAppText;
+
+    const isEmailOnly =
+      String(reason || '').toLowerCase() === 'resched' ||
+      emailOnly === true ||
+      String(emailOnly).toLowerCase() === 'true';
+
+    const subject =
+      String(reason || '').toLowerCase() === 'doctor_unavailable'
+        ? 'Doctor unavailable — quick action'
+        : 'Appointment Update';
+
+    let msgDocId = null;
+    if (!isEmailOnly) {
+      const msgDoc = await ReservationMessage.create({
+        reservation: reservation._id,
+        toOwner: reservation.owner?._id || undefined,
+        ownerName: reservation.ownerName || reservation.owner?.username || '',
+        body: inAppText,
+        templateId: templateId || undefined,
+        status: 'sent'
+      });
+      msgDocId = String(msgDoc._id);
+
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`reservation:${reservation._id}`).emit('reservation:notify', {
+          id: msgDocId,
+          reservationId: String(reservation._id),
+          text: inAppText,
+          interactive: !!interactive,
+          reason: reason || null
+        });
+      }
+    }
+
+    const toEmail =
+      (reservation.owner && reservation.owner.email) ||
+      reservation.contactEmail ||
+      null;
+
+    let emailSent = false, emailError = null;
+    if (toEmail) {
+      try {
+        const transport = getBrevoTransport();
+        if (transport) {
+          const fromEmail = process.env.SENDER_EMAIL || process.env.SMTP_EMAIL;
+          const fromName  = process.env.SENDER_NAME  || 'SmartVet Clinic';
+          await transport.sendMail({
+            from: `${fromName} <${fromEmail}>`,
+            to: toEmail,
+            subject,
+            text: emailText,
+            html: `<p>${esc(emailText).replace(/\n/g,'<br>')}</p>`
+          });
+          emailSent = true;
+        } else {
+          emailError = 'SMTP not configured';
+        }
+      } catch (err) {
+        console.error('[Doctor notify] email failed:', err);
+        emailError = err.message || 'sendMail failed';
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Sent.',
+      id: msgDocId,                        // null when emailOnly
+      inApp: { skipped: isEmailOnly },
+      email: { attempted: !!toEmail, sent: emailSent, error: emailError }
+    });
+  } catch (e) {
+    console.error('doctor/notify-reservation error:', e);
+    return res.status(500).json({ success: false, message: 'Failed to send.' });
+  }
+});
+
 
 module.exports = router;
