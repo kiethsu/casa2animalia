@@ -30,6 +30,10 @@ const User               = require('../models/user'); // for doctor picker
 const authMiddleware = require('../middleware/authMiddleware');
 const { getPetHistory } = require('../controllers/petHistory');
 const AppointmentSetting = require('../models/appointmentSetting');
+const Operating = require('../models/operating'); // <— ADD THIS
+const fs = require('fs');             // add if not present
+const archiver = require('archiver'); // <-- add this
+
 // ⬇️ add under: const authMiddleware = require('../middleware/authMiddleware');
 const roleOf = req => String(req?.user?.role || '').toLowerCase();
 const allow = (...roles) => (req, res, next) => {
@@ -47,6 +51,24 @@ const adminOrRedirectDoctor = (req, res, next) => {
   next();
 };
 // ADD after your profile image multer config (or near top, once `multer` is available)
+// Receipts upload storage (make sure folder exists: /public/receipts)
+const receiptsStorage = multer.diskStorage({
+  destination: function (_req, _file, cb) {
+    cb(null, path.join(__dirname, '../public/receipts'));
+  },
+  filename: function (_req, file, cb) {
+    const safe = file.originalname.replace(/\s+/g, '_');
+    cb(null, Date.now() + '-' + safe);
+  }
+});
+const uploadReceipts = multer({
+  storage: receiptsStorage,
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8MB per file, adjust as needed
+  fileFilter: (_req, file, cb) => {
+    const ok = /^(image\/(png|jpe?g|gif|webp)|application\/pdf)$/.test(file.mimetype);
+    cb(ok ? null : new Error('Only images or PDF are allowed'), ok);
+  }
+});
 
 // Consultation files go to /public/consultation
 const consultStorage = multer.diskStorage({
@@ -1983,6 +2005,169 @@ router.get('/inventory/checkQuantity', authMiddleware, allow('admin'), async (re
     res.json({ success:true, availableQty: Number(doc?.quantity || 0) });
   } catch (e) {
     res.json({ success:true, availableQty: 0 });
+  }
+});
+router.get('/opex', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.render('opex'); // views/opex.ejs
+});
+// List OPEX
+router.get('/opex/list', async (_req, res) => {
+  try {
+    const list = await Operating.find().sort({ createdAt: -1 }).lean();
+    res.json({ success: true, list });
+  } catch (e) {
+    console.error('GET /admin/opex/list', e);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// BEFORE:
+// router.post('/opex/add', async (req, res) => {
+
+// AFTER — accept many files named "receipts"
+router.post('/opex/add', uploadReceipts.array('receipts', 10), async (req, res) => {
+  try {
+    const type = String(req.body.type || '').trim();
+    const amount = Number(req.body.amount);
+    if (!type || !Number.isFinite(amount) || amount < 0) {
+      return res.status(400).json({ success: false, message: 'type and amount are required' });
+    }
+
+    const files = (req.files || []).map(f => ({
+      filename:     f.filename,
+      originalName: f.originalname,
+      mimeType:     f.mimetype,
+      size:         f.size,
+      url:          '/receipts/' + f.filename
+    }));
+
+    const doc = await require('../models/operating').create({
+      type, amount, receipts: files
+    });
+
+    res.json({ success: true, opex: doc });
+  } catch (e) {
+    console.error('POST /admin/opex/add', e);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Edit OPEX
+router.post('/opex/edit', async (req, res) => {
+  try {
+    const { id, type, amount } = req.body || {};
+    if (!id) return res.status(400).json({ success: false, message: 'id required' });
+    const set = {};
+    if (typeof type === 'string') set.type = type.trim();
+    if (amount !== undefined) {
+      const n = Number(amount);
+      if (!Number.isFinite(n) || n < 0) return res.status(400).json({ success: false, message: 'invalid amount' });
+      set.amount = n;
+    }
+    const updated = await Operating.findByIdAndUpdate(id, { $set: set }, { new: true }).lean();
+    if (!updated) return res.status(404).json({ success: false, message: 'not found' });
+    res.json({ success: true, opex: updated });
+  } catch (e) {
+    console.error('POST /admin/opex/edit', e);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Delete OPEX
+router.post('/opex/delete', async (req, res) => {
+  try {
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ success: false, message: 'id required' });
+    const r = await Operating.findByIdAndDelete(id);
+    if (!r) return res.status(404).json({ success: false, message: 'not found' });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('POST /admin/opex/delete', e);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// Download all OPEX receipts for a given month/year as a ZIP
+router.get('/opex/download', async (req, res) => {
+  try {
+    const month = parseInt(req.query.month, 10);
+    const year  = parseInt(req.query.year, 10);
+    if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year)) {
+      return res.status(400).send('month (1..12) and year are required');
+    }
+
+    const start = new Date(year, month - 1, 1, 0, 0, 0, 0);
+    const end   = new Date(year, month, 0, 23, 59, 59, 999);
+
+    // Pull OPEX docs in the month range
+    const docs = await Operating.find({
+      createdAt: { $gte: start, $lte: end }
+    }).lean();
+
+    // Collect absolute file paths from receipts[]
+    const receiptsDir = path.join(__dirname, '../public/receipts');
+
+    const safeName = (s, fb='receipt') =>
+      String(s || fb).replace(/[^\w.\-]+/g, '_');
+
+    // Prepare streaming zip response
+    const fileBase   = `Receipts_${year}-${String(month).padStart(2,'0')}`;
+    const zipName    = `${fileBase}.zip`;
+    const folderName = `${fileBase}/`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
+    res.setHeader('Cache-Control', 'no-store');
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.on('error', (err) => {
+      console.error('archiver error:', err);
+      try { res.status(500).end(); } catch(_) {}
+    });
+
+    archive.pipe(res);
+
+    let added = 0;
+    let idx = 1;
+
+    for (const d of (docs || [])) {
+      const created = d.createdAt ? new Date(d.createdAt) : null;
+      const day = created ? String(created.getDate()).padStart(2,'0') : '00';
+      const datePrefix = created
+        ? `${created.getFullYear()}-${String(created.getMonth()+1).padStart(2,'0')}-${day}`
+        : `${year}-${String(month).padStart(2,'0')}-${day}`;
+
+      const files = Array.isArray(d.receipts) ? d.receipts : [];
+      for (const f of files) {
+        // Prefer filename (we stored it when uploading)
+        const baseName = safeName(f.originalName || f.filename || `receipt_${idx}`);
+        const diskName = String(f.filename || '').trim();
+        // Absolute path inside /public/receipts
+        const abs = path.join(receiptsDir, diskName);
+
+        if (diskName && fs.existsSync(abs)) {
+          const nameInZip = `${folderName}${datePrefix}_${safeName(d.type || 'expense')}_${idx}_${baseName}`;
+          archive.file(abs, { name: nameInZip });
+          added++;
+          idx++;
+        }
+      }
+    }
+
+    if (added === 0) {
+      // Always return a zip so the UX is consistent
+      archive.append(
+        `No receipts found for ${year}-${String(month).padStart(2,'0')}.\n`,
+        { name: `${folderName}no-receipts.txt` }
+      );
+    }
+
+    archive.finalize();
+  } catch (e) {
+    console.error('GET /admin/opex/download error:', e);
+    // If headers already sent, just end the stream
+    if (res.headersSent) return res.end();
+    return res.status(500).send('Server error creating ZIP');
   }
 });
 
