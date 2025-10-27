@@ -1691,26 +1691,45 @@ function kpiMonthYear(){
     const lastDataRow = ws.lastRow.number;
 
     // Totals (double top line, colored background)
-    if (totals && rows.length > 0){
-      const tr = ws.addRow(new Array(headers.length).fill(null));
-      tr.height = 19;
-      tr.getCell(1).value = totals.label || 'Total';
-      tr.getCell(1).font = { bold:true };
+   // Totals (double top line, colored background)
+if (totals && rows.length > 0){
+  // precompute numeric sums for each column index in totals.cols
+  const preSums = new Map();  // colIndex(1-based) -> number
+  (totals.cols || []).forEach(ci => {
+    const arrIdx = ci - 1; // rows[] are 0-based
+    const sumVal = rows.reduce((acc, r) => {
+      const v = r[arrIdx];
+      const n = (typeof v === 'number') ? v : (Number.isFinite(Number(v)) ? Number(v) : 0);
+      return acc + n;
+    }, 0);
+    preSums.set(ci, sumVal);
+  });
 
-      (totals.cols || []).forEach(ci => {
-        const colLetter = ws.getColumn(ci).letter;
-        tr.getCell(ci).value = { formula: `SUM(${colLetter}${firstDataRow}:${colLetter}${lastDataRow})` };
-        const fmt = headers[ci-1]?.numFmt;
-        if (fmt) tr.getCell(ci).numFmt = fmt;
-        tr.getCell(ci).font = { bold:true };
-        tr.getCell(ci).alignment = { horizontal:'right' };
-      });
+  const tr = ws.addRow(new Array(headers.length).fill(null));
+  tr.height = 19;
+  tr.getCell(1).value = totals.label || 'Total';
+  tr.getCell(1).font = { bold:true };
 
-      tr.eachCell(c => {
-        c.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFE3F2FD'} };
-        c.border = { top:{style:'double'}, bottom:{style:'thin'}, left:{style:'thin'}, right:{style:'thin'} };
-      });
-    }
+  (totals.cols || []).forEach(ci => {
+    const colLetter = ws.getColumn(ci).letter;
+    const fmt = headers[ci-1]?.numFmt;
+
+    // ✅ write formula + cached result so totals show even if the viewer doesn't recalc
+    tr.getCell(ci).value = {
+      formula: `SUM(${colLetter}${firstDataRow}:${colLetter}${lastDataRow})`,
+      result : preSums.get(ci) ?? 0
+    };
+
+    if (fmt) tr.getCell(ci).numFmt = fmt;
+    tr.getCell(ci).font = { bold:true };
+    tr.getCell(ci).alignment = { horizontal:'right' };
+  });
+
+  tr.eachCell(c => {
+    c.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFE3F2FD'} };
+    c.border = { top:{style:'double'}, bottom:{style:'thin'}, left:{style:'thin'}, right:{style:'thin'} };
+  });
+}
 
     ws.addRow([]);
     autosize(ws, headers, rows);
@@ -1730,7 +1749,11 @@ function kpiMonthYear(){
       }
 
       const wb = new ExcelJS.Workbook();
-      wb.created = new Date();
+wb.created = new Date();
+
+// ✅ force a full workbook calc when the file opens (Desktop Excel honors this)
+wb.calcProperties.fullCalcOnLoad = true;
+
 
       // ===== Summary =====
       const wsSum = createSheet(wb, 'Summary');
