@@ -77,6 +77,26 @@
   /* SweetAlert2 above the top bar + offset */
   .swal2-container{ z-index:6000 !important; }
   .swal2-container.swal2-top{ top: var(--swal-top-offset, 60px) !important; }
+
+  /* ===== Reschedule modal — time slot grid (HR-style) ===== */
+  .slot-legend{ font-size:12px; color:#6b7280; }
+  .slot-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px,1fr));
+    gap:8px; margin-top:8px;
+  }
+  .slot-btn{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    border:1px solid #cbd5e1; background:#fff; border-radius:10px;
+    padding:8px 10px; cursor:pointer; user-select:none; font-size:.95rem; line-height:1.1;
+  }
+  .slot-btn:hover{ background:#f8fafc; }
+  .slot-btn.active{ border-color:#0D47A1; box-shadow:0 0 0 2px rgba(13,71,161,.15) inset; }
+  .slot-btn.disabled{
+    cursor:not-allowed; opacity:.9; background:#fee2e2; border-color:#fecaca; color:#991b1b; pointer-events:none;
+  }
+  .slot-badge{ font-size:10px; line-height:1; border-radius:999px; padding:2px 6px; background:#e5e7eb; color:#374151; }
+  .slot-badge.full{ background:#fecaca; color:#991b1b; }
 </style>
 
 <div class="container-fluid upcoming-container">
@@ -128,7 +148,7 @@
   <div class="table-card">
     <table class="table custom-table mb-0" id="upcomingTable">
       <thead>
-        <tr><th>Date</th><th>Owner</th><th>Pet</th><th>Service</th><th>Doctor</th><th>Status</th></tr>
+        <tr><th>Owner</th><th>Pet</th><th>Service</th><th>Doctor</th><th>Status</th><th>Actions</th></tr>
       </thead>
       <tbody><!-- rendered by JS --></tbody>
     </table>
@@ -141,6 +161,61 @@
     </nav>
   </div>
 </div>
+
+<!-- Reschedule Modal (HR-style in Admin) -->
+<div class="modal fade" id="reschedModal" tabindex="-1" role="dialog" aria-labelledby="reschedLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="reschedLabel">Reschedule Follow-up</h6>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span>&times;</span></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="rs-reservationId">
+        <input type="hidden" id="rs-petId">
+        <input type="hidden" id="rs-petName">
+
+        <div class="form-group mb-2">
+          <label class="mb-1">Pick date</label>
+          <input type="text" id="rs-date" class="form-control form-control-sm" placeholder="Pick a date">
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <label class="mb-0">Pick time</label>
+          <div class="slot-legend">
+            <span class="slot-badge">Available</span>
+            <span class="slot-badge full ml-2">Full</span>
+          </div>
+        </div>
+        <div id="slotGrid" class="slot-grid"><!-- buttons injected --></div>
+
+        <div class="custom-control custom-checkbox mt-2">
+          <input type="checkbox" class="custom-control-input" id="rs-notify" checked>
+          <label class="custom-control-label" for="rs-notify">Email the owner about this change</label>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="rs-saveBtn" disabled>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Inject JWT for AJAX + SSE -->
+<script>
+(function(){
+  var AUTH = '<%= typeof authToken !== "undefined" ? authToken : "" %>';
+  window.__ADMIN_AUTH__ = AUTH;
+  function setAjaxHeader(){
+    if (AUTH && window.$ && $.ajaxSetup) {
+      $.ajaxSetup({ headers: { Authorization: 'Bearer ' + AUTH } });
+    }
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') setAjaxHeader();
+  else document.addEventListener('DOMContentLoaded', setAjaxHeader);
+})();
+</script>
 
 <script>
 (function(){
@@ -159,13 +234,7 @@
   }
   function todayISO(){ return ymdLocal(new Date()); }
 
-  /* ===== Normalize status:
-     - Trust server "Done"/"Not Attended"/"Scheduled" if present
-     - Else derive:
-         * Past day → Not Attended
-         * Today >= 12:00 → Not Attended
-         * Otherwise → Scheduled
-  =================================== */
+  /* ===== Normalize status ===== */
   function normStatus(it){
     const s = String(it.status || '').trim().toLowerCase();
     if (s === 'done')          return 'Done';
@@ -173,8 +242,8 @@
     if (s === 'scheduled')     return 'Scheduled';
 
     const now = new Date();
-    const dayStart = new Date(it.dateISO + 'T00:00:00'); // local midnight
-    const noon     = new Date(it.dateISO + 'T12:00:00'); // local noon
+    const dayStart = new Date(it.dateISO + 'T00:00:00');
+    const noon     = new Date(it.dateISO + 'T12:00:00');
 
     if (dayStart < new Date(todayISO() + 'T00:00:00')) return 'Not Attended';
     if (it.dateISO === todayISO() && now >= noon)      return 'Not Attended';
@@ -237,12 +306,22 @@
     } else {
       const html = slice.map(it =>
         `<tr data-date="${it.dateISO}" data-status="${String(it.status||'—').toLowerCase()}">
-          <td>${it.dateISO}</td>
           <td>${escapeHtml(it.ownerName)}</td>
           <td>${escapeHtml(it.petName)}</td>
           <td>${escapeHtml(it.service)}</td>
           <td>${escapeHtml(it.doctor)}</td>
           <td>${escapeHtml(it.status || '—')}</td>
+          <td>
+            <button
+              class="btn btn-outline-primary btn-sm resched-btn"
+              data-reservation="${it.reservationId}"
+              data-pet-id="${it.petId || ''}"
+              data-pet-name="${escapeHtml(it.petName)}"
+              data-current-date="${it.dateISO}"
+            >
+              <i class="far fa-calendar-alt"></i> Resched
+            </button>
+          </td>
         </tr>`).join('');
       $("#upcomingTable tbody").html(html);
     }
@@ -363,7 +442,10 @@
   function wireSSE(){
     try{
       if (es && typeof es.close === 'function') { es.close(); es = null; }
-      es = new EventSource('/admin/stream');
+      const SSE_URL = (window.__ADMIN_AUTH__)
+        ? `/admin/stream?token=${encodeURIComponent(window.__ADMIN_AUTH__)}`
+        : '/admin/stream';
+      es = new EventSource(SSE_URL);
       es.onmessage = function(ev){
         let msg; try { msg = JSON.parse(ev.data); } catch(_) { return; }
         if (!msg || !msg.type) return;
@@ -387,7 +469,7 @@
         }
 
         // Consultation saved → mark as Done immediately
-        if (msg.type === 'consultation:created'){
+        if (msg.type === 'consultation:created' || msg.type === 'consultation:upserted'){
           const p = msg.payload || {};
           const rId = String(p.reservationId || '');
           const iso = String(p.dateISO || '');
@@ -452,7 +534,7 @@
       if (document.hidden) return;
       if (activeDate !== todayISO()) return;
       refreshFromServerForActiveDate();
-    }, 15000); // 15s
+    }, 15000);
   }
   function stopPolling(){ if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
   function triggerOnDemandPoll(){
@@ -483,8 +565,188 @@
         renderTablePage(filtered, currentPage);
       }
     }
-    setInterval(run, 60 * 1000); // check each minute
+    setInterval(run, 60 * 1000);
     run();
+  })();
+
+  /* ===== Reschedule — HR-like (slot grid + capacity + email-only) ===== */
+  (function(){
+    const TIME_SLOTS = ['08:00 AM','09:00 AM','10:00 AM','11:00 AM','12:00 PM','01:00 PM','02:00 PM','03:00 PM','04:00 PM','05:00 PM'];
+    let rsPicker = null;
+    let APPT_LIMIT = 0;
+    let SELECTED_TIME = '';
+
+    function ensureSwal(cb){
+      if (window.Swal) return cb();
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/sweetalert2@11';
+      s.onload = cb;
+      document.head.appendChild(s);
+    }
+
+    function buildBtn(t, full){
+      const badge = full ? '<span class="slot-badge full">Full</span>' : '';
+      const cls = full ? 'slot-btn disabled' : 'slot-btn';
+      return `<button type="button" class="${cls}" data-time="${t}"><span>${t}</span>${badge}</button>`;
+    }
+
+    function initPicker(defaultISO){
+      if (typeof flatpickr !== 'function') return;
+      try{ if (rsPicker && typeof rsPicker.destroy==='function') rsPicker.destroy(); }catch(_){}
+      rsPicker = flatpickr('#rs-date', {
+        dateFormat: 'Y-m-d',
+        minDate: 'today',
+        defaultDate: defaultISO || new Date(),
+        onReady: function(_, __, inst){
+          const iso = (inst.selectedDates[0] ? inst.selectedDates[0] : new Date()).toISOString().slice(0,10);
+          renderGrid(iso);
+        },
+        onChange: function(sel){
+          const iso = (sel && sel[0]) ? sel[0].toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
+          SELECTED_TIME = '';
+          $('#rs-saveBtn').prop('disabled', true);
+          renderGrid(iso);
+        }
+      });
+    }
+
+    async function getLimit(){
+      try{
+        const r = await $.getJSON('/admin/followup/appointmentLimit');
+        return Number(r?.limit || 0);
+      }catch{ return 0; }
+    }
+    async function getCount(iso, time){
+      try{
+        const r = await $.getJSON('/admin/followup/appointmentCount', { date: iso, time });
+        return Number(r?.count || 0);
+      }catch{ return 0; }
+    }
+
+    async function renderGrid(iso){
+      const $grid = $('#slotGrid');
+      $grid.html('<div class="text-muted small">Loading time slots…</div>');
+
+      if (!APPT_LIMIT) APPT_LIMIT = await getLimit();
+
+      if (!Number.isFinite(APPT_LIMIT) || APPT_LIMIT === 0){
+        $grid.html(TIME_SLOTS.map(t => buildBtn(t, false)).join(''));
+        return;
+      }
+
+      try{
+        const results = await Promise.all(
+          TIME_SLOTS.map(t => getCount(iso, t).then(cnt => ({ t, cnt })).catch(()=>({ t, cnt:0 })))
+        );
+        $grid.html(results.map(({t,cnt}) => buildBtn(t, cnt >= APPT_LIMIT)).join(''));
+      }catch{
+        $grid.html(TIME_SLOTS.map(t => buildBtn(t, false)).join(''));
+      }
+    }
+
+    function openReschedModal(opts){
+      $('#rs-reservationId').val(String(opts.reservationId || ''));
+      $('#rs-petId').val(String(opts.petId || ''));
+      $('#rs-petName').val(String(opts.petName || ''));
+      $('#rs-notify').prop('checked', true);
+      SELECTED_TIME = '';
+
+      initPicker(opts.currentDate || null);
+
+      // click handling for grid (modal-scoped)
+      $('#reschedModal').off('click.rsel').on('click.rsel', '.slot-btn:not(.disabled)', function(){
+        $('.slot-btn').removeClass('active');
+        $(this).addClass('active');
+        SELECTED_TIME = String($(this).data('time') || '');
+        $('#rs-saveBtn').prop('disabled', !SELECTED_TIME);
+      });
+
+      $('#rs-saveBtn').prop('disabled', true);
+      $('#reschedModal').modal('show');
+    }
+    window.openReschedModal = openReschedModal;
+
+    // Row button → open modal
+    $(document).off('click.reschedBtn').on('click.reschedBtn', '.resched-btn', function(){
+      const $b = $(this);
+      openReschedModal({
+        reservationId: $b.data('reservation'),
+        petId: $b.data('pet-id'),
+        petName: $b.data('pet-name'),
+        currentDate: $b.data('current-date')
+      });
+    });
+
+    // Save to /admin/followup/reschedule
+    $('#rs-saveBtn').off('click').on('click', async function(){
+      const reservationId = $('#rs-reservationId').val();
+      const petId   = $('#rs-petId').val();
+      const petName = $('#rs-petName').val();
+      const notify  = $('#rs-notify').is(':checked');
+
+      const d = rsPicker && rsPicker.selectedDates && rsPicker.selectedDates[0];
+      const dateISO = d ? d.toISOString().slice(0,10) : null;
+      const time = SELECTED_TIME;
+
+      if (!dateISO || !time){
+        return ensureSwal(() => Swal.fire({ icon:'warning', title:'Pick date & time', position:'top' }));
+      }
+
+      const $btn = $('#rs-saveBtn'); $btn.prop('disabled', true).text('Saving…');
+
+      $.post('/admin/followup/reschedule', { reservationId, petId, petName, newDateISO: dateISO, time, notify })
+        .done(function(r){
+          if (!r || !r.success){
+            ensureSwal(() => Swal.fire({ icon:'error', title:'Reschedule failed', text:(r && r.message) || 'Server error', position:'top' }));
+            return;
+          }
+
+          // Update local list + calendar heat
+          const keyMatch = x =>
+            String(x.reservationId) === String(reservationId) &&
+            ( (petId && String(x.petId||'')===String(petId)) ||
+              (!petId && String(x.petName||'').toLowerCase()===String(petName||'').toLowerCase()) );
+
+          const found = UPCOMING.find(keyMatch);
+          if (found){
+            const oldISO = found.dateISO;
+            const newISO = r.updated.dateISO;
+
+            if (oldISO !== newISO){
+              DATE_COUNTS[oldISO] = Math.max(0, (DATE_COUNTS[oldISO] || 1) - 1);
+              if (DATE_COUNTS[oldISO] <= 0){
+                delete DATE_COUNTS[oldISO];
+                if (window.appointmentDates) delete window.appointmentDates[oldISO];
+              }
+              DATE_COUNTS[newISO] = (DATE_COUNTS[newISO] || 0) + 1;
+              if (window.appointmentDates) window.appointmentDates[newISO] = true;
+              if (fp && typeof fp.redraw === 'function') fp.redraw();
+            }
+
+            found.dateISO = newISO;
+            found.status  = 'Scheduled';
+
+            UPCOMING.sort((a,b) => new Date(a.dateISO) - new Date(b.dateISO) || a.ownerName.localeCompare(b.ownerName));
+          }
+
+          // refresh current page (item disappears if moved off active date)
+          currentPage = 1; renderTablePage(getFilteredList(), currentPage);
+
+          $('#reschedModal').modal('hide');
+          ensureSwal(() => Swal.fire({
+            icon:'success',
+            title:'Rescheduled',
+            text:(r.mailed ? 'Owner emailed.' : 'Saved.'),
+            timer:1200, showConfirmButton:false, position:'top'
+          }));
+        })
+        .fail(function(){
+          ensureSwal(() => Swal.fire({ icon:'error', title:'Server error', position:'top' }));
+        })
+        .always(function(){
+          $btn.prop('disabled', false).text('Save');
+        });
+    });
   })();
 
   /* ===== Init / Destroy ===== */
