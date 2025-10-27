@@ -27,12 +27,14 @@ const customerRoutes  = require("./routes/customerRoutes");
 const authMiddleware  = require("./middleware/authMiddleware");
 const settingRoutes   = require("./routes/settingRoutes");
 const adminReservationRoutes = require('./routes/adminReservationRoutes');
+const adminUpcomingRoutes    = require('./routes/adminUpcomingRoutes');
 // Models
 const About           = require("./models/about");
 const User            = require("./models/user");
 const Reservation     = require("./models/reservation");
 const ReservationMessage = require("./models/ReservationMessage"); // used by socket responder
 const viewAsHr = require("./middleware/viewAsHr");
+const salesOverviewRoutes = require("./routes/salesOverviewRoutes");
 const app = express();
 
 /* =========================
@@ -199,6 +201,24 @@ app.get("/hr-dashboard",     authMiddleware, async (req, res) => {
     res.status(500).send("Server error");
   }
 });
+// --- Legacy reservation pollers without /hr prefix -> rewrite to /hr/... ---
+app.use((req, res, next) => {
+  const p = req.path;
+
+  // Exact legacy paths we saw in console
+  if (p === '/api/reservations' || p === '/reservations' || p === '/reservations/list' || p === '/reservations/pending') {
+    req.url = '/hr' + req.url;               // keep querystring intact
+    return next();
+  }
+
+  // Also catch variants like /reservations/list/ (trailing slash)
+  if (/^\/(api\/)?reservations(\/list|\/pending)?\/?$/.test(p)) {
+    req.url = '/hr' + req.url;
+    return next();
+  }
+
+  next();
+});
 
 /* =========================
    Feature routes (order matters: io is set above)
@@ -208,11 +228,12 @@ app.use(["/admin", "/doctor", "/hr", "/customer"], authMiddleware);
 
 // mount the view-as middleware FIRST for /admin
 app.use("/admin", viewAsHr);
-
+app.use("/admin", salesOverviewRoutes);
 // now all /admin routes can read req.viewAsHrId
 app.use("/admin", adminRoutes);
 app.use("/admin", doctorRoutes);
 app.use("/admin", adminReservationRoutes);
+app.use("/admin", adminUpcomingRoutes);
 
 // rest as-is
 app.use("/doctor", doctorRoutes);
