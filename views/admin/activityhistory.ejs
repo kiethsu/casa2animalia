@@ -1,0 +1,402 @@
+<div class="card shadow-sm">
+  <div class="card-header d-flex align-items-center">
+    <i class="fas fa-history mr-2"></i>
+    <strong>Activity History</strong>
+  </div>
+
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="thead-light">
+          <tr>
+            <th style="min-width:160px">When</th>
+            <th>Actor</th>
+            <th>Role</th>
+            <th>Action</th>
+            <th>Target Type</th>
+            <th>Target Name</th>
+            <th style="width:110px;text-align:right">Details</th>
+          </tr>
+        </thead>
+        <tbody id="activityBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="metaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title mb-0">
+          <i class="fas fa-info-circle mr-2"></i> Activity Details
+        </h5>
+        <button type="button"
+                class="close"
+                data-dismiss="modal"
+                data-bs-dismiss="modal"
+                aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <div class="small text-muted">When</div>
+            <div id="mdWhen" class="font-weight-semibold"></div>
+          </div>
+          <div class="col-md-6 mb-3">
+            <div class="small text-muted">Action</div>
+            <div id="mdAction" class="badge badge-primary" style="font-size:90%"></div>
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <div class="small text-muted">Actor</div>
+            <div id="mdActor"></div>
+            <div class="small text-muted">Role</div>
+            <div id="mdRole"></div>
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <div class="small text-muted">Target</div>
+            <div>
+              <span id="mdTargetType" class="badge badge-secondary mr-1" style="font-size:90%"></span>
+              <span id="mdTargetName"></span>
+            </div>
+          </div>
+        </div>
+
+        <hr>
+
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="mb-0">Meta</h6>
+          <button class="btn btn-sm btn-outline-secondary" id="copyMetaBtn">
+            <i class="far fa-copy mr-1"></i> Copy Details
+          </button>
+        </div>
+
+        <!-- Key/Value Meta (clean text) -->
+        <table class="table table-sm table-borderless mb-0">
+          <tbody id="mdMetaBody"></tbody>
+        </table>
+
+        <div class="mt-3">
+          <h6 class="mb-1">Technical</h6>
+          <div id="mdTech" class="small text-muted"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button"
+                class="btn btn-secondary"
+                data-dismiss="modal"
+                data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .cell-truncate {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .font-weight-semibold { font-weight: 600; }
+  #mdMetaBody th { width: 220px; white-space: nowrap; }
+</style>
+
+<script>
+(async function(){
+  const tbody = document.getElementById('activityBody');
+
+  function escAttr(s){
+    return String(s || '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
+
+  async function fetchLogs(params = {}){
+    const url = new URL('/admin/api/activity-logs', window.location.origin);
+    Object.entries(params).forEach(([k,v]) => v != null && v !== '' && url.searchParams.set(k, v));
+    const res = await fetch(url, { credentials: 'include' });
+    return res.json();
+  }
+
+  function fmtDate(iso){
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleString();
+  }
+
+  // Version-agnostic modal helpers (BS5 / BS4 / fallback)
+  function showModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    if (window.bootstrap && window.bootstrap.Modal) {
+      try {
+        let inst = window.bootstrap.Modal.getInstance
+          ? window.bootstrap.Modal.getInstance(el)
+          : null;
+        if (!inst) inst = new window.bootstrap.Modal(el);
+        inst.show();
+        return;
+      } catch (e) { /* fallthrough */ }
+    }
+
+    const $ = window.jQuery || window.$;
+    if ($ && $.fn && $.fn.modal) {
+      $(el).modal('show');
+      return;
+    }
+
+    el.classList.add('show');
+    el.style.display = 'block';
+    el.removeAttribute('aria-hidden');
+    el.setAttribute('aria-modal', 'true');
+    document.body.classList.add('modal-open');
+
+    let bd = document.getElementById('___modal_bd');
+    if (!bd) {
+      bd = document.createElement('div');
+      bd.id = '___modal_bd';
+      bd.className = 'modal-backdrop show';
+      document.body.appendChild(bd);
+    }
+  }
+
+  function hideModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    if (window.bootstrap && window.bootstrap.Modal) {
+      const inst = window.bootstrap.Modal.getInstance
+        ? window.bootstrap.Modal.getInstance(el)
+        : null;
+      if (inst) { inst.hide(); return; }
+    }
+
+    const $ = window.jQuery || window.$;
+    if ($ && $.fn && $.fn.modal) {
+      $(el).modal('hide');
+      return;
+    }
+
+    el.classList.remove('show');
+    el.style.display = 'none';
+    el.setAttribute('aria-hidden', 'true');
+    el.removeAttribute('aria-modal');
+    document.body.classList.remove('modal-open');
+    const bd = document.getElementById('___modal_bd');
+    if (bd) bd.remove();
+  }
+
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-dismiss="modal"], [data-bs-dismiss="modal"]');
+    if (!t) return;
+    const modalEl = t.closest('.modal');
+    if (modalEl) hideModal(modalEl.id);
+  });
+
+  const data = await fetchLogs({ page: 1, limit: 25 });
+  const items = (data.items || []);
+  window.__activityLogs = items;
+
+  tbody.innerHTML = items.map((item, i) => {
+    const targetType = (item.target && item.target.type) || '';
+    const targetName = (item.target && item.target.name) || '';
+    const actorName  = item.actorName || '';
+    const action     = item.action || '';
+    return `
+      <tr>
+        <td>${fmtDate(item.createdAt)}</td>
+        <td class="cell-truncate" title="${escAttr(actorName)}">${escAttr(actorName)}</td>
+        <td>${escAttr(item.actorRole || '')}</td>
+        <td class="cell-truncate" title="${escAttr(action)}">${escAttr(action)}</td>
+        <td>${escAttr(targetType)}</td>
+        <td class="cell-truncate" title="${escAttr(targetName)}">${escAttr(targetName)}</td>
+        <td class="text-right">
+          <button class="btn btn-sm btn-outline-primary meta-btn" data-idx="${i}">
+            <i class="fas fa-eye mr-1"></i> View
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  // Modal elements
+  const elWhen   = document.getElementById('mdWhen');
+  const elAction = document.getElementById('mdAction');
+  const elActor  = document.getElementById('mdActor');
+  const elRole   = document.getElementById('mdRole');
+  const elTType  = document.getElementById('mdTargetType');
+  const elTName  = document.getElementById('mdTargetName');
+  const elMetaBody = document.getElementById('mdMetaBody');
+  const elTech   = document.getElementById('mdTech');
+  const copyBtn  = document.getElementById('copyMetaBtn');
+
+  // ---- Formatting helpers for clean text ----
+  function humanizeKey(k){
+    if (!k) return '';
+    const map = {
+      id:'ID', _id:'ID',
+      petId:'Pet ID',
+      targetPetId:'Target Pet ID',
+      reservationId:'Reservation ID',
+      ownerName:'Owner Name',
+      customerName:'Customer Name',
+      unitPrice:'Unit Price',
+      lineTotal:'Line Total',
+      isExistingPet:'Is Existing Pet',
+      consultCount:'Consult Count',
+      medicationsCount:'Medications Count',
+      servicesCount:'Services Count'
+    };
+    if (map[k]) return map[k];
+    // split camelCase / snake / kebab
+    return k
+      .replace(/[_-]+/g,' ')
+      .replace(/([a-z0-9])([A-Z])/g,'$1 $2')
+      .replace(/\s+/g,' ')
+      .replace(/\b\w/g, c => c.toUpperCase())
+      .trim();
+  }
+
+  function fmtPrimitive(v){
+    if (v === null || v === undefined || v === '') return 'None';
+    return String(v);
+  }
+
+  function fmtObjectFlat(o){
+    // one-level; primitives only
+    const pairs = [];
+    for (const [k,v] of Object.entries(o || {})) {
+      if (v === null || typeof v === 'object') continue;
+      pairs.push(`${humanizeKey(k)}: ${fmtPrimitive(v)}`);
+    }
+    return pairs.length ? pairs.join('; ') : '—';
+  }
+
+  function fmtValue(v){
+    if (v === null || v === undefined) return 'None';
+
+    if (Array.isArray(v)) {
+      if (v.length === 0) return 'None';
+
+      // primitives
+      if (v.every(x => x === null || typeof x !== 'object')) {
+        return v.map(fmtPrimitive).join(', ');
+      }
+
+      // array of objects → numbered entries
+      const lines = v.map((obj, idx) => {
+        if (!obj || typeof obj !== 'object') return `${idx+1}. ${fmtPrimitive(obj)}`;
+        // try to show key facts first if present
+        const preferred = [];
+        if ('name' in obj) preferred.push(`Name: ${fmtPrimitive(obj.name)}`);
+        if ('qty' in obj) preferred.push(`Qty: ${fmtPrimitive(obj.qty)}`);
+        if ('quantity' in obj && !('qty' in obj)) preferred.push(`Quantity: ${fmtPrimitive(obj.quantity)}`);
+        if ('unitPrice' in obj) preferred.push(`Unit Price: ${fmtPrimitive(obj.unitPrice)}`);
+        if ('lineTotal' in obj) preferred.push(`Line Total: ${fmtPrimitive(obj.lineTotal)}`);
+
+        let text = preferred.join('; ');
+        if (!text) text = fmtObjectFlat(obj);
+        return `${idx+1}. ${text}`;
+      });
+      return lines.join('\n');
+    }
+
+    if (typeof v === 'object') {
+      return fmtObjectFlat(v);
+    }
+
+    return fmtPrimitive(v);
+  }
+
+  function metaToRows(meta){
+    if (!meta || typeof meta !== 'object') return [];
+    const rows = [];
+    for (const [k, v] of Object.entries(meta)) {
+      rows.push({ label: humanizeKey(k), text: fmtValue(v) });
+    }
+    return rows;
+  }
+
+  function fillMetaTable(meta){
+    const rows = metaToRows(meta);
+    if (!rows.length) {
+      elMetaBody.innerHTML = `
+        <tr><td class="text-muted">No additional details</td></tr>
+      `;
+      return;
+    }
+
+    elMetaBody.innerHTML = rows.map(r => {
+      const valueHtml = escAttr(r.text).replace(/\n/g,'<br>');
+      return `
+        <tr>
+          <th class="pt-2 pb-2">${escAttr(r.label)}</th>
+          <td class="pt-2 pb-2">${valueHtml}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function metaAsPlainText(meta){
+    const rows = metaToRows(meta);
+    if (!rows.length) return 'No additional details';
+    const lines = [];
+    for (const r of rows) {
+      // indent any internal newlines for readability
+      const val = String(r.text || '').split('\n').map((ln,i)=> i?`   ${ln}`:ln).join('\n');
+      lines.push(`${r.label}: ${val}`);
+    }
+    return lines.join('\n');
+  }
+
+  let lastPlainText = 'No additional details';
+
+  function fillModal(item){
+    elWhen.textContent   = fmtDate(item.createdAt);
+    elAction.textContent = item.action || '';
+    elActor.textContent  = item.actorName || '—';
+    elRole.textContent   = item.actorRole || '—';
+
+    elTType.textContent  = (item.target && item.target.type) || '—';
+    elTName.textContent  = (item.target && item.target.name) || '—';
+
+    fillMetaTable(item.meta || {});
+    lastPlainText = metaAsPlainText(item.meta || {});
+
+    const techBits = [];
+    if (item.ip) techBits.push(`IP: ${item.ip}`);
+    if (item.userAgent) techBits.push(`UA: ${item.userAgent}`);
+    elTech.textContent = techBits.join('  •  ') || '—';
+  }
+
+  tbody.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.meta-btn');
+    if (!btn) return;
+    const idx = Number(btn.dataset.idx);
+    const item = window.__activityLogs[idx];
+    if (!item) return;
+    fillModal(item);
+    showModal('metaModal');
+  });
+
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(lastPlainText || '');
+      copyBtn.innerHTML = '<i class="fas fa-check mr-1"></i> Copied';
+      setTimeout(() => copyBtn.innerHTML = '<i class="far fa-copy mr-1"></i> Copy Details', 1200);
+    } catch (_) {}
+  });
+})();
+</script>
