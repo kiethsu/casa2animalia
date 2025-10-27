@@ -22,7 +22,7 @@ const User = require('../models/user'); // <-- add this if missing
 const nodemailer = require('nodemailer');           // email
 const MessageTemplate = require('../models/messageTemplate');
 const ReservationMessage = require('../models/ReservationMessage');
-
+const { logActivity } = require('../utils/activityLogger');
 
 // ----------------- Multer Setup -----------------
 // Updated storage: files will be stored in public/consultation/
@@ -872,6 +872,17 @@ router.post('/mark-done', authMiddleware, async (req, res) => {
         }
       }
     }
+await logActivity(req, {
+  action: 'doctor.pet.mark_done',
+  targetType: 'Reservation',
+  targetId: reservationId,
+  meta: {
+    petId: petId || null,
+    petName: petName || null,
+    allDone,
+    finalStatus
+  }
+});
 
     return res.json({ success: true, allDone, finalStatus });
   } catch (err) {
@@ -1090,6 +1101,22 @@ function canonTime(label) {
 
       await reservation.save();
 broadcast({ type: 'consultation:upserted', reservationId });
+await logActivity(req, {
+  action: 'doctor.consult.upserted',
+  targetType: 'Consultation',
+  targetId: updatedConsult._id,
+  targetName: `${reservation.ownerName}${(finalPetName ? ' - ' + finalPetName : '')}`,
+  meta: {
+    reservationId: String(reservation._id),
+    petId: finalPetId || null,
+    petName: finalPetName || null,
+    medicationsCount: (updatedConsult.medications || []).length,
+    servicesCount: (updatedConsult.services || []).length,
+    diseases: updatedConsult.diseases || ((updatedConsult.disease && [updatedConsult.disease]) || []),
+    followup: scheduleDate ? { date: scheduleDate, time: req.body.scheduleTime || null, details: scheduleDetails || null } : null
+  }
+});
+
 return res.json({ success: true, consultation: updatedConsult });
 
 
@@ -1464,6 +1491,29 @@ router.post('/add-schedule', authMiddleware, async (req, res) => {
       if (global.sendAdminEvent) global.sendAdminEvent(payload);
     } catch (e) {
       console.warn('SSE broadcast failed (non-fatal):', e);
+    }
+
+    // ✅ ACTIVITY LOG — add this block
+    try {
+      await logActivity(req, {
+        action: 'doctor.followup.set',
+        targetType: 'Reservation',
+        targetId: reservationId,
+        meta: {
+          petId:              petId || null,
+          petName:            (petName || null),
+          date:               schedulePayload.scheduleDate,
+          time:               schedulePayload.time || null,
+          details:            schedulePayload.scheduleDetails || null,
+          serviceId:          scheduleServiceId || null,
+          serviceName:        scheduleServiceName || null,
+          categoryId:         scheduleCategoryId || null,
+          categoryName:       scheduleCategoryName || null,
+          autoBookedTime:     (autoBooked && autoBooked.time) || null
+        }
+      });
+    } catch (e) {
+      console.warn('activity log failed (followup.set):', e);
     }
 
     return res.json({ success: true, saved: schedulePayload, autoBooked });
