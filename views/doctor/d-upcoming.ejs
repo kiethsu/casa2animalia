@@ -159,6 +159,14 @@
   </div>
 </div>
 
+<!-- Optional: set Authorization header for all AJAX calls if authToken is provided -->
+<script>
+  (function(){
+    var AUTH = '<%= typeof authToken !== "undefined" ? authToken : "" %>';
+    if (AUTH) { $.ajaxSetup({ headers: { Authorization: 'Bearer ' + AUTH } }); }
+  })();
+</script>
+
 <script>
 (function(){
   const STATS_URL  = '/doctor/followup/stats';   // ?year=YYYY&month=1..12
@@ -236,16 +244,16 @@
           <td>${escapeHtml(it.service)}</td>
           <td>${escapeHtml(it.status || '—')}</td>
           <td>
-          <button
-  class="btn btn-sm btn-outline-primary resched-btn"
-  data-resvid="${escapeHtml(it.reservationId || '')}"
-  data-petid="${escapeHtml(it.petId || '')}"
-  data-petname="${escapeHtml(it.petName || '')}"
-  data-service="${escapeHtml(svc)}"
-  data-date="${escapeHtml(it.dateISO)}"
-  data-time="${escapeHtml(it.time || '')}">
-  Reschedule
-</button>
+            <button
+              class="btn btn-sm btn-outline-primary resched-btn"
+              data-resvid="${escapeHtml(it.reservationId || '')}"
+              data-petid="${escapeHtml(it.petId || '')}"
+              data-petname="${escapeHtml(it.petName || '')}"
+              data-service="${escapeHtml(svc)}"
+              data-date="${escapeHtml(it.dateISO)}"
+              data-time="${escapeHtml(it.time || '')}">
+              Reschedule
+            </button>
           </td>
         </tr>`;
       }).join('');
@@ -447,6 +455,67 @@
     setInterval(run, 60*1000); run();
   })();
 
+  /* ===== Notice builders (NEW) ===== */
+  function formatLongDatePH(iso){
+    const d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString('en-PH', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  }
+  function buildReschedMessages({ ownerName, petName, serviceName, dateISO, time }){
+    const pet = petName || 'your pet';
+    const svc = serviceName || 'follow-up';
+    const longDate = formatLongDatePH(dateISO);
+
+    const inApp =
+      `Your ${svc} for ${pet} has been rescheduled to ${longDate} at ${time}. ` +
+      `If this time doesn’t work, please reply to this message to request a different slot.`;
+
+    const email =
+`Hi ${ownerName || 'there'},
+
+We’ve updated your appointment details:
+
+• Pet: ${pet}
+• Service: ${svc}
+• New schedule: ${longDate} at ${time}
+
+If this time isn’t convenient, reply to this email or contact us to reschedule.
+
+Thank you,
+SmartVet Clinic`;
+
+    return { inApp, email };
+  }
+async function sendReschedNotice({ reservationId, message, emailMessage }){
+  const candidates = [
+    '/doctor/notify-reservation',
+    '/hr/notify-reservation',
+    '/admin/notify-reservation',
+    '/notify-reservation'
+  ];
+  for (const url of candidates){
+    try{
+      await $.ajax({
+        url,
+        method:'POST',
+        contentType:'application/json',
+        data: JSON.stringify({
+          reservationId,
+          message,        // still required by the endpoint (used as email fallback)
+          emailMessage,   // explicit email body
+          interactive: false,  // don't request interactive/in-app
+          reason: 'resched',   // server will treat this as email-only
+          emailOnly: true      // belt-and-suspenders: force email-only
+        })
+      });
+      return true;
+    }catch(e){
+      // try next endpoint silently
+    }
+  }
+  console.warn('No notify-reservation endpoint accepted the request.');
+  return false;
+}
+
   /* ===== Reschedule modal logic ===== */
   async function getLimit(){
     try{
@@ -463,19 +532,17 @@
 
   function buildSlotButton(t, full){
     const fullCls = full ? ' disabled' : '';
-    const badge = full ? '<span class="slot-badge full">Full</span>' : '';
+    theBadge = full ? '<span class="slot-badge full">Full</span>' : '';
     return `<button type="button" class="slot-btn${fullCls}" data-time="${t}">
-      <span>${t}</span>${badge}
+      <span>${t}</span>${theBadge}
     </button>`;
   }
 
   async function renderTimeGrid(iso){
     $('#slotGrid').html('<div class="text-muted small">Loading time slots…</div>');
-    // fetch limit (cache it for session)
     if (!APPT_LIMIT) APPT_LIMIT = await getLimit();
 
     if (APPT_LIMIT === 0){
-      // unlimited → render all as available
       const html = TIME_SLOTS.map(t => buildSlotButton(t, false)).join('');
       $('#slotGrid').html(html);
       return;
@@ -495,10 +562,8 @@
   function openReschedModal(ctx){
     RESCHED_CTX = { ...ctx, selectedTime: '' };
 
-    // meta header
     $('#reschedMeta').text(`${ctx.ownerName} • ${ctx.petName} — ${ctx.serviceName}`);
 
-    // date picker
     try{ if (reschedFP && typeof reschedFP.destroy === 'function') reschedFP.destroy(); }catch(_){}
     $('#reschedDate').val('');
     reschedFP = flatpickr('#reschedDate', {
@@ -507,10 +572,8 @@
       minDate: todayISO(),
       onChange: function(sel){
         const iso = sel && sel[0] ? ymdLocal(sel[0]) : (ctx.baseDateISO || activeDate);
-        // reset selection
         RESCHED_CTX.selectedTime = '';
         $('#btnReschedSave').prop('disabled', true);
-        // repaint time grid with capacity
         renderTimeGrid(iso);
       },
       onReady: function(_, __, inst){
@@ -519,7 +582,6 @@
       }
     });
 
-    // clear previous active state
     $('#slotGrid').off('click.resel').on('click.resel', '.slot-btn:not(.disabled)', function(){
       $('#slotGrid .slot-btn').removeClass('active');
       $(this).addClass('active');
@@ -542,11 +604,19 @@
         return Swal.fire({ icon:'warning', title:'Pick date & time', timer:1500, showConfirmButton:false });
       }
 
+      // enforce capacity if set
+      if (!APPT_LIMIT) APPT_LIMIT = await getLimit();
+      if (APPT_LIMIT > 0) {
+        const cntNow = await getCount(pickDate, time);
+        if (cntNow >= APPT_LIMIT) {
+          return Swal.fire({ icon:'error', title:'Time slot is full', text:'Please pick another time.' });
+        }
+      }
+
       const payload = {
         reservationId: RESCHED_CTX.reservationId,
         scheduleDate : pickDate,
         scheduleTime : time,
-        // ensure we ALWAYS send details (route requires it)
         scheduleDetails: RESCHED_CTX.serviceName || 'Follow-up',
         scheduleServiceName: RESCHED_CTX.serviceName || 'Follow-up'
       };
@@ -555,18 +625,37 @@
 
       $('#btnReschedSave').prop('disabled', true).text('Saving…');
 
-      const resp = await $.ajax({
+      // 1) Persist the reschedule
+      await $.ajax({
         url: ADD_URL, method:'POST',
         contentType:'application/json',
         data: JSON.stringify(payload)
       });
+
+      // 2) Send in-app + email notifications (Doctor endpoint, with graceful fallbacks)
+      try{
+        const { inApp, email } = buildReschedMessages({
+          ownerName:   RESCHED_CTX.ownerName,
+          petName:     RESCHED_CTX.petName,
+          serviceName: RESCHED_CTX.serviceName,
+          dateISO:     pickDate,
+          time
+        });
+        await sendReschedNotice({
+          reservationId: RESCHED_CTX.reservationId,
+          message: inApp,
+          emailMessage: email
+        });
+      }catch(e){
+        console.warn('Reschedule notice send failed:', e);
+      }
 
       $('#btnReschedSave').text('Reschedule');
       $('#reschedModal').modal('hide');
 
       Swal.fire({ icon:'success', title:'Follow-up rescheduled', timer:1400, showConfirmButton:false });
 
-      // Refresh current day + calendar month (in case moved date)
+      // refresh list + month indicators
       loadDayList(activeDate);
       const d = new Date(pickDate+'T00:00:00');
       loadMonthStats(d.getFullYear(), d.getMonth()+1);
@@ -580,20 +669,20 @@
   }
 
   // open modal from table
-$(document).off('click.openRes').on('click.openRes', '.resched-btn', function(){
-  const $b = $(this);
-  const timeCell = $b.data('time') || $b.closest('tr').find('td:nth-child(1)').text().trim();
-  const ctx = {
-    reservationId: String($b.data('resvid') || ''),
-    petId: String($b.data('petid') || '') || null,
-    petName: String($b.data('petname') || ''),
-    ownerName: $b.closest('tr').find('td:nth-child(2)').text().trim(),
-    serviceName: String($b.data('service') || 'Follow-up'),
-    baseDateISO: String($b.data('date') || activeDate),
-    time: String(timeCell || '')
-  };
-  openReschedModal(ctx);
-});
+  $(document).off('click.openRes').on('click.openRes', '.resched-btn', function(){
+    const $b = $(this);
+    const timeCell = $b.data('time') || $b.closest('tr').find('td:nth-child(1)').text().trim();
+    const ctx = {
+      reservationId: String($b.data('resvid') || ''),
+      petId: String($b.data('petid') || '') || null,
+      petName: String($b.data('petname') || ''),
+      ownerName: $b.closest('tr').find('td:nth-child(2)').text().trim(),
+      serviceName: String($b.data('service') || 'Follow-up'),
+      baseDateISO: String($b.data('date') || activeDate),
+      time: String(timeCell || '')
+    };
+    openReschedModal(ctx);
+  });
 
   $('#btnReschedSave').off('click.saveRes').on('click.saveRes', saveReschedule);
 
