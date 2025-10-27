@@ -1,12 +1,7 @@
 <%
-  // Fallbacks (mirror HR dashboard)
-  const pic = typeof profilePic !== 'undefined'
-    ? profilePic
-    : '/images/default_profile_icon.png';
-
-  const doctorName = (typeof doctor !== 'undefined' && doctor.username)
-    ? doctor.username
-    : 'Doctor';
+  // Fallbacks (mirror HR/admin style)
+  const pic = typeof profilePic !== 'undefined' ? profilePic : '/images/default_profile_icon.png';
+  const doctorName = (typeof doctor !== 'undefined' && doctor.username) ? doctor.username : 'Doctor';
 %>
 <!DOCTYPE html>
 <html lang="en">
@@ -19,270 +14,180 @@
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
   <!-- Bootstrap CSS -->
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
-  <!-- Font Awesome (same version as HR) -->
+  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <!-- SweetAlert2 CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
-  <!-- jQuery UI CSS (for parity + future autocomplete/datepickers) -->
+  <!-- jQuery UI CSS -->
   <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css" />
-  <!-- Flatpickr (parity with HR) -->
+  <!-- Flatpickr -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/airbnb.css">
 
   <style>
-    :root {
-      --primary:       #1E88E5;
-      --primary-dark:  #0D47A1;
-      --accent:        #90CAF9;
-      --white:         #ffffff;
-      --text:          #333;
-      --bg-dark:       #0D1B2A;
-      --card-bg:       #ffffff;
-      --border-color:  rgba(0,0,0,0.08);
+    :root{
+      --primary:#1E88E5;
+      --primary-dark:#0D47A1;
+      --accent:#90CAF9;
+      --white:#ffffff;
+      --text:#333;
+      --bg-dark:#0D1B2A;
+      --card-bg:#ffffff;
+      --border-color:rgba(0,0,0,0.08);
     }
 
     /* —— Top bar —— */
-    #topbar {
-      position: fixed; top: 0; left: 0; right: 0;
-      height: 56px; background: var(--bg-dark);
-      display: flex; align-items: center;
-      padding: 0 16px; z-index: 3000;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.25);
-      gap: 12px;
+    #topbar{
+      position:fixed;top:0;left:0;right:0;
+      height:56px;background:var(--bg-dark);
+      display:flex;align-items:center;gap:12px;
+      padding:0 16px;z-index:3000;
+      box-shadow:0 2px 4px rgba(0,0,0,0.25);
+      font-size:16px !important;
     }
-    #topbar .menu-toggle { display: none; }
-    #topbar .topbar-paw,
-    #topbar .menu-toggle {
-      color: var(--white); font-size: 1.5em;
+    #topbar .menu-toggle{display:none;color:#fff;font-size:1.5em;cursor:pointer;}
+    #topbar .topbar-paw{color:#fff;font-size:1.5em;}
+    #topbar .topbar-title{
+      color:#fff;font-family:'Roboto',sans-serif !important;
+      font-size:1.1em !important;font-weight:500 !important;line-height:1.2 !important;letter-spacing:0 !important;
+      white-space:nowrap !important;flex-grow:1;
     }
-    /* === LOCK the brand text so partial CSS can't resize it === */
-/* === Keep old look but prevent partials from resizing it === */
-#topbar{ 
-  font-size:16px !important;                /* base for anything inside topbar */
-}
+    #topbar span,#topbar i,#topbar .badge{font-size:inherit !important;line-height:inherit !important;}
 
-#topbar .topbar-title{
-  color: var(--white);
-  font-family: 'Roboto', sans-serif !important;  /* same font as before */
-  font-size: 1.1em !important;                   /* = 17.6px from the 16px topbar base */
-  font-weight: 500 !important;                   /* back to original weight */
-  line-height: 1.2 !important;
-  letter-spacing: 0 !important;                  /* remove the extra tracking we added */
-  white-space: nowrap !important;
-  flex-grow: 1;
-}
+    /* Top-right actions row */
+    .topbar-actions{display:flex;align-items:center;gap:12px;height:100%;}
 
-/* Keep icons steady (optional) */
-#topbar .topbar-paw,
-#topbar .menu-toggle{
-  font-size: 24px !important;
-}
-
-/* Ignore any generic font-size overrides inside topbar */
-#topbar span,
-#topbar i,
-#topbar .badge{
-  font-size: inherit !important;
-  line-height: inherit !important;
-}
-
- /* right-side logo */
-/* right-side logo (bigger) */
-.topbar-actions { display: flex; align-items: center; gap: 12px; height: 100%; }
-
-.topbar-logo{
-  height: 36px;              /* was 28px */
-  max-height: 44px;          /* keeps ~6px top/bottom breathing in a 56px bar */
-  width: auto;
-  display: block;
-  object-fit: contain;
-  filter: drop-shadow(0 1px 1px rgba(0,0,0,.15));
-}
-
-/* slightly smaller on narrow screens so it doesn't crowd the menu */
-@media (max-width: 991.98px){
-  .topbar-logo{ height: 32px; max-height: 40px; }
-}
-
-
-    body {
-      font-family: 'Roboto', sans-serif;
-      background-color: #f7f7f7;
-      margin: 0; padding: 0;
-      overflow-x: hidden;
+    /* Top-right doctor pill */
+    .topbar-user{
+      display:flex;align-items:center;gap:10px;
+      background:rgba(255,255,255,.08);
+      padding:6px 10px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow:0 1px 2px rgba(0,0,0,.12);
+    }
+    #topbarDoctorName{
+      color:#fff;font-weight:600;max-width:180px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #topbarDoctorPic{
+      width:34px;height:34px;border-radius:50%;
+      object-fit:cover;border:2px solid var(--accent);
+      background:#fff;
     }
 
-    .wrapper {
-      display: flex; position: relative;
-      min-height: 100vh;
-      padding-top: calc(56px + 44px);
-      width: 100%;
+    /* Right-side logo */
+    .topbar-logo{
+      height:36px;max-height:44px;width:auto;display:block;object-fit:contain;
+      filter:drop-shadow(0 1px 1px rgba(0,0,0,.15));
     }
+    @media (max-width:991.98px){ .topbar-logo{height:32px;max-height:40px;} }
+    @media (max-width:575.98px){ #topbarDoctorName{display:none;} }
+
+    body{font-family:'Roboto',sans-serif;background:#f7f7f7;margin:0;padding:0;overflow-x:hidden;}
+    .wrapper{display:flex;position:relative;min-height:100vh;padding-top:calc(56px + 44px);width:100%;}
 
     /* —— Sidebar —— */
-    #sidebar {
-      position: fixed; top: 56px; left: 0;
-      width: 250px; height: calc(100vh - 56px);
-      background: linear-gradient(180deg, var(--primary-dark), var(--bg-dark));
-      color: var(--white);
-      display: flex; flex-direction: column;
-      transition: left 0.3s ease;
-      box-shadow: 2px 0 6px rgba(0,0,0,0.15);
-      z-index: 2000;
-    }
-    .sidebar-header {
-      padding: 24px; display: flex;
-      align-items: center; gap: 12px;
-    }
-    .sidebar-logo {
-      font-size: 1.8rem;
-      color: var(--accent);
-    }
-    .sidebar-title {
-      font-size: 1.2rem; font-weight: 700;
-      letter-spacing: 0.5px;
-    }
+    #sidebar{
+      position:fixed;top:56px;left:0;width:250px;height:calc(100vh - 56px);
+      background:linear-gradient(180deg,var(--primary-dark),var(--bg-dark));
+      color:var(--white);display:flex;flex-direction:column;
+      transition:left .3s ease;box-shadow:2px 0 6px rgba(0,0,0,.15);z-index:2000;
 
-    .sidebar-menu {
-      flex-grow: 1; padding: 0; margin: 0;
-      list-style: none;
+      /* Scrollable on small screens */
+      overflow-y:auto;
+      overscroll-behavior:contain;
+      -webkit-overflow-scrolling:touch;
+      scrollbar-gutter:stable;
     }
-    .sidebar-menu li { margin: 4px 0; }
-    .sidebar-menu a {
-      display: flex; align-items: center;
-      padding: 12px 20px;
-      color: var(--white); text-decoration: none;
-      font-weight: 500; position: relative;
-      border-radius: 0 20px 20px 0;
-      transition: background 0.2s, color 0.2s;
+    .sidebar-header{padding:24px;display:flex;align-items:center;gap:12px;}
+    .sidebar-logo{font-size:1.8rem;color:var(--accent);}
+    .sidebar-title{font-size:1.2rem;font-weight:700;letter-spacing:.5px;}
+    .sidebar-menu{flex-grow:1;padding:0;margin:0;list-style:none;}
+    .sidebar-menu li{margin:4px 0;}
+    .sidebar-menu a{
+      display:flex;align-items:center;padding:12px 20px;color:var(--white);text-decoration:none;
+      font-weight:500;position:relative;border-radius:0 20px 20px 0;transition:background .2s,color .2s;
     }
-    .sidebar-menu a i {
-      width: 24px; text-align: center; margin-right: 12px;
-    }
-    .sidebar-menu a:hover,
-    .sidebar-menu a:focus,
-    .sidebar-menu a.active {
-      background: var(--accent);
-      color: var(--primary-dark);
-    }
-    .sidebar-menu a.active::before { display: none; }
-
-    /* —— Bottom profile —— */
-    .sidebar-bottom-profile {
-      padding: 16px;
-      background: rgba(255,255,255,0.05);
-      margin: 16px; border-radius: 12px;
-      display: flex; align-items: center; gap: 12px;
-    }
-    .sidebar-bottom-profile img {
-      width: 40px; height: 40px; aspect-ratio: 1/1;
-      border-radius: 50%; object-fit: cover; object-position: center;
-      border: 2px solid var(--accent);
-    }
-    .sidebar-bottom-profile .fw-bold {
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
+    .sidebar-menu a i{width:24px;text-align:center;margin-right:12px;}
+    .sidebar-menu a:hover,.sidebar-menu a:focus,.sidebar-menu a.active{background:var(--accent);color:var(--primary-dark);}
+    .sidebar-menu a.active::before{display:none;}
 
     /* —— Sub-nav —— */
-    #sub-nav {
-      position: fixed; top: 56px; left: 250px; right: 0;
-      background: #f1f5fa; height: 44px;
-      padding: 6px 16px; z-index: 2500;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      border-bottom: 1px solid rgba(0,0,0,0.04);
-      display: flex; align-items: center;
-      font-size: 0.9rem;
-      transition: left 0.3s ease;
+    #sub-nav{
+      position:fixed;top:56px;left:250px;right:0;background:#f1f5fa;height:44px;
+      padding:6px 16px;z-index:2500;box-shadow:0 2px 6px rgba(0,0,0,0.08);
+      border-bottom:1px solid rgba(0,0,0,0.04);display:flex;align-items:center;
+      font-size:.9rem;transition:left .3s ease;
     }
-    #sub-nav .sub-nav-inner {
-      display: flex; align-items: center; gap: 12px;
-      width: 100%;
-    }
-    #subnav-title {
-      font-weight: 600; font-size: 1rem;
-      color: var(--text); margin: 0;
-    }
+    #subnav-title{font-weight:600;font-size:1rem;color:var(--text);margin:0;}
 
     /* —— Main content —— */
-    #content {
-      margin-left: 250px;
-      padding: 16px; background: #f7f7f7;
-      overflow-y: auto; height: calc(100vh - 100px);
-      width: calc(100% - 250px);
-      transition: margin-left 0.3s ease;
-      position: relative; /* for overlay spinner */
+    #content{
+      margin-left:250px;padding:16px;background:#f7f7f7;
+      overflow-y:auto;height:calc(100vh - 100px);
+      width:calc(100% - 250px);transition:margin-left .3s ease;position:relative;
     }
 
-    /* —— Overlay & Responsive —— */
-    #sidebarOverlay {
-      display: none; position: fixed;
-      top: 56px; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.4); z-index: 1900;
+    /* Overlay & Responsive */
+    #sidebarOverlay{display:none;position:fixed;top:56px;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:1900;}
+    @media (max-width:991.98px){
+      #topbar .menu-toggle{display:inline-block;}
+      #sub-nav{left:0;}
+      #sidebar{left:-250px;}
+      #sidebar.active{left:0;}
+      #sidebarOverlay.show{display:block;}
+      body.sidebar-open #sub-nav{display:none;}
+      #content{margin-left:0;width:100%;padding:12px;}
     }
-    @media (max-width: 991.98px) {
-      #sub-nav { left: 0; }
-      #sidebar { left: -250px; }
-      #sidebar.active { left: 0; }
-      #sidebarOverlay.show { display: block; }
-      body.sidebar-open #sub-nav { display: none; }
-      #content { margin-left: 0; width: 100%; padding: 12px; }
-    }
-    @media (max-width: 450px) {
-      #sidebar { width: 70vw; left: -70vw; }
-      #sidebar.active { left: 0; }
+    @media (max-width:450px){
+      #sidebar{width:70vw;left:-70vw;}
+      #sidebar.active{left:0;}
     }
 
-    .swal2-container { z-index: 6000 !important; }
+    .swal2-container{z-index:6000 !important;}
 
     /* content loading spinner */
-    @keyframes spin { to { transform: rotate(360deg) } }
-    #contentLoading { display:none; position:absolute; inset:0; align-items:center; justify-content:center; background:rgba(255,255,255,.65); z-index:10; }
-    #contentLoading.show { display:flex !important; }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    #contentLoading{display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(255,255,255,.65);z-index:10;}
+    #contentLoading.show{display:flex !important;}
 
-    /* Remove any left guideline/line on menu items */
-    .sidebar-menu li,
-    .sidebar-menu a { border-left: 0 !important; box-shadow: none !important; }
-    .sidebar-menu a::before { content: none !important; }
-
-    /* Make sure only FA6 is used everywhere */
-    :root { --fa-font-family: "Font Awesome 6 Free"; }
-    .sidebar-menu i { font-family: var(--fa-font-family) !important; }
-    /* --- ADD: lock sidebar font so partials can't change it --- */
-    #sidebar,
-    #sidebar .sidebar-title,
-    #sidebar .sidebar-menu a,
-    #sidebar .sidebar-bottom-profile {
-      font-family: 'Roboto', sans-serif !important;
-      font-size: 0.95rem;
-      line-height: 1.2;
+    /* Hygiene / locks */
+    .sidebar-menu li,.sidebar-menu a{border-left:0 !important;box-shadow:none !important;}
+    .sidebar-menu a::before{content:none !important;}
+    :root{--fa-font-family:"Font Awesome 6 Free";}
+    .sidebar-menu i{font-family:var(--fa-font-family) !important;}
+    #sidebar,#sidebar .sidebar-title,#sidebar .sidebar-menu a{
+      font-family:'Roboto',sans-serif !important;font-size:.95rem;line-height:1.2;
     }
-    #sidebar .sidebar-title { font-size: 1.2rem; }
-    /* Put Bootstrap modals above the app chrome (topbar/sub-nav/sidebar) */
-    body .modal-backdrop { z-index: 5550 !important; }
-    body .modal          { z-index: 5600 !important; }
+    #sidebar .sidebar-title{font-size:1.2rem;}
 
-    /* (You already have this) Keep SweetAlert above everything */
-    .swal2-container     { z-index: 6000 !important; }
-
+    /* Modals above chrome */
+    body .modal-backdrop{z-index:5550 !important;}
+    body .modal{z-index:5600 !important;}
   </style>
 </head>
-
 <body>
   <!-- Top bar -->
   <header id="topbar">
     <i id="menu-toggle" class="fas fa-bars menu-toggle" aria-label="Toggle sidebar"></i>
     <i class="fas fa-paw topbar-paw"></i>
     <span class="topbar-title">SmartVet</span>
-    <div class="topbar-actions">
-  <img src="/images/casi.png" alt="SmartVet Logo" class="topbar-logo">
-</div>
 
+    <div class="topbar-actions">
+      <!-- Doctor pill (top-right) -->
+      <div class="topbar-user" title="Doctor">
+        <span id="topbarDoctorName"><%= doctorName %></span>
+        <img id="topbarDoctorPic" src="<%= pic %>" alt="Profile"/>
+      </div>
+
+      <!-- Small logo at far right -->
+      <img src="/images/casi.png" alt="SmartVet Logo" class="topbar-logo">
+    </div>
   </header>
 
   <!-- Sub-nav -->
   <div id="sub-nav">
     <div class="sub-nav-inner">
-      <!-- default label to avoid FOUC before first load -->
       <div id="subnav-title">Patient</div>
     </div>
   </div>
@@ -298,18 +203,16 @@
       </div>
 
       <ul class="sidebar-menu nav flex-column">
-        <!-- Dashboard item removed -->
         <li>
           <a href="#" class="menu-item active" data-content="d-patient">
             <i class="fa-solid fa-user-doctor"></i>Patient
           </a>
         </li>
         <li>
-  <a href="#" class="menu-item" data-content="d-upcoming">
-    <i class="fa-solid fa-calendar-check"></i>Upcoming
-  </a>
-</li>
-
+          <a href="#" class="menu-item" data-content="d-upcoming">
+            <i class="fa-solid fa-calendar-check"></i>Upcoming
+          </a>
+        </li>
         <li>
           <a href="#" class="menu-item" data-content="d-history">
             <i class="fa-solid fa-clock-rotate-left"></i>History
@@ -320,12 +223,7 @@
         </li>
       </ul>
 
-      <div class="sidebar-bottom-profile">
-        <img src="<%= pic %>" alt="Profile" />
-        <div class="info">
-          <div class="fw-bold text-truncate"><%= doctorName %></div>
-        </div>
-      </div>
+      <!-- (Removed sidebar profile block per request) -->
     </nav>
 
     <!-- Main content area -->
@@ -337,7 +235,7 @@
     </div>
   </div>
 
-  <!-- JS dependencies -->
+  <!-- JS deps -->
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
@@ -348,157 +246,123 @@
 
   <script>
     $(function () {
-      // --- helpers (parity with HR) ---
+      // --- helpers (unchanged) ---
       const isMobile = () => $(window).width() < 992;
 
-      // Map doctor partials to routes (Dashboard removed)
+      // Map partials to routes (unchanged)
       const PATH_MAP = {
         'd-patient'  : '/doctor/d-patient',
-          'd-upcoming' : '/doctor/d-upcoming',  
+        'd-upcoming' : '/doctor/d-upcoming',
         'd-history'  : '/doctor/d-history'
       };
       const TITLE_MAP = {
         'd-patient'  : 'Patient',
-          'd-upcoming' : 'Upcoming',  
+        'd-upcoming' : 'Upcoming',
         'd-history'  : 'History'
       };
 
       $.ajaxSetup({ cache: false });
 
-      function showSidebar() {
-        $('#sidebar').addClass('active');
-        $('#sidebarOverlay').addClass('show');
-        $('body').addClass('sidebar-open');
-      }
-      function hideSidebar() {
-        $('#sidebar').removeClass('active');
-        $('#sidebarOverlay').removeClass('show');
-        $('body').removeClass('sidebar-open');
-      }
+      function showSidebar(){ $('#sidebar').addClass('active'); $('#sidebarOverlay').addClass('show'); $('body').addClass('sidebar-open'); }
+      function hideSidebar(){ $('#sidebar').removeClass('active'); $('#sidebarOverlay').removeClass('show'); $('body').removeClass('sidebar-open'); }
+
       $(document).on('shown.bs.modal', '.modal', function () {
         $(this).find('.modal-dialog').addClass('modal-dialog-centered');
       });
 
-      function cleanupBeforeSwap() {
-        try { $('.modal.show').modal('hide'); } catch (e) {}
+      function cleanupBeforeSwap(){
+        try { $('.modal.show').modal('hide'); } catch(e){}
         $('.modal-backdrop').remove();
-        $('body').removeClass('modal-open').css('padding-right', '');
-
-        // remove any modals moved to <body> during a previous visit
+        $('body').removeClass('modal-open').css('padding-right','');
         $('body > .modal[id]').remove();
-
-        // optional: destroy any datepickers left around
         try { $('#scheduleDatePicker, #globalCalendarPicker').datepicker('destroy'); } catch(e){}
-
         $('[data-toggle="tooltip"]').tooltip('dispose');
         $('[data-toggle="popover"]').popover('dispose');
         $('.flatpickr-calendar').remove();
       }
 
-      function showLoading() { $('#contentLoading').addClass('show'); }
-      function hideLoading() { $('#contentLoading').removeClass('show'); }
+      function showLoading(){ $('#contentLoading').addClass('show'); }
+      function hideLoading(){ $('#contentLoading').removeClass('show'); }
 
-      // Robust content loader with abort + stale guard
+      // Robust content loader (unchanged)
       let currentXHR = null;
       let currentLoadId = 0;
 
-      // sanitize partials to avoid clobbering shell libs
-      function sanitizePartial(rawHtml) {
+      function sanitizePartial(rawHtml){
         const tmp = document.createElement('div');
         tmp.innerHTML = rawHtml;
         const root = tmp.querySelector('body') || tmp;
 
-        root.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
-          const href = (link.getAttribute('href') || '').toLowerCase();
-          if (/(font-?awesome|bootstrap|sweetalert|jquery-ui|flatpickr|chart)/.test(href)) {
-            link.remove();
-          }
+        root.querySelectorAll('link[rel="stylesheet"]').forEach(link=>{
+          const href=(link.getAttribute('href')||'').toLowerCase();
+          if (/(font-?awesome|bootstrap|sweetalert|jquery-ui|flatpickr|chart)/.test(href)) link.remove();
         });
 
-        const inlineScripts = [];
-        root.querySelectorAll('script').forEach(sc => {
-          if (sc.src) {
-            const src = sc.src.toLowerCase();
+        const inlineScripts=[];
+        root.querySelectorAll('script').forEach(sc=>{
+          if (sc.src){
+            const src=sc.src.toLowerCase();
             if (/(font-?awesome|bootstrap|jquery|sweetalert|flatpickr|chart)/.test(src)) sc.remove();
-          } else {
-            inlineScripts.push(sc.textContent || '');
+          }else{
+            inlineScripts.push(sc.textContent||'');
             sc.remove();
           }
         });
 
-        const container = document.createElement('div');
-        [...root.childNodes].forEach(n => container.appendChild(n.cloneNode(true)));
+        const container=document.createElement('div');
+        [...root.childNodes].forEach(n=>container.appendChild(n.cloneNode(true)));
         return { html: container.innerHTML, inlineScripts };
       }
 
-      function loadContent(pageKey) {
+      function loadContent(pageKey){
         const path = PATH_MAP[pageKey] || `/doctor/${pageKey}`;
         const loadId = ++currentLoadId;
 
-        if (currentXHR && currentXHR.readyState !== 4) {
-          currentXHR.abort();
-        }
+        if (currentXHR && currentXHR.readyState !== 4) currentXHR.abort();
 
         cleanupBeforeSwap();
         showLoading();
         $('#subnav-title').text(TITLE_MAP[pageKey] || 'SmartVet');
 
-        currentXHR = $.ajax({
-          url: path,
-          method: 'GET',
-          dataType: 'html'
-        });
+        currentXHR = $.ajax({ url:path, method:'GET', dataType:'html' });
 
-        currentXHR.done(function (html) {
-          if (loadId !== currentLoadId) return; // stale guard
-
+        currentXHR.done(function(html){
+          if (loadId !== currentLoadId) return;
           const { html: clean, inlineScripts } = sanitizePartial(html);
           $('#main-content').empty().html(clean);
-
-          (inlineScripts || []).forEach(code => {
-            try { $.globalEval(code); } catch (e) { console.warn('Inline script error', e); }
-          });
-
-          // allow global modals to escape if marked
+          (inlineScripts || []).forEach(code=>{ try{ $.globalEval(code); }catch(e){ console.warn('Inline script error', e); }});
           $('#main-content .modal[data-global-modal="true"]').appendTo('body');
         });
 
-        currentXHR.fail(function (xhr, status) {
-          if (status === 'abort') return;
+        currentXHR.fail(function(xhr,status){
+          if (status==='abort') return;
           if (loadId !== currentLoadId) return;
-          $('#main-content').html(
-            '<div class="p-4 text-center text-muted">Failed to load. Please try again.</div>'
-          );
+          $('#main-content').html('<div class="p-4 text-center text-muted">Failed to load. Please try again.</div>');
         });
 
-        currentXHR.always(function () {
+        currentXHR.always(function(){
           if (loadId !== currentLoadId) return;
           hideLoading();
           currentXHR = null;
         });
       }
 
-      // Initial route (Patient by default)
+      // Initial route
       loadContent('d-patient');
 
-      // Debounced nav clicks
-      let navTimer = null;
-      $('.menu-item').on('click', function (e) {
-        const href = $(this).attr('href');
-        if (href && href !== '#') return; // allow real links like /logout
-
+      // Nav clicks (unchanged)
+      let navTimer=null;
+      $('.menu-item').on('click', function(e){
+        const href=$(this).attr('href'); if (href && href!=='#') return;
         e.preventDefault();
-        const $link = $(this);
-        const page = $link.data('content');
-        if (!page) return;
-
+        const $link=$(this);
+        const page=$link.data('content'); if(!page) return;
         clearTimeout(navTimer);
-        navTimer = setTimeout(() => {
-          $('.menu-item').removeClass('active');
-          $link.addClass('active');
+        navTimer=setTimeout(()=>{
+          $('.menu-item').removeClass('active'); $link.addClass('active');
           loadContent(page);
           if (isMobile()) hideSidebar();
-        }, 80);
+        },80);
       });
 
       // Mobile sidebar toggle
@@ -509,12 +373,25 @@
       $('#sidebarOverlay').on('click', hideSidebar);
       $(window).on('resize', () => { isMobile() ? hideSidebar() : showSidebar(); });
 
-      
-      // Keep session alive (same cadence)
+      // Keep session alive
       setInterval(() => {
-        $.ajax({ url: '/refresh-token', type: 'POST', xhrFields: { withCredentials: true } });
+        $.ajax({ url:'/refresh-token', type:'POST', xhrFields:{ withCredentials:true } });
       }, 50 * 60 * 1000);
+
+      // Optional: click avatar in topbar
+      $('#topbarDoctorPic').on('click', function(e){ e.preventDefault(); });
     });
+
+    // Helper so inner pages can update the top-right pill (sidebar elements removed)
+    window.applyUserToShell = function(user = {}){
+      const name = user.doctorName || user.username;
+      const pic  = user.profilePic;
+      if (name){ $('#topbarDoctorName').text(name); }
+      if (pic){
+        const withBust = pic + '?v=' + Date.now();
+        $('#topbarDoctorPic').attr('src', withBust);
+      }
+    };
   </script>
 </body>
 </html>
