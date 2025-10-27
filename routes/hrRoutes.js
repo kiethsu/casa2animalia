@@ -1686,27 +1686,71 @@ router.get('/search-owners', authMiddleware, async (req, res) => {
   }
 });
 // GET /hr/history and /hr/reservation-history
+// GET /hr/history and /hr/reservation-history
+// GET /hr/history and /hr/reservation-history
+// GET /hr/history and /hr/reservation-history
+// GET /hr/history and /hr/reservation-history  (REPLACE THIS WHOLE HANDLER)
+// GET /hr/history and /hr/reservation-history
 router.get(['/history', '/reservation-history'], authMiddleware, async (req, res) => {
   try {
-    // add "Canceled"
-    const statuses = ['Done', 'Paid', 'Not Attended', 'Canceled'];
+    const baseStatuses = ['Done', 'Paid', 'Not Attended', 'Canceled'];
 
-    const reservations = await Reservation.find({ status: { $in: statuses } })
-      .populate('owner', 'username')
-      .lean();
+    // Include historical statuses, plus anything that has a follow-up scheduled
+    const reservations = await Reservation.find({
+      $or: [
+        { status: { $in: baseStatuses } },
+        {
+          status: { $in: ['Approved', 'Scheduled'] },
+          $or: [
+            { 'pets.schedule.scheduleDate': { $exists: true } },
+            { 'schedule.scheduleDate': { $exists: true } }
+          ]
+        }
+      ]
+    })
+    .populate('owner', 'username')
+    .lean();
 
     const historyReservations = reservations.map(r => {
+      // ----- Service: prefer per-pet scheduled service/details, then root, then reservation.service -----
       const service =
-        typeof r.service === 'string'
-          ? r.service
-          : (r.service && r.service.serviceName) || '';
+        (typeof r.service === 'string' && r.service) ? r.service :
+        (r.service && r.service.serviceName) ||
+        (r.schedule && r.schedule.service && r.schedule.service.name) ||
+        (r.schedule && r.schedule.scheduleDetails) ||
+        (Array.isArray(r.pets) && r.pets.find(p => p?.schedule?.service?.name)?.schedule?.service?.name) ||
+        (Array.isArray(r.pets) && r.pets.find(p => p?.schedule?.scheduleDetails)?.schedule?.scheduleDetails) ||
+        '';
 
-      const date = r.date || (r.schedule && r.schedule.scheduleDate) || r.createdAt;
-      const time = r.time || (r.schedule && (r.schedule.scheduleTime || r.schedule.time)) || '';
+      // ----- Pull follow-up from per-pet first, else root -----
+      const hasPetSched = Array.isArray(r.pets) && r.pets.some(p => p?.schedule?.scheduleDate);
+      const petSched    = hasPetSched ? r.pets.find(p => p?.schedule?.scheduleDate)?.schedule : null;
+      const rootSched   = r.schedule || null;
 
-      // 👇 normalize Canceled → Declined for the UI
+      const hasFollowup = !!(
+        (petSched && petSched.scheduleDate) ||
+        (rootSched && rootSched.scheduleDate)
+      );
+
+      // ----- Date/Time shown in table -----
+      const date =
+        (petSched && petSched.scheduleDate) ||
+        (rootSched && rootSched.scheduleDate) ||
+        r.date ||
+        r.createdAt;
+
+      const time =
+        (petSched && (petSched.scheduleTime || petSched.time)) ||
+        (rootSched && (rootSched.scheduleTime || rootSched.time)) ||
+        r.time ||
+        '';
+
+      // ----- Display status for history (treat any follow-up as "Scheduled") -----
       const rawStatus = (r.status || '').trim();
-      const displayStatus = rawStatus === 'Canceled' ? 'Declined' : (rawStatus || 'Done');
+      const displayStatus =
+        rawStatus === 'Canceled' ? 'Declined'
+        : hasFollowup             ? 'Scheduled'
+        : (rawStatus || 'Done');
 
       return {
         ...r,
@@ -1714,20 +1758,37 @@ router.get(['/history', '/reservation-history'], authMiddleware, async (req, res
         service,
         date,
         time,
-        status: displayStatus      // ← send the pretty label to the EJS
+        status: displayStatus
       };
     });
 
-    const retailSales = await Payment.find({ isRetail: true }) // POS rows
+    // Retail payments shown in the same page
+    const retailSales = await Payment.find({ isRetail: true })
       .sort({ createdAt: -1 })
       .lean();
 
-    res.render('hr/ReservationHistory', { historyReservations, retailSales });
+    // ---- Provide a JWT so the EJS can authenticate its AJAX calls ----
+    const fromHeader = (req.headers.authorization || '').replace(/^Bearer\s+/, '');
+    let authToken = fromHeader;
+    if (!authToken && process.env.JWT_SECRET) {
+      authToken = require('jsonwebtoken').sign(
+        { userId: req.user.userId, role: req.user.role || 'HR' },
+        process.env.JWT_SECRET,
+        { expiresIn: '2h' }
+      );
+    }
+
+    res.render('hr/ReservationHistory', {
+      historyReservations,
+      retailSales,
+      authToken // <— use in EJS to set Authorization header for /hr AJAX calls
+    });
   } catch (err) {
     console.error('Error loading History:', err);
     res.status(500).send('Server error');
   }
 });
+
 
 // GET /hr/message-templates?type=notif  <-- effective path after mount
 router.get('/message-templates', async (req, res) => {
@@ -1885,6 +1946,82 @@ router.get('/reservation-message-state', /* authMiddleware, */ async (req, res) 
     return res.json({ success: false, message: e.message || 'Failed to fetch message state' });
   }
 });
+/* ====== 404 silencer aliases for legacy polling URLs (HR) ====== */
+
+// POST /hr/batch-reservation-message-state
+// Request: { ids: ["<reservationId>", ...] }
+// Response: { success:true, states: { "<id>": {status,response,body,createdAt}, ... } }
+router.post('/batch-reservation-message-state', /* authMiddleware, */ async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const validIds = ids
+      .filter(id => mongoose.isValidObjectId(id))
+      .map(id => new mongoose.Types.ObjectId(id));
+
+    if (!validIds.length) return res.json({ success: true, states: {} });
+
+    const rows = await ReservationMessage.aggregate([
+      { $match: { reservation: { $in: validIds } } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: '$reservation', last: { $first: '$$ROOT' } } }
+    ]);
+
+    const states = {};
+    for (const r of rows) {
+      states[String(r._id)] = {
+        status: r.last.status || 'sent',
+        response: r.last.response || null,
+        body: r.last.body || null,
+        createdAt: r.last.createdAt
+      };
+    }
+    return res.json({ success: true, states });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: 'Batch state failed' });
+  }
+});
+
+// GET /hr/pending-reservations  and  /hr/reservations/pending
+// (harmless placeholder used by some old widgets)
+router.get(['/pending-reservations', '/reservations/pending'], authMiddleware, async (req, res) => {
+  return res.json({ success: true, items: [] });
+});
+
+// GET list variants (the UI sometimes tries several paths):
+//   /hr/reservations?status=Pending
+//   /hr/list-reservations?status=Pending
+//   /hr/api/reservations?status=Pending
+//   /hr/reservations/list?status=Pending
+router.get(
+  ['/reservations', '/list-reservations', '/api/reservations', '/reservations/list'],
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const status = String(req.query.status || '').trim();
+      if (!status) return res.json({ success: true, items: [] });
+
+      const docs = await Reservation.find({ status })
+        .select('_id ownerName service time date status')
+        .lean();
+
+      const items = docs.map(d => ({
+        id: String(d._id),
+        ownerName: d.ownerName || '—',
+        service: typeof d.service === 'string'
+          ? d.service
+          : (d.service && d.service.serviceName) || '—',
+        time: d.time || '',
+        date: d.date || d.createdAt,
+        status: d.status || ''
+      }));
+
+      return res.json({ success: true, items });
+    } catch (e) {
+      console.error('legacy list alias failed:', e);
+      return res.status(500).json({ success: false, items: [] });
+    }
+  }
+);
 
 
 // POST /hr/reservations/:id/notify
@@ -2276,5 +2413,52 @@ router.post('/decline-reservation',
     }
   }
 );
+// === EMAIL-ONLY notice for reschedules (no popup, no ReservationMessage, no socket popup) ===
+router.post('/notify-reservation-email-only', authMiddleware, async (req, res) => {
+  try {
+    const { reservationId, emailMessage, subject } = req.body || {};
+    if (!reservationId || !emailMessage) {
+      return res.status(400).json({ success: false, message: 'reservationId and emailMessage are required.' });
+    }
+
+    const reservation = await Reservation.findById(reservationId)
+      .populate('owner', '_id username email')
+      .lean();
+    if (!reservation) {
+      return res.status(404).json({ success: false, message: 'Reservation not found.' });
+    }
+
+    const toEmail =
+      (reservation.owner && reservation.owner.email) ||
+      reservation.contactEmail ||
+      null;
+
+    if (!toEmail) {
+      return res.json({ success: false, message: 'No email on file for this reservation.' });
+    }
+
+    const transport = getBrevoTransport();
+    if (!transport) {
+      return res.json({ success: false, message: 'SMTP not configured.' });
+    }
+
+    const fromEmail = process.env.SENDER_EMAIL || process.env.SMTP_EMAIL;
+    const fromName  = process.env.SENDER_NAME  || 'SmartVet Clinic';
+
+    await transport.sendMail({
+      from: `${fromName} <${fromEmail}>`,
+      to: toEmail,
+      subject: subject || 'Appointment Rescheduled',
+      text: emailMessage,
+      html: `<p>${esc(emailMessage).replace(/\n/g,'<br>')}</p>`
+    });
+
+    // IMPORTANT: no DB write (ReservationMessage) and no socket emit here.
+    return res.json({ success: true, emailed: true });
+  } catch (e) {
+    console.error('notify-reservation-email-only failed:', e);
+    return res.status(500).json({ success: false, message: 'Server error sending email.' });
+  }
+});
 
 module.exports = router;
