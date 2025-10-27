@@ -16,6 +16,7 @@ const { addClient, removeClient, broadcast } = require('../utils/hrSse');
 const MessageTemplate = require('../models/messageTemplate');
 const customerSse = require('../utils/customerSse');
 const mongoose = require('mongoose');;
+const { logActivity } = require('../utils/activityLogger');
 // near other model imports (top of file)
 const Message = require('../models/message');
 
@@ -398,6 +399,23 @@ if (ownerIdNorm) {
           date:      reservation.date || reservation.createdAt
         }
       });
+await logActivity(req, {
+  action: 'hr.walkin.created',
+  targetType: 'Reservation',
+  targetId: reservation._id,
+  targetName: reservation.ownerName,
+  meta: {
+    service,
+    time,
+    date,
+    isExistingPet,
+    species: reservation.species || null,
+    breed: reservation.breed || null,
+    sex: reservation.sex || null,
+    contactEmail: reservation.contactEmail || null,
+    contactMobile: reservation.contactMobile || null
+  }
+});
 
       return res.json({ success: true, reservation });
     } catch (err) {
@@ -499,6 +517,17 @@ SmartVet Clinic`;
 } catch (mailErr) {
   console.error('[Email] notification failed:', mailErr);
 }
+await logActivity(req, {
+  action: 'hr.reservation.approved',
+  targetType: 'Reservation',
+  targetId: reservation._id,
+  targetName: reservation.ownerName,
+  meta: {
+    time: reservation.time || null,
+    date: reservation.date || reservation.createdAt,
+    status: reservation.status
+  }
+});
 
       // 5) Done
       return res.json({ success: true, reservation });
@@ -582,6 +611,17 @@ router.post(
       } else {
         await PetList.updateOne({ _id: id }, updateDoc);
       }
+await logActivity(req, {
+  action: 'hr.petlist.contact_updated',
+  targetType: 'PetList',
+  targetId: id,
+  targetName: entry?.ownerName || (entry?.owner ? String(entry.owner._id) : ''),
+  meta: {
+    contactEmail: contactEmail ?? '(no change)',
+    contactMobile: contactMobile ?? '(no change)',
+    applyToAllSameWalkin: !!applyToAllSameWalkin
+  }
+});
 
       return res.json({ success: true });
     } catch (err) {
@@ -675,6 +715,17 @@ router.post(
         },
         rows                                                // used by d-patient.ejs to prepend table rows
       });
+await logActivity(req, {
+  action: 'hr.doctor.assigned',
+  targetType: 'Reservation',
+  targetId: updated._id,
+  targetName: updated.ownerName,
+  meta: {
+    doctorId: updated.doctor?._id || doctorId,
+    doctorUsername: updated.doctor?.username || null,
+    pets: (updated.pets || []).map(p => p?.petId?.petName || p?.petName).filter(Boolean)
+  }
+});
 
       // 5) Respond
       return res.json({ success: true, reservation: updated });
@@ -848,6 +899,17 @@ router.post('/add-to-petlist', authMiddleware, validateRequest(reservationIdSche
     // -----------------------------------------------------------------------
 
     await Reservation.findByIdAndUpdate(reservationId, { status: 'Done' });
+    await logActivity(req, {
+  action: 'hr.petlist.synced',
+  targetType: 'Reservation',
+  targetId: reservationId,
+  targetName: reservation.ownerName,
+  meta: {
+    mode: 'add',
+    consultCount: (consults || []).length
+  }
+});
+
     return res.json({ success: true });
   } catch (err) {
     console.error('Error in add-to-petlist:', err);
@@ -949,6 +1011,17 @@ router.post('/update-petlist', authMiddleware, validateRequest(reservationIdSche
     }
 
     await Reservation.findByIdAndUpdate(reservationId, { status: 'Done' });
+    await logActivity(req, {
+  action: 'hr.petlist.synced',
+  targetType: 'Reservation',
+  targetId: reservationId,
+  targetName: reservation.ownerName,
+  meta: {
+    mode: 'update',
+    consultCount: (consults || []).length
+  }
+});
+
     return res.json({ success: true });
   } catch (err) {
     console.error('Error in update-petlist:', err);
@@ -1501,6 +1574,18 @@ router.post(
         amount:       parseFloat(computedAmount.toFixed(2))
       });
       await payment.save();
+await logActivity(req, {
+  action: 'hr.payment.recorded',
+  targetType: 'Payment',
+  targetId: payment._id,
+  targetName: reservation.ownerName || '',
+  meta: {
+    reservationId: String(reservation._id),
+    amount: payment.amount,
+    products: (payment.products || []).map(i => ({ name: i.name, qty: i.quantity, unitPrice: i.unitPrice })),
+    services: (payment.services || []).map(i => ({ name: i.name, qty: i.quantity, unitPrice: i.unitPrice }))
+  }
+});
 
       return res.json({ success: true, reservation, paymentId: String(payment._id) });
     } catch (err) {
@@ -1552,6 +1637,16 @@ router.post(
         services:    []
        });
        await payment.save();
+await logActivity(req, {
+  action: 'hr.retail.payment.recorded',
+  targetType: 'Payment',
+  targetId: payment._id,
+  targetName: payment.customerName,
+  meta: {
+    amount,
+    products: cleanProducts.map(i => ({ name: i.name, qty: i.quantity, unitPrice: i.unitPrice }))
+  }
+});
 
       return res.json({ success: true, paymentId: String(payment._id) });
     } catch (err) {
@@ -1583,6 +1678,13 @@ router.post(
       if (!med) return res.status(404).json({ success:false, message:'Medication not found.' });
       med.quantity = quantity;
       await consult.save();
+await logActivity(req, {
+  action: 'hr.medication.qty_updated',
+  targetType: 'Reservation',
+  targetId: reservationId,
+  targetName: medicationName,
+  meta: { quantity }
+});
 
       res.json({ success:true });
     } catch (err) {
@@ -1609,6 +1711,12 @@ router.post(
       // filter out the med
       consult.medications = consult.medications.filter(m => m.name !== medicationName);
       await consult.save();
+await logActivity(req, {
+  action: 'hr.medication.removed',
+  targetType: 'Reservation',
+  targetId: reservationId,
+  targetName: medicationName
+});
 
       res.json({ success:true });
     } catch (err) {
@@ -1634,6 +1742,14 @@ router.post('/add-medication', authMiddleware, validateRequest(addMedicationSche
     // 👇 mark manual additions
     consult.medications.push({ name: medicationName, quantity, added: true });
     await consult.save();
+    await logActivity(req, {
+  action: 'hr.medication.added',
+  targetType: 'Reservation',
+  targetId: reservationId,
+  targetName: medicationName,
+  meta: { quantity }
+});
+
     res.json({ success:true });
   } catch (err) {
     console.error('Error adding medication:', err);
@@ -1902,6 +2018,18 @@ router.post('/notify-reservation', async (req, res) => {
         emailError = err.message || 'sendMail failed';
       }
     }
+await logActivity(req, {
+  action: 'hr.notify.sent',
+  targetType: 'Reservation',
+  targetId: reservation._id,
+  targetName: reservation.ownerName,
+  meta: {
+    interactive: !!interactive,
+    reason: reason || null,
+    emailAttempted: !!((reservation.owner && reservation.owner.email) || reservation.contactEmail),
+    emailSent: (typeof emailSent !== 'undefined') ? emailSent : null
+  }
+});
 
     return res.json({
       success: true,
@@ -2140,6 +2268,12 @@ router.post('/customer/notify-reply', async (req, res) => {
         createdAt: last.createdAt
       }
     });
+await logActivity(req, {
+  action: 'customer.notify.reply',
+  targetType: 'Reservation',
+  targetId: reservationId,
+  meta: { response }
+});
 
     return res.json({ success: true });
   } catch (e) {
@@ -2405,6 +2539,17 @@ router.post('/decline-reservation',
 
       // 8) HR dashboards update
       broadcast({ type: 'reservation:declined', id: String(reservationId) });
+await logActivity(req, {
+  action: 'hr.reservation.declined',
+  targetType: 'Reservation',
+  targetId: reservationId,
+  targetName: reservation.ownerName,
+  meta: {
+    message: finalMessageText,
+    emailSent: !!(emailSent),
+    emailError: emailError || null
+  }
+});
 
       return res.json({ success: true, email: { sent: emailSent, error: emailError } });
     } catch (error) {
@@ -2452,6 +2597,17 @@ router.post('/notify-reservation-email-only', authMiddleware, async (req, res) =
       text: emailMessage,
       html: `<p>${esc(emailMessage).replace(/\n/g,'<br>')}</p>`
     });
+await logActivity(req, {
+  action: 'hr.notify.email_only',
+  targetType: 'Reservation',
+  targetId: reservation._id,
+  targetName: reservation.ownerName,
+  meta: {
+    subject: subject || 'Appointment Rescheduled',
+    toEmail: toEmail,
+    emailed: true
+  }
+});
 
     // IMPORTANT: no DB write (ReservationMessage) and no socket emit here.
     return res.json({ success: true, emailed: true });
