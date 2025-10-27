@@ -141,7 +141,8 @@
 </div>
 
 <!-- Reschedule Modal -->
-<div class="modal fade" id="reschedModal" tabindex="-1" role="dialog" aria-labelledby="reschedModalLabel" aria-hidden="true">
+<div class="modal fade" id="reschedModal" data-global-modal="true"
+     tabindex="-1" role="dialog" aria-labelledby="reschedModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-md modal-dialog-centered" role="document">
     <div class="modal-content">
       <div class="modal-header py-2">
@@ -522,6 +523,38 @@
     }
     setInterval(run, 60*1000); run();
   })();
+// Formats "YYYY-MM-DD" -> "Monday, October 27, 2025"
+function formatLongDatePH(iso){
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-PH', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+}
+
+// Build in-app + email texts for the reschedule notice
+function buildReschedMessages({ ownerName, petName, serviceName, dateISO, time }){
+  const pet = petName || 'your pet';
+  const svc = serviceName || 'follow-up';
+  const longDate = formatLongDatePH(dateISO);
+
+  const inApp =
+    `Your ${svc} for ${pet} has been rescheduled to ${longDate} at ${time}. ` +
+    `If this time doesn’t work, please reply to this message to request a different slot.`;
+
+  const email =
+`Hi ${ownerName || 'there'},
+
+We’ve updated your appointment details:
+
+• Pet: ${pet}
+• Service: ${svc}
+• New schedule: ${longDate} at ${time}
+
+If this time isn’t convenient, reply to this email or contact us to reschedule.
+
+Thank you,
+SmartVet Clinic`;
+
+  return { inApp, email };
+}
 
   /* ===== Reschedule modal logic ===== */
   async function getLimit(){
@@ -553,113 +586,142 @@
     return `<button type="button" class="slot-btn${fullCls}" data-time="${t}"><span>${t}</span>${badge}</button>`;
   }
 
-  async function renderTimeGrid(iso){
-    $('#slotGrid').html('<div class="text-muted small">Loading time slots…</div>');
+  async function renderTimeGrid($modal, iso){
+  const $grid = $modal.find('#slotGrid');
+  $grid.html('<div class="text-muted small">Loading time slots…</div>');
+
+  if (!APPT_LIMIT) APPT_LIMIT = await getLimit();
+
+  // If no limit configured, all slots are available
+  if (!Number.isFinite(APPT_LIMIT) || APPT_LIMIT === 0){
+    const html = TIME_SLOTS.map(t => buildSlotButton(t, false)).join('');
+    $grid.html(html);
+    return;
+  }
+
+  try{
+    const results = await Promise.all(
+      TIME_SLOTS.map(t => getCount(iso, t).then(cnt => ({ t, cnt })).catch(()=>({ t, cnt:0 })))
+    );
+    const html = results.map(({t, cnt}) => buildSlotButton(t, cnt >= APPT_LIMIT)).join('');
+    $grid.html(html);
+  }catch(_){
+    const html = TIME_SLOTS.map(t => buildSlotButton(t, false)).join('');
+    $grid.html(html);
+  }
+}
+function openReschedModal(ctx){
+  RESCHED_CTX = { ...ctx, selectedTime: '' };
+  const $modal = $('#reschedModal');
+
+  $modal.find('#reschedMeta').text(`${ctx.ownerName} • ${ctx.petName} — ${ctx.serviceName}`);
+
+  // (Re)build datepicker in this modal only
+  try{ if (reschedFP && typeof reschedFP.destroy === 'function') reschedFP.destroy(); }catch(_){}
+  $modal.find('#reschedDate').val('');
+
+  reschedFP = flatpickr($modal.find('#reschedDate')[0], {
+    dateFormat: 'Y-m-d',
+    defaultDate: ctx.baseDateISO || activeDate,
+    minDate: todayISO(),
+    onChange: function(sel){
+      const iso = sel && sel[0] ? ymdLocal(sel[0]) : (ctx.baseDateISO || activeDate);
+      RESCHED_CTX.selectedTime = '';
+      $modal.find('#btnReschedSave').prop('disabled', true);
+      renderTimeGrid($modal, iso);
+    },
+    onReady: function(_, __, inst){
+      const iso = ymdLocal(inst.selectedDates[0] || new Date());
+      renderTimeGrid($modal, iso);
+    }
+  });
+
+  // Clicks only within this modal
+  $modal.off('click.resel').on('click.resel', '.slot-btn:not(.disabled)', function(){
+    $modal.find('.slot-btn').removeClass('active');
+    $(this).addClass('active');
+    RESCHED_CTX.selectedTime = String($(this).data('time') || '');
+    $modal.find('#btnReschedSave').prop('disabled', !RESCHED_CTX.selectedTime);
+  });
+
+  $modal.find('#btnReschedSave').prop('disabled', true);
+  $modal.modal('show');
+}
+
+
+async function saveReschedule(){
+  const $modal = $('#reschedModal');
+  try{
+    const pickDate = reschedFP && reschedFP.selectedDates && reschedFP.selectedDates[0]
+      ? ymdLocal(reschedFP.selectedDates[0])
+      : activeDate;
+
+    const time = RESCHED_CTX.selectedTime || '';
+    if (!pickDate || !time){
+      return Swal.fire({ icon:'warning', title:'Pick date & time', timer:1500, showConfirmButton:false });
+    }
+
     if (!APPT_LIMIT) APPT_LIMIT = await getLimit();
-
-    if (APPT_LIMIT === 0){
-      const html = TIME_SLOTS.map(t => buildSlotButton(t, false)).join('');
-      $('#slotGrid').html(html);
-      return;
+    if (APPT_LIMIT > 0) {
+      const cntNow = await getCount(pickDate, time);
+      if (cntNow >= APPT_LIMIT) {
+        return Swal.fire({ icon:'error', title:'Time slot is full', text:'Please pick another time.' });
+      }
     }
 
-    try{
-      const promises = TIME_SLOTS.map(t => getCount(iso, t).then(cnt => ({ t, cnt })).catch(()=>({ t, cnt:0 })));
-      const results = await Promise.all(promises);
-      const html = results.map(({t, cnt}) => buildSlotButton(t, cnt >= APPT_LIMIT)).join('');
-      $('#slotGrid').html(html);
-    }catch(_){
-      const html = TIME_SLOTS.map(t => buildSlotButton(t, false)).join('');
-      $('#slotGrid').html(html);
-    }
+    const payload = {
+      reservationId: RESCHED_CTX.reservationId,
+      scheduleDate : pickDate,
+      scheduleTime : time,
+      scheduleDetails: RESCHED_CTX.serviceName || 'Follow-up',
+      scheduleServiceName: RESCHED_CTX.serviceName || 'Follow-up'
+    };
+    if (RESCHED_CTX.petId) payload.petId = RESCHED_CTX.petId; else payload.petName = RESCHED_CTX.petName;
+
+    $modal.find('#btnReschedSave').prop('disabled', true).text('Saving…');
+
+    await $.ajax({ url: ADD_URL, method:'POST', contentType:'application/json', data: JSON.stringify(payload) });
+// ⬇️ ADD THIS BLOCK (no server changes required)
+// ⬇️ REPLACE the previous notify block with this email-only call
+try {
+  const { email } = buildReschedMessages({
+    ownerName:   RESCHED_CTX.ownerName,
+    petName:     RESCHED_CTX.petName,
+    serviceName: RESCHED_CTX.serviceName,
+    dateISO:     pickDate,
+    time
+  });
+
+  await $.ajax({
+    url: '/hr/notify-reservation-email-only',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({
+      reservationId: RESCHED_CTX.reservationId,
+      emailMessage: email,
+      subject: 'Appointment Rescheduled'
+    })
+  });
+} catch (e) {
+  console.warn('Reschedule email send failed:', e);
+}
+
+    $modal.find('#btnReschedSave').text('Reschedule');
+    $modal.modal('hide');
+
+    Swal.fire({ icon:'success', title:'Follow-up rescheduled', timer:1400, showConfirmButton:false });
+
+    loadDayList(activeDate);
+    const d = new Date(pickDate+'T00:00:00');
+    loadMonthStats(d.getFullYear(), d.getMonth()+1);
+  } catch(e){
+    console.error('saveReschedule error', e);
+    $modal.find('#btnReschedSave').prop('disabled', false).text('Reschedule');
+    let msg = 'Server error';
+    if (e?.responseJSON?.message) msg = e.responseJSON.message;
+    Swal.fire({ icon:'error', title:'Unable to reschedule', text: msg });
   }
-
-  function openReschedModal(ctx){
-    RESCHED_CTX = { ...ctx, selectedTime: '' };
-    $('#reschedMeta').text(`${ctx.ownerName} • ${ctx.petName} — ${ctx.serviceName}`);
-
-    try{ if (reschedFP && typeof reschedFP.destroy === 'function') reschedFP.destroy(); }catch(_){}
-    $('#reschedDate').val('');
-    reschedFP = flatpickr('#reschedDate', {
-      dateFormat: 'Y-m-d',
-      defaultDate: ctx.baseDateISO || activeDate,
-      minDate: todayISO(),
-      onChange: function(sel){
-        const iso = sel && sel[0] ? ymdLocal(sel[0]) : (ctx.baseDateISO || activeDate);
-        RESCHED_CTX.selectedTime = '';
-        $('#btnReschedSave').prop('disabled', true);
-        renderTimeGrid(iso);
-      },
-      onReady: function(_, __, inst){
-        const iso = ymdLocal(inst.selectedDates[0] || new Date());
-        renderTimeGrid(iso);
-      }
-    });
-
-    $('#slotGrid').off('click.resel').on('click.resel', '.slot-btn:not(.disabled)', function(){
-      $('#slotGrid .slot-btn').removeClass('active');
-      $(this).addClass('active');
-      RESCHED_CTX.selectedTime = String($(this).data('time') || '');
-      $('#btnReschedSave').prop('disabled', !RESCHED_CTX.selectedTime);
-    });
-
-    $('#btnReschedSave').prop('disabled', true);
-    $('#reschedModal').modal('show');
-  }
-
-  async function saveReschedule(){
-    try{
-      const pickDate = reschedFP && reschedFP.selectedDates && reschedFP.selectedDates[0]
-        ? ymdLocal(reschedFP.selectedDates[0])
-        : activeDate;
-
-      const time = RESCHED_CTX.selectedTime || '';
-      if (!pickDate || !time){
-        return Swal.fire({ icon:'warning', title:'Pick date & time', timer:1500, showConfirmButton:false });
-      }
-      // Final capacity check (same behavior as d-upcoming)
-      if (!APPT_LIMIT) APPT_LIMIT = await getLimit();
-      if (APPT_LIMIT > 0) {
-        const cntNow = await getCount(pickDate, time);
-        if (cntNow >= APPT_LIMIT) {
-          return Swal.fire({ icon:'error', title:'Time slot is full', text:'Please pick another time.' });
-        }
-      }
-      const payload = {
-        reservationId: RESCHED_CTX.reservationId,
-        scheduleDate : pickDate,
-        scheduleTime : time,
-        scheduleDetails: RESCHED_CTX.serviceName || 'Follow-up',
-        scheduleServiceName: RESCHED_CTX.serviceName || 'Follow-up'
-      };
-      if (RESCHED_CTX.petId) payload.petId = RESCHED_CTX.petId;
-      else payload.petName = RESCHED_CTX.petName;
-
-      $('#btnReschedSave').prop('disabled', true).text('Saving…');
-
-      await $.ajax({
-        url: ADD_URL, method:'POST',
-        contentType:'application/json',
-        data: JSON.stringify(payload)
-      });
-
-      $('#btnReschedSave').text('Reschedule');
-      $('#reschedModal').modal('hide');
-
-      Swal.fire({ icon:'success', title:'Follow-up rescheduled', timer:1400, showConfirmButton:false });
-
-      // Refresh current day + calendar month (in case moved date)
-      loadDayList(activeDate);
-      const d = new Date(pickDate+'T00:00:00');
-      loadMonthStats(d.getFullYear(), d.getMonth()+1);
-    } catch(e){
-      console.error('saveReschedule error', e);
-      $('#btnReschedSave').prop('disabled', false).text('Reschedule');
-      let msg = 'Server error';
-      if (e?.responseJSON?.message) msg = e.responseJSON.message;
-      Swal.fire({ icon:'error', title:'Unable to reschedule', text: msg });
-    }
-  }
+}
 
   $(document).off('click.openResHR').on('click.openResHR', '.resched-btn', function(){
     const $b = $(this);
@@ -677,6 +739,20 @@
   });
 
   $('#btnReschedSave').off('click.saveResHR').on('click.saveResHR', saveReschedule);
+// ⬇️ PUT THIS RIGHT ABOVE "/* ===== Init ===== */"
+// (after es/fp/reschedFP/stopPolling have been declared)
+if (!window.__hrUpcomingTeardownAttached) {
+  window.addEventListener('app:beforeNavigate', function(){
+    try { if (es && typeof es.close === 'function') es.close(); } catch(_){}
+    stopPolling();
+    try { if (reschedFP && typeof reschedFP.destroy === 'function') reschedFP.destroy(); } catch(_){}
+    try { if (fp && typeof fp.destroy === 'function') fp.destroy(); } catch(_){}
+    reschedFP = null; fp = null;
+    // Remove any lingering copy of the modal (prevents duplicate IDs)
+    $('#reschedModal').remove();
+  });
+  window.__hrUpcomingTeardownAttached = true;
+}
 
   /* ===== Init ===== */
   $(function(){
