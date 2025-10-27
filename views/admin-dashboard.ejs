@@ -319,6 +319,8 @@
 
         <!-- 8) Services -->
         <li><a href="#" class="menu-item" data-content="services"><i class="fas fa-concierge-bell"></i> Services</a></li>
+<!-- Activity History -->
+<li><a href="#" class="menu-item" data-content="activity"><i class="fas fa-history"></i> Activity</a></li>
 
         <!-- 9) Settings (submenu) -->
         <li>
@@ -469,7 +471,8 @@
         page === 'petlist'         ? 'Pet List' :
         page === 'patient'         ? 'Patient' :
         page === 'inventory'       ? 'Inventory' :
-      
+      page === 'activity'        ? 'Activity History' :
+
         page === 'upcoming'        ? 'Upcoming' :
         page === 'notification'    ? 'Notification' :
         page === 'opex'            ? 'Operating Expenses' :
@@ -611,8 +614,12 @@
 
         $('.menu-item').removeClass('active');
         $(this).addClass('active');
+const routeMap = {
+  accounts: 'accounts-view',
+  activity: 'activityhistory'   // <-- this is the URL we’ll serve below
+};
+const route = routeMap[key] || key;
 
-        const route = (key === 'accounts') ? 'accounts-view' : key;
         loadContent(route);
         if (isMobile()) hideSidebar();
       });
@@ -775,6 +782,9 @@
         window.AdminReservation && window.AdminReservation.init && window.AdminReservation.init();
       } else if (page === 'opex'){
         window.Opex && window.Opex.init && window.Opex.init();
+        } else if (page === 'activity') {
+  window.ActivityHistory && window.ActivityHistory.init && window.ActivityHistory.init();
+
       }
     }
 
@@ -792,6 +802,9 @@
         window.AdminReservation && window.AdminReservation.destroy && window.AdminReservation.destroy();
       } else if (page === 'opex'){
         window.Opex && window.Opex.destroy && window.Opex.destroy();
+        } else if (page === 'activity') {
+  window.ActivityHistory && window.ActivityHistory.destroy && window.ActivityHistory.destroy();
+
       }
     }
   </script>
