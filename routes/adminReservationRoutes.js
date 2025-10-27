@@ -119,7 +119,7 @@ router.get('/reservation', authMiddleware, allow('admin'), async (req, res) => {
       .lean();
 
     // annotate flags using PetList (multi-pet aware)
-   // annotate flags using PetList (multi-pet aware) — SAFE with populated owner
+ // annotate flags using PetList (multi-pet aware) — SAFE with populated owner
 for (let r of reservations) {
   const petNames = (r.pets || [])
     .map(p => p?.petId?.petName || p?.petName)
@@ -165,6 +165,7 @@ for (let r of reservations) {
   r.isStacked = allStacked;
   r.isInitialEntry = anyInitial;
 }
+
 
     const ongoingReservations = reservations.filter(r =>
       (r.status === 'Paid' || r.status === 'Done' || !!r.doctor) &&
